@@ -13,7 +13,9 @@ package net.sourceforge.docfetcher.gui;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.net.URL;
@@ -23,6 +25,8 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -191,14 +195,33 @@ public final class Application {
 		Msg.setCheckEnabled(true);
 		AppUtil.Messages.checkInitialized();
 
-		// Path overrides; only supported in portable version
+		// Path overrides
 		File confPathOverride = null;
-		File swtLibDir = null;
+		File swtPathOverride = null;
 		try {
-			Properties pathProps = CharsetDetectorHelper.load(new File("misc", "paths.txt"));
+			File pathsFile;
+
+			// For non-portable macOS version, use ~/.docfetcher/paths.txt
+			// (inside app bundle is not writable due to code signing)
+			if (Util.IS_MAC_OS_X && !AppUtil.isPortable()) {
+				File appDataDir = AppUtil.getAppDataDir();
+				pathsFile = new File(appDataDir, "paths.txt");
+
+				// Copy from app bundle if it doesn't exist yet
+				if (!pathsFile.exists()) {
+					File bundlePathsFile = new File("../Resources/misc", "paths.txt");
+					if (bundlePathsFile.exists()) {
+						Files.copy(bundlePathsFile, pathsFile);
+					}
+				}
+			} else {
+				pathsFile = new File("misc", "paths.txt");
+			}
+
+			Properties pathProps = CharsetDetectorHelper.load(pathsFile);
 			confPathOverride = toFile(pathProps, "settings");
 			IndexRegistry.indexPathOverride = toFile(pathProps, "indexes");
-			swtLibDir = toFile(pathProps, "swt");
+			swtPathOverride = toFile(pathProps, "swt");
 		}
 		catch (IOException e1) {
 			// Ignore
@@ -206,47 +229,13 @@ public final class Application {
 				e1.printStackTrace();
 			}
 		}
-		
-		/*
-		 * Set the path from which to load the native SWT libraries. This must
-		 * be done before doing the single instance check, because that's where
-		 * we're going to use SWT for the first time, by opening a message
-		 * dialog.
-		 *
-		 * If we don't set the path, SWT will extract its native libraries into
-		 * ${user.home}/.swt. This is unsuitable especially for the portable
-		 * version of DocFetcher, which should not leave any files in the
-		 * system.
-		 * 
-		 * Bug #399: The DLLs for 32-bit and 64-bit Windows have the same names,
-		 * so we must extract them into separate directories in order to avoid
-		 * name clashes, which would cause the program to fail during startup.
-		 * https://sourceforge.net/p/docfetcher/bugs/399/
-		 */
-		String swtLibSuffix;
-		if (Util.IS_WINDOWS)
-			swtLibSuffix = "windows-";
-		else if (Util.IS_LINUX)
-			swtLibSuffix = "linux-";
-		else if (Util.IS_MAC_OS_X)
-			swtLibSuffix = "macosx-";
-		else
-			swtLibSuffix = "unknown-";
-		if (Util.IS_64_BIT_JVM)
-			swtLibSuffix += "64";
-		else
-			swtLibSuffix += "32";
-		if (swtLibDir == null)
-			swtLibDir = new File(AppUtil.getAppDataDir(), (AppUtil.isPortable() ? "lib/swt/" : "swt/") + swtLibSuffix);
-		else
-			swtLibDir = new File(swtLibDir, swtLibSuffix);
-		swtLibDir.mkdirs(); // SWT won't recognize the path if it doesn't exist
-		if (swtLibDir.isDirectory() && swtLibDir.canWrite()) {
-			System.setProperty("swt.library.path", Util.getAbsPath(swtLibDir));
-		} else {
-			System.setProperty("swt.library.path", Util.TEMP_DIR.getPath());
-		}
-		
+
+		/* This method call must be placed *before* any SWT access. This means
+		 * it must be placed *before* the loadSettingsConf call further below,
+		 * as the latter will access SWT via the SWT.CTRL and SWT.F8 constants
+		 * to set the default value for the global hotkey. */
+		configureSwtLibraryPath(swtPathOverride);
+
 		// Load program configuration and preferences
 		programConfFile = loadProgramConf(confPathOverride);
 		settingsConfFile = loadSettingsConf(confPathOverride);
@@ -1516,7 +1505,154 @@ public final class Application {
 			AppUtil.showError(msg, true, true);
 		}
 	}
-	
+
+	/**
+	 * Configures the SWT library path to unpack native libraries into a
+	 * specific location. This must be called before any Display/SWT classes are
+	 * loaded to ensure portable versions don't leave native libraries in the
+	 * system.
+	 *
+	 * @param pathOverride Optional override directory from paths.txt. If null,
+	 *                     uses default location based on portable/non-portable
+	 *                     mode.
+	 */
+	private static void configureSwtLibraryPath(@Nullable File pathOverride) {
+		final File swtLibDir;
+		if (pathOverride != null) {
+			swtLibDir = pathOverride;
+		} else if (AppUtil.isPortable()) {
+            swtLibDir = new File(AppUtil.getAppDataDir(), "lib/swt");
+		} else {
+            swtLibDir = new File(AppUtil.getAppDataDir(), "swt");
+		}
+
+		// Create directory if it doesn't exist - SWT won't recognize the path
+		// otherwise
+		swtLibDir.mkdirs();
+
+		// Determine target directory: use swtLibDir if writable, otherwise fall
+		// back to temp
+		File targetDir;
+		if (swtLibDir.isDirectory() && swtLibDir.canWrite()) {
+			targetDir = swtLibDir;
+		} else {
+			targetDir = new File(System.getProperty("java.io.tmpdir"));
+		}
+
+		unpackSwtNativeLibs(targetDir);
+		try {
+			System.setProperty("swt.library.path", targetDir.getCanonicalPath());
+		} catch (IOException e) {
+			System.setProperty("swt.library.path", targetDir.getAbsolutePath());
+		}
+	}
+
+	/**
+	 * Unpacks SWT native libraries from the SWT jar to the target directory.
+	 *
+	 * @param targetDir The directory where native libraries should be unpacked
+	 */
+	private static void unpackSwtNativeLibs(@NotNull File targetDir) {
+		File libDir = Util.IS_MAC_OS_X && !AppUtil.isPortable() ?
+				new File("../Resources/lib") :
+				new File("lib");
+		if (!libDir.isDirectory()) {
+			return;
+		}
+		
+		// Find the SWT jar
+		File swtJar = null;
+		File[] jarFiles = libDir.listFiles();
+		if (jarFiles != null) {
+			for (File jar : jarFiles) {
+				String name = jar.getName();
+				if (name.startsWith("swt-") && name.endsWith(".jar")) {
+					swtJar = jar;
+					break;
+				}
+			}
+		}
+
+		if (swtJar == null) {
+			return;
+		}
+
+		// Determine the native library extension based on platform
+		String nativeExt;
+		if (Util.IS_WINDOWS) {
+			nativeExt = ".dll";
+		} else if (Util.IS_LINUX) {
+			nativeExt = ".so";
+		} else if (Util.IS_MAC_OS_X) {
+			nativeExt = ".jnilib";
+		} else {
+			return; // Unsupported platform
+		}
+
+		// Unpack native libraries from the jar
+		JarFile jar = null;
+		try {
+			jar = new JarFile(swtJar);
+			java.util.Enumeration<JarEntry> entries = jar.entries();
+			while (entries.hasMoreElements()) {
+				JarEntry entry = entries.nextElement();
+				if (entry.isDirectory()) {
+					continue;
+				}
+				String name = entry.getName();
+				// Only extract files at the top level that have the correct extension
+				if (!name.contains("/") && name.endsWith(nativeExt)) {
+					File targetFile = new File(targetDir, name);
+					if (!targetFile.exists() || targetFile.length() != entry.getSize()) {
+						unpackJarEntry(jar, entry, targetFile);
+					}
+				}
+			}
+		} catch (IOException e) {
+			// Silently ignore errors during unpacking
+			if (SystemConf.Bool.IsDevelopmentVersion.get()) {
+				e.printStackTrace();
+			}
+		} finally {
+			if (jar != null) {
+				try {
+					jar.close();
+				} catch (IOException e) {
+					// Ignore
+				}
+			}
+		}
+	}
+
+	/**
+	 * Unpacks a single entry from a JAR file to a target file.
+	 *
+	 * @param jar The JAR file
+	 * @param entry The entry to unpack
+	 * @param targetFile The target file
+	 */
+	private static void unpackJarEntry(
+		@NotNull JarFile jar,
+		@NotNull JarEntry entry,
+		@NotNull File targetFile
+	) throws IOException {
+        try (
+			InputStream in = jar.getInputStream(entry);
+			FileOutputStream out = new FileOutputStream(targetFile)
+		) {
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = in.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
+            }
+
+            // Make the library executable on Unix systems (like SWT does)
+            if (!Util.IS_WINDOWS) {
+                targetFile.setExecutable(true);
+            }
+        }
+    }
+
 	// Public method for Python API
 	@NotNull
 	public static IndexRegistry getIndexRegistry() {

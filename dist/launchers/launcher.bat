@@ -39,7 +39,7 @@ rem     start /b "" "C:\Program Files\Java\jre1.8.0_181\bin\javaw.exe"
 
 cd %~dp0
 
-set classpath=
+set classpath=lang
 
 for %%f in (.\lib\*.jar) do (call :append_classpath %%f)
 goto :proceed
@@ -49,9 +49,9 @@ set classpath=%classpath%;%1
 goto :eof
 
 :proceed
-java ^
+.\jre\bin\java.exe ^
  -enableassertions ^
- -Xmx1g ^
+ -Xmx4g ^
  -Xss2m ^
  -cp %classpath% ^
  -Djava.library.path=lib ^

@@ -34,12 +34,10 @@ public final class ManualLocator {
 		String helpDirParent;
 		if (SystemConf.Bool.IsDevelopmentVersion.get())
 			helpDirParent = "dist";
-		else if (AppUtil.isPortable() || Util.IS_WINDOWS)
+		else if (AppUtil.isPortable() || Util.IS_WINDOWS || Util.IS_LINUX)
 			helpDirParent = Util.USER_DIR_PATH;
 		else if (Util.IS_MAC_OS_X)
 			helpDirParent = "../Resources";
-		else if (Util.IS_LINUX)
-			helpDirParent = "/usr/share/doc/docfetcher";
 		else
 			throw new IllegalStateException();
 		

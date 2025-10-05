@@ -4,7 +4,7 @@ Für DocFetcher besteht standardmäßig ein Speicherlimit von 256&nbsp;MB. Dies 
 
 Windows
 -------
-In der Windows-Version von DocFetcher sind vorgefertige alternative Startprogramme mitgeliefert, welche andere Speicherlimits setzen. Diese alternativen Startprogramme sind auf folgende Weise zu benutzen:
+In der Windows-Version von DocFetcher sind vorgefertigte alternative Startprogramme mitgeliefert, welche andere Speicherlimits setzen. Diese alternativen Startprogramme sind auf folgende Weise zu benutzen:
 
 * Öffnen Sie den DocFetcher-Ordner. Falls Sie die portable Version von DocFetcher verwenden, ist dies einfach der Ordner, den Sie heruntergeladen und entpackt haben. Falls Sie die nicht-portable Version benutzen, sollte sich DocFetcher in `C:\Program Files`, `C:\Program Files (x86)` oder an einem ähnlichen Ort befinden.
 * Die alternativen Startprogramme befinden sich im Ordner `DocFetcher\misc`. Sie weisen alle einen Dateinamen `DocFetcher-XXX.exe` auf, wobei das `XXX` für das Speicherlimit des jeweiligen Startprogramms steht. Das Startprogramm `DocFetcher-512.exe` bspw. setzt ein Speicherlimit von 512&nbsp;MB.
@@ -18,8 +18,12 @@ Linux
 
 Mac OS&nbsp;X
 -------------
-Sowohl in der nicht-portablen als auch portablen Mac OS&nbsp;X Version wird DocFetcher mittels Application Bundles gestartet. In der nicht-portablen Version ist das Application Bundle einfach das, was Sie im heruntergeladenen Disk Image vorgefunden haben. In der portablen Version befindet sich das Application Bundle im DocFetcher-Ordner.
+Unter Mac OS&nbsp;X wird das Speicherlimit über eine Datei namens `memory-limit.txt` konfiguriert. Der Speicherort dieser Datei hängt von der verwendeten Version ab:
 
-In beiden Fällen handelt es sich beim Application Bundle in Wirklichkeit um einen Ordner mit der Erweiterung `.app`. Im Finder sollte es einen Kontextmenü-Eintrag geben, um diesen Ordner zu öffnen. Dieser Eintrag sollte in der englischen Version von Mac OS&nbsp;X `Show Package Contents` heißen, und in der deutschen Version `Paketinhalt anzeigen`.
+* **Portable Version**: Öffnen Sie im DocFetcher-Ordner die Datei `conf/memory-limit.txt` mit einem Text-Editor.
+* **Nicht-portable Version**: Öffnen Sie in Ihrem Home-Verzeichnis die Datei `.docfetcher/conf/memory-limit.txt` mit einem Text-Editor. Ordner, die mit einem Punkt beginnen, sind im Finder standardmäßig ausgeblendet. Um versteckte Dateien anzuzeigen, drücken Sie `Cmd+Shift+.` (Befehl+Umschalt+Punkt) im Finder, oder verwenden Sie das Terminal, um zur Datei zu navigieren.
 
-Im besagten Ordner finden Sie folgendes Startskript: `Contents/MacOS/DocFetcher`. Öffnen Sie es mit einem Text-Editor und ändern Sie in der letzten Zeile den Ausdruck `-Xmx256m` entsprechend ab, z.&nbsp;B. zu `-Xmx512m`.
+Falls die Datei noch nicht existiert, starten Sie DocFetcher einmal, um sie automatisch zu erstellen. Nach dem Öffnen der Datei:
+
+* Sie sehen einen Wert wie `4g` unter einigen Kommentarzeilen. Ändern Sie diesen auf das gewünschte Speicherlimit, z.&nbsp;B. zu `8g` für 8&nbsp;GB RAM.
+* Speichern und schließen Sie die Datei, schließen Sie dann das Programm, falls es noch geöffnet ist, und starten Sie das Programm neu.

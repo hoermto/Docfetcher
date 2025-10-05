@@ -1,8 +1,12 @@
 /bin/
 /build/
-!src/net/sourceforge/docfetcher/build/
-.settings/
-/dist/help/
 /dist/website/
-.idea/
+/subprojects/macos-launcher/target/
+/.idea/
+
+/build-jre.txt
+/code-signing-macos.txt
+/code-signing-windows.txt
+
+.settings/
 *.DS_Store

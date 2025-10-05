@@ -18,8 +18,12 @@ Open the launcher script `DocFetcher/DocFetcher.sh` with a text editor, and in t
 
 Mac OS&nbsp;X
 -------------
-Both in the non-portable and the portable version, DocFetcher is launched via an application bundle. In the non-portable version, the application bundle is just what you got out of the downloaded disk image. In the portable version, the application bundle can be found in the DocFetcher folder.
+On Mac OS&nbsp;X, the memory limit is configured via a file named `memory-limit.txt`. The location of this file depends on which version you're using:
 
-In both cases, the application bundle is actually a folder with the extension `.app`. There should be a context menu entry in Finder to open this folder. If your Mac OS&nbsp;X language is English, this menu entry will be named `Show Package Contents`.
+* **Portable version**: In the DocFetcher folder, open the file `conf/memory-limit.txt` with a text editor.
+* **Non-portable version**: In your home directory, open the file `.docfetcher/conf/memory-limit.txt` with a text editor. Note that folders starting with a dot are hidden by default in Finder. To show hidden files, press `Cmd+Shift+.` (Command+Shift+period) in Finder, or use Terminal to navigate to the file.
 
-Inside the folder, you will find this launcher script: `Contents/MacOS/DocFetcher`. Open it with a text editor, and in the last line, alter the expression `-Xmx256m` as needed, for example to `-Xmx512m`.
+If the file doesn't exist yet, launch DocFetcher once to have it created automatically. After opening the file:
+
+* You'll see a value like `4g` below some comment lines. Change this to the desired memory limit, for example to `8g` for 8&nbsp;GB of RAM.
+* Save and close the file, then close the program if it's still open, then restart the program.

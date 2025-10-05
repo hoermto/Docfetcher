@@ -472,15 +472,6 @@
       </library>
     </orderEntry>
     <orderEntry type="module-library">
-      <library name="py4j0.10.7-py3.jar">
-        <CLASSES>
-          <root url="jar://$MODULE_DIR$/lib/py4j/py4j0.10.7-py3.jar!/" />
-        </CLASSES>
-        <JAVADOC />
-        <SOURCES />
-      </library>
-    </orderEntry>
-    <orderEntry type="module-library">
       <library name="slf4j-api-1.6.1.jar">
         <CLASSES>
           <root url="jar://$MODULE_DIR$/lib/slf4j/slf4j-api-1.6.1.jar!/" />
@@ -666,10 +657,20 @@
         <SOURCES />
       </library>
     </orderEntry>
+    <orderEntry type="library" name="SWT" level="project" />
     <orderEntry type="module-library">
       <library>
         <CLASSES>
-          <root url="jar://$MODULE_DIR$/lib/swt/swt-4.19-gtk-linux-x86_64.jar!/" />
+          <root url="jar://$MODULE_DIR$/lib/jnotify/jnotify-0.94.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library">
+      <library>
+        <CLASSES>
+          <root url="jar://$MODULE_DIR$/lib/py4j/py4j0.10.9.9.jar!/" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />

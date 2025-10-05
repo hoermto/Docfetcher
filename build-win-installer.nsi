@@ -7,28 +7,34 @@
 ; All dependencies of this script can be found in dev/nsis-dependencies, BUT
 ; those files might be out of date, so try the latest versions of the
 ; dependencies first, if any are available. They can be found here:
-; - http://nsis.sourceforge.net/Inetc_plug-in
-; - http://nsis.sourceforge.net/Java_Runtime_Environment_Dynamic_Installer
 ; - https://nsis.sourceforge.io/ApplicationID_plug-in
 ; - https://nsis.sourceforge.io/Processes_plug-in
-; In case of errors, try updating NSIS. Also, in the local JREDyna_Inetc.nsh
-; file everything related to CUSTOM_PAGE_JREINFO was deleted in order to work
-; around compilation errors which may or may not show up in your case.
+; In case of errors, try updating NSIS.
 
 RequestExecutionLevel admin ; without this, the startmenu links won't be removed on Windows Vista and later
+Unicode false
 SetCompress force
 SetCompressor /FINAL zlib
 
 !define /file VERSION "current-version.txt"
-!define PORTABLE_PATH build\DocFetcher-${VERSION}
-!define JRE_VERSION "1.7"
-!define JRE_URL "http://javadl.oracle.com/webapps/download/AutoDL?BundleId=216432"
-!include "JREDyna_Inetc.nsh"
+!define NON_PORTABLE_PATH build\DocFetcher-${VERSION}-Windows-64bit-NonPortable
 
 Name "DocFetcher ${VERSION}"
 XPStyle on
-OutFile build\docfetcher_${VERSION}_win32_setup.exe
-InstallDir $PROGRAMFILES\DocFetcher
+OutFile build\DocFetcher-${VERSION}-Windows-64bit-Setup.exe
+
+; Read certificate thumbprint from configuration file and automatically sign
+; installer and uninstaller. If the certificate file is missing or empty, the
+; installer and uninstaller will be left unsigned.
+!if /fileexists "code-signing-windows.txt"
+	!define /file CERT_THUMBPRINT "code-signing-windows.txt"
+	!if "${CERT_THUMBPRINT}" != ""
+		!finalize 'signtool.exe sign /sha1 "${CERT_THUMBPRINT}" /tr "http://time.certum.pl" /td sha256 /fd sha256 /v "%1"'
+		!uninstfinalize 'signtool.exe sign /sha1 "${CERT_THUMBPRINT}" /tr "http://time.certum.pl" /td sha256 /fd sha256 /v "%1"'
+	!endif
+!endif
+
+InstallDir $PROGRAMFILES64\DocFetcher
 Page directory
 Page instfiles
 Page custom finalPage
@@ -69,6 +75,11 @@ Function .onInit
 	IDRETRY startinst
 	Abort
 	done:
+
+	; Check for and uninstall old 32-bit version
+	ifFileExists "$PROGRAMFILES\DocFetcher\uninstaller.exe" 0 +3
+		DetailPrint "Removing previous 32-bit installation..."
+		ExecWait '"$PROGRAMFILES\DocFetcher\uninstaller.exe" /S _?=$PROGRAMFILES\DocFetcher'
 FunctionEnd
 
 Var CHECKBOX
@@ -124,7 +135,6 @@ FunctionEnd
 
 Section "DocFetcher"
 	SetShellVarContext all
-	Call DownloadAndInstallJREIfNecessary
 	killdaemon:
 		Processes::FindProcess "docfetcher-daemon-windows"
 		StrCmp $R0 0 nodaemon
@@ -141,32 +151,33 @@ Section "DocFetcher"
 	
 	; Copy files
 	SetOutPath $INSTDIR
-	File ${PORTABLE_PATH}\*.exe
-	File ${PORTABLE_PATH}\*.txt
-	File ${PORTABLE_PATH}\*.py
-	
-	SetOutPath $INSTDIR\misc
-	File ${PORTABLE_PATH}\misc\*.bat
-	File ${PORTABLE_PATH}\misc\*.exe
-	File ${PORTABLE_PATH}\misc\licenses.zip
-	File ${PORTABLE_PATH}\misc\paths.txt
+	File ${NON_PORTABLE_PATH}\*.exe
+	File ${NON_PORTABLE_PATH}\*.bat
+	File ${NON_PORTABLE_PATH}\*.txt
+	File ${NON_PORTABLE_PATH}\*.py
 	
 	SetOutPath $INSTDIR\help
-	File /r ${PORTABLE_PATH}\help\*.*
+	File /r ${NON_PORTABLE_PATH}\help\*.*
 	
 	SetOutPath $INSTDIR\img
-	File /r ${PORTABLE_PATH}\img\*.*
+	File /r ${NON_PORTABLE_PATH}\img\*.*
+	
+	SetOutPath $INSTDIR\jre
+	File /r ${NON_PORTABLE_PATH}\jre\*.*
 	
 	SetOutPath $INSTDIR\lang
-	File /r ${PORTABLE_PATH}\lang\*.*
+	File /r ${NON_PORTABLE_PATH}\lang\*.*
 	
-	;SetOutPath $INSTDIR\templates
-	;File /r ${PORTABLE_PATH}\templates\*.xml
+	SetOutPath $INSTDIR\misc
+	File /r ${NON_PORTABLE_PATH}\misc\*.*
 	
-	Delete /REBOOTOK "$INSTDIR\lib\net.sourceforge.docfetcher_*.*"
+	SetOutPath $INSTDIR\py4j
+	File /r ${NON_PORTABLE_PATH}\py4j\*.*
+	
+	Delete /REBOOTOK "$INSTDIR\lib\net.sourceforge.docfetcher*.*"
 	SetOutPath $INSTDIR\lib
-	File /r /x *.so /x *.dylib /x *linux* /x *macosx* /x *docfetcher*.jar ${PORTABLE_PATH}\lib\*.*
-	File build\tmp\net.sourceforge.docfetcher*.jar
+	File /r /x *.so /x *.dylib /x *linux* /x *macosx* /x *docfetcher*.jar ${NON_PORTABLE_PATH}\lib\*.*
+	File build\net.sourceforge.docfetcher-*-nonportable*.jar
 	
 	; Uninstaller
 	WriteUninstaller $INSTDIR\uninstaller.exe
@@ -175,7 +186,7 @@ Section "DocFetcher"
 	Var /GLOBAL regkey
 	Var /GLOBAL homepage
 	StrCpy $regkey "Software\Microsoft\Windows\CurrentVersion\Uninstall\DocFetcher"
-	StrCpy $homepage "http://docfetcher.sourceforge.net"
+	StrCpy $homepage "https://docfetcher.sourceforge.io"
 	WriteRegStr HKLM $regkey "DisplayName" "DocFetcher"
 	WriteRegStr HKLM $regkey "UninstallString" "$INSTDIR\uninstaller.exe"
 	WriteRegStr HKLM $regkey "InstallLocation" $INSTDIR

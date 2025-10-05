@@ -7,7 +7,7 @@
 	<key>CFBundleExecutable</key>
 		<string>${app_name}</string>
 	<key>CFBundleIconFile</key>
-		<string>${app_name}.icns</string>
+		<string>img/app.icns</string>
 	<key>CFBundleIdentifier</key>
 		<string>${package_id}</string>
 	<key>CFBundleInfoDictionaryVersion</key>
