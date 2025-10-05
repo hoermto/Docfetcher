@@ -12,15 +12,19 @@
 package net.sourceforge.docfetcher.gui.pref;
 
 import java.io.File;
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
+import net.sourceforge.docfetcher.enums.*;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.layout.FormLayout;
 import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
@@ -28,10 +32,6 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Link;
 import org.eclipse.swt.widgets.Shell;
 
-import net.sourceforge.docfetcher.enums.Img;
-import net.sourceforge.docfetcher.enums.Msg;
-import net.sourceforge.docfetcher.enums.ProgramConf;
-import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.gui.ManualLocator;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.util.AppUtil;
@@ -193,11 +193,6 @@ public final class PrefDialog {
 				UtilGui.launch(programConfFile);
 			}
 		});
-		
-		Label javaVersionLabel = new Label(comp, SWT.NONE);
-		javaVersionLabel.setLayoutData(new GridData(SWT.RIGHT, SWT.FILL, true, false));
-		javaVersionLabel.setText(System.getProperty("java.version"));
-		javaVersionLabel.setVisible(SettingsConf.Bool.ShowJavaVersion.get());
 
 		return comp;
 	}
@@ -226,6 +221,26 @@ public final class PrefDialog {
 					fieldOption.restoreDefault();
 			}
 		});
+		
+		// Show app name, app version and maximum heap size
+		Composite infoComp = new Composite(comp, SWT.NONE);
+		GridLayout infoCompLayout = new GridLayout(2, false);
+		infoCompLayout.marginWidth = 0;
+		infoCompLayout.marginHeight = 0;
+		infoCompLayout.horizontalSpacing = 15;
+		infoComp.setLayout(infoCompLayout);
+		Label appLabel = new Label(infoComp, SWT.NONE);
+		appLabel.setText(getAppNameAndVersion());
+		Label memLimitLabel = new Label(infoComp, SWT.NONE);
+		memLimitLabel.setText(getMemLimitString());
+		for (Label label : Arrays.asList(appLabel, memLimitLabel)) {
+			label.setForeground(
+				label.getDisplay().getSystemColor(
+					SWT.COLOR_WIDGET_DISABLED_FOREGROUND
+				)
+			);
+			label.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, true));
+		}
 
 		okBt = UtilGui.createPushButton(comp, Msg.ok.get(), new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
@@ -261,8 +276,58 @@ public final class PrefDialog {
 		fdf.left(helpBt, 5).applyTo(resetBt);
 		fdf.unleft().right().applyTo(okCancelBts[1]);
 		fdf.right(okCancelBts[1], -5).applyTo(okCancelBts[0]);
+		fdf.left(resetBt, 15).right(okCancelBts[0], -15).applyTo(infoComp);
 
 		return comp;
+	}
+
+	private static String getAppNameAndVersion() {
+		return SystemConf.Str.ProgramName.get() + " " +
+				SystemConf.Str.ProgramVersion.get();
+	}
+
+	private static String getMemLimitString() {
+		long bytesPerMB = 1024L * 1024L;
+		long bytesPerGB = bytesPerMB * 1024L;
+
+		/* Try to get the memory limit from the -Xmx argument first, and use
+		 * maxMemory as fallback. We're preferring the former because the latter
+		 * will be slightly lower due to subtraction of overhead, which is not
+		 * what the user expects. */
+		long memoryBytes = Runtime.getRuntime().maxMemory();
+		RuntimeMXBean bean = ManagementFactory.getRuntimeMXBean();
+		for (String arg : bean.getInputArguments()) {
+			if (arg.startsWith("-Xmx")) {
+				String value = arg.substring(4); // Remove "-Xmx" prefix
+				long multiplier = 1L;
+				char lastChar = value.charAt(value.length() - 1);
+				if (lastChar == 'k' || lastChar == 'K') {
+					multiplier = 1024L;
+					value = value.substring(0, value.length() - 1);
+				} else if (lastChar == 'm' || lastChar == 'M') {
+					multiplier = 1024L * 1024L;
+					value = value.substring(0, value.length() - 1);
+				} else if (lastChar == 'g' || lastChar == 'G') {
+					multiplier = 1024L * 1024L * 1024L;
+					value = value.substring(0, value.length() - 1);
+				}
+				try {
+					memoryBytes = Long.parseLong(value) * multiplier;
+					System.out.println(value);
+					break;
+				} catch (NumberFormatException e) {
+					// Fall back to maxMemory
+				}
+			}
+		}
+
+		if (memoryBytes < bytesPerGB) {
+			double memoryMB = ((double) memoryBytes) / bytesPerMB;
+			return Math.round(memoryMB) + " MB";
+		} else {
+			double memoryGB = ((double) memoryBytes) / bytesPerGB;
+			return Math.round(memoryGB) + " GB";
+		}
 	}
 
 	public void open( ) {
