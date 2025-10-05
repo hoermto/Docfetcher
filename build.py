@@ -134,10 +134,6 @@ shutil.copyfile(
 	settings_conf_dest
 )
 shutil.copyfile(
-	"src/log4j.properties",
-	join(build_dir, "classes", "log4j.properties")
-)
-shutil.copyfile(
 	"src/log4j2.xml",
 	join(build_dir, "classes", "log4j2.xml")
 )
