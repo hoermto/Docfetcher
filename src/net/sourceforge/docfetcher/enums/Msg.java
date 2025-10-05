@@ -129,7 +129,7 @@ public enum Msg {
 	rename_index_failed (
 		"Saving the index name failed. Index files might be write-protected."),
 	try_docfetcher_pro ("Try DocFetcher Pro"),
-	docfetcher_pro_tip ("You may be interested in DocFetcher Pro, the commercial big brother of DocFetcher with more features and fewer bugs."),
+	docfetcher_pro_tip ("You may be interested in DocFetcher Pro, the commercial big brother of DocFetcher with more features."),
 	dont_show_msg_again ("Don't show this message again."),
 	
 	// Filter panel

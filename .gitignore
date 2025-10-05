@@ -1,7 +1,8 @@
 /bin/
 /build/
-/dist/website/
 /subprojects/macos-launcher/target/
+/website/output/
+/website/.venv/
 /.idea/
 
 /build-jre.txt

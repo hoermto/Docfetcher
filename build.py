@@ -27,7 +27,6 @@ macos_signing_config_path = "./code-signing-macos.txt"
 
 skip_classes = [
 	"net.sourceforge.docfetcher.man",
-	"net.sourceforge.docfetcher.website",
 ]
 skip_jar_regexes = [
 	r".*-sources\.jar"  # Source JARs
