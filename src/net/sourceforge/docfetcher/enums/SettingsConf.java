@@ -69,7 +69,7 @@ public final class SettingsConf {
 	// TODO pre-release: remove unused entries
 
 	@Description("# Boolean entries. Allowed values: true, false")
-	public static enum Bool implements Storable {
+	public enum Bool implements Storable {
 		ShowManualOnStartup (true),
 		UseOrOperator (true),
 		HideOnOpen (false), // Default must be 'false' since system tray not supported on Ubuntu Unity
@@ -128,7 +128,7 @@ public final class SettingsConf {
 	}
 
 	@Description("# Integer entries.")
-	public static enum Int implements Storable {
+	public enum Int implements Storable {
 		FilterPanelWidth (250),
 		LuceneAnalyzer (getDefaultAnalyzer()),
 		;
@@ -167,7 +167,7 @@ public final class SettingsConf {
 	@Description("# String entries. All values allowed, except for \\, \\t, \\n," +
 			"\r\n# \\r, \\f, =, :, #, ! and leading whitespace, which must be" +
 			"\r\n# escaped by a preceding \\.")
-	public static enum Str implements Storable {
+	public enum Str implements Storable {
 		LastIndexedFolder (Util.USER_HOME_PATH),
 		;
 
@@ -195,7 +195,7 @@ public final class SettingsConf {
 	}
 
 	@Description("# Comma-separated lists of integers.")
-	public static enum IntArray implements Storable {
+	public enum IntArray implements Storable {
 		PreviewHighlighting (255, 255, 0),
 		Hotkey (SWT.CTRL, SWT.F8),
 
@@ -236,7 +236,7 @@ public final class SettingsConf {
 	}
 
 	@Description("# Semicolon-separated lists of strings.")
-	public static enum StrList implements Storable {
+	public enum StrList implements Storable {
 		SearchHistory,
 		;
 
@@ -274,11 +274,11 @@ public final class SettingsConf {
 	@Description("# Window dimensions: x, y, width and height. If x < 0 or" +
 			"\r\n# y < 0, the window is centered relative to the screen or to" +
 			"\r\n# its parent window.")
-	public static enum ShellBounds implements Storable {
+	public enum ShellBounds implements Storable {
 		MainWindow (-1, -1, 1024, 768),
-		IndexingDialog (-1, -1, 450, 500),
+		IndexingDialog (-1, -1, 600, 750),
 		FileExtensionChooser (-1, -1, 300, 450),
-		PreferencesDialog (-1, -1, 500, 400),
+		PreferencesDialog (-1, -1, 750, 600),
 		;
 
 		public final int[] defaultValue;
@@ -317,7 +317,7 @@ public final class SettingsConf {
 	}
 
 	@Description("# Comma-separated lists of table column widths.")
-	public static enum ColumnWidths implements Storable {
+	public enum ColumnWidths implements Storable {
 		ResultPanel (250, 75, 75, 200, 75, 350, 100, 100),
 		IndexingErrorTable (100, 100, 500),
 		PatternTable (200, 75, 75),
@@ -387,7 +387,7 @@ public final class SettingsConf {
 	}
 
 	@Description("# Column orderings.")
-	public static enum ColumnOrder implements Storable {
+	public enum ColumnOrder implements Storable {
 		ResultPanelColumnOrder (),
 		;
 
@@ -427,7 +427,7 @@ public final class SettingsConf {
 	}
 
 	@Description("# Comma-separated lists of sash weights.")
-	public static enum SashWeights implements Storable {
+	public enum SashWeights implements Storable {
 		ProgressPanel (2, 1),
 		;
 
@@ -501,7 +501,7 @@ public final class SettingsConf {
 	}
 
 	@Description("# Font entries, consisting of font name, height and style.")
-	public static enum FontDescription implements Storable {
+	public enum FontDescription implements Storable {
 		/*
 		 * Note: Lucida Sans Unicode seems to be the only Unicode font available
 		 * by default on all Windows versions. See:

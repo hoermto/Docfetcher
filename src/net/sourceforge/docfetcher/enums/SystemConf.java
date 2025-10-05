@@ -39,7 +39,7 @@ public final class SystemConf {
 	
 	// TODO pre-release: remove unused entries
 	
-	public static enum Bool implements Loadable {
+	public enum Bool implements Loadable {
 		IsPortable (true),
 		IsDevelopmentVersion (false),
 		;
@@ -56,7 +56,7 @@ public final class SystemConf {
 		}
 	}
 
-	public static enum Int implements Loadable {
+	public enum Int implements Loadable {
 		;
 
 		private int value;
@@ -71,7 +71,7 @@ public final class SystemConf {
 		}
 	}
 
-	public static enum Str implements Loadable {
+	public enum Str implements Loadable {
 		ProgramName ("Unspecified"),
 		ProgramVersion ("Unspecified"),
 		BuildDate ("Unspecified"),
@@ -92,7 +92,7 @@ public final class SystemConf {
 		}
 	}
 
-	public static enum IntArray implements Loadable {
+	public enum IntArray implements Loadable {
 		;
 
 		private int[] value;
@@ -107,7 +107,7 @@ public final class SystemConf {
 		}
 	}
 	
-	public static enum StrList implements Loadable {
+	public enum StrList implements Loadable {
 		;
 
 		private List<String> value;

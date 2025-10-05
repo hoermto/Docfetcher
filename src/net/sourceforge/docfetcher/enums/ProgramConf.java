@@ -44,7 +44,7 @@ public final class ProgramConf {
 	// TODO pre-release: remove unused entries
 	// TODO pre-release: reset entries whose values where changed for development purposes (e.g. fix window sizes)
 
-	public static enum Bool implements Storable {
+	public enum Bool implements Storable {
 		CheckSingleInstance (true),
 		FixWindowSizes (false),
 		DryRun (false),
@@ -82,7 +82,7 @@ public final class ProgramConf {
 		}
 	}
 
-	public static enum Int implements Storable {
+	public enum Int implements Storable {
 		SearchHistorySize (20, 1),
 		MaxLinesInProgressPanel (1000, 2),
 		SearchBoxMaxWidth (500, 0),
@@ -121,7 +121,7 @@ public final class ProgramConf {
 		}
 	}
 
-	public static enum Str implements Storable {
+	public enum Str implements Storable {
 		AppName ("DocFetcher"),
 		TextEncodingOverride (""),
 		;
@@ -144,7 +144,7 @@ public final class ProgramConf {
 		}
 	}
 
-	public static enum IntArray implements Storable {
+	public enum IntArray implements Storable {
 		;
 
 		private int[] value;
@@ -162,7 +162,7 @@ public final class ProgramConf {
 		}
 	}
 
-	public static enum StrList implements Storable {
+	public enum StrList implements Storable {
 		HtmlExtensions ("html", "htm", "xhtml", "shtml", "shtm")
 		;
 
