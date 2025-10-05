@@ -276,6 +276,7 @@ public abstract class SimpleTreeViewer<E> {
 		return selection;
 	}
 	
+	@SafeVarargs
 	public final void setSelection(@NotNull E... elements) {
 		Util.checkNotNull(elements);
 		TreeItem[] items = new TreeItem[elements.length];

@@ -1147,6 +1147,7 @@ public final class Util {
 		return list.get(size - 1);
 	}
 
+	@SafeVarargs
 	@MutableCopy
 	@NotNull
 	public static <T> List<T> createList(	int extraCapacity,
@@ -1164,6 +1165,7 @@ public final class Util {
 	 *
 	 * @see #createListReverse(Collection, Object...)
 	 */
+	@SafeVarargs
 	@MutableCopy
 	@NotNull
 	public static <T> List<T> createList(	@NotNull Collection<? extends T> col,
@@ -1182,6 +1184,7 @@ public final class Util {
 	 *
 	 * @see #createList(Collection, Object...)
 	 */
+	@SafeVarargs
 	@MutableCopy
 	@NotNull
 	public static <T> List<T> createListReversed(	@NotNull Collection<? extends T> col,

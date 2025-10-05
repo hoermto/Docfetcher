@@ -570,7 +570,7 @@ def compile(
 	# compilation warnings, despite the "-nowarn" argument. The compilation
 	# warnings come from the imported Tika source code, so all we can do is
 	# ignore them.
-	call_silent("javac", "@" + join(build_dir, "args-javac.txt"))
+	call("javac", "@" + join(build_dir, "args-javac.txt"))
 	duration = datetime.now() - start
 	print("Compilation with javac took %d s." % duration.seconds)
 

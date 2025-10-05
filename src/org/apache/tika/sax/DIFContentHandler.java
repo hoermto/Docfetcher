@@ -117,6 +117,7 @@ public class DIFContentHandler extends DefaultHandler {
 			this.delegate.endElement("", "table", "table");
 		}
 		if (this.isLeaf) {
+			@SuppressWarnings("unchecked")
 			Stack<String> tempStack = (Stack<String>) this.treeStack.clone();
 			String key = "";
 			while (!tempStack.isEmpty()) {
