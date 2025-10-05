@@ -1200,7 +1200,7 @@ public final class Application {
 				proLink.evtLinkClicked.add(new Event.Listener<Void> () {
 					@Override
 					public void update(Void eventData) {
-						UtilGui.launch("https://docfetcherpro.com/going-pro/");
+						UtilGui.launch("https://docfetcherpro.com/comparison/");
 						if (docfetcherProTip != null) {
 							docfetcherProTip.shell.close();
 						}
