@@ -10,6 +10,14 @@
 ; - https://nsis.sourceforge.io/ApplicationID_plug-in
 ; - https://nsis.sourceforge.io/Processes_plug-in
 ; In case of errors, try updating NSIS.
+;
+; IMPORTANT NOTE ABOUT THE UNINSTALLER
+; The uninstaller section below unconditionally removes the app data folder,
+; which is the expected behavior when users manually uninstall the application.
+; However, this means the uninstaller should NEVER be invoked programmatically
+; during an upgrade, as doing so would wipe out the user's indexes and settings.
+; Instead, manual cleanup of only the program files and registry entries must be
+; performed.
 
 RequestExecutionLevel admin ; without this, the startmenu links won't be removed on Windows Vista and later
 Unicode false
@@ -76,10 +84,14 @@ Function .onInit
 	Abort
 	done:
 
-	; Check for and uninstall old 32-bit version
-	ifFileExists "$PROGRAMFILES\DocFetcher\uninstaller.exe" 0 +3
+	; Check for and clean up old 32-bit version (without removing app data)
+	ifFileExists "$PROGRAMFILES\DocFetcher\uninstaller.exe" 0 skip32bitcleanup
 		DetailPrint "Removing previous 32-bit installation..."
-		ExecWait '"$PROGRAMFILES\DocFetcher\uninstaller.exe" /S _?=$PROGRAMFILES\DocFetcher'
+		SetShellVarContext all
+		RMDir /r "$PROGRAMFILES\DocFetcher"
+		DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\DocFetcher"
+		DeleteRegValue HKLM "Software\Microsoft\Windows\CurrentVersion\Run" "DocFetcher-Daemon"
+	skip32bitcleanup:
 FunctionEnd
 
 Var CHECKBOX
