@@ -21,6 +21,8 @@ The main difference between the non-portable and portable versions is that the f
 
 For a list of changes from previous releases, see the [changelog](https://sourceforge.net/p/docfetcher/wiki/ChangeLog/).
 
+To receive a notification email when a new DocFetcher version is released, go to [this page](https://sourceforge.net/projects/docfetcher/), enter your email address in the "Get an email when there's a new version of DocFetcher" field and click the "Next" button.
+
 <table id="download">
   <tr>
     <th>Portable?</th>

@@ -21,6 +21,8 @@ Description: Сторінка завантаження застосунку DocF
 
 Для переліку змін у попередніх випусках дивіться [журнал змін](https://sourceforge.net/p/docfetcher/wiki/ChangeLog/).
 
+Щоб отримувати сповіщення електронною поштою про випуск нової версії DocFetcher, перейдіть на [цю сторінку](https://sourceforge.net/projects/docfetcher/), введіть свою адресу електронної пошти в поле "Get an email when there's a new version of DocFetcher" і натисніть кнопку "Next".
+
 <table id="download">
   <tr>
     <th>Портативна?</th>

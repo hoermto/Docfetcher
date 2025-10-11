@@ -21,6 +21,8 @@ Description: DocFetcher桌面搜索应用程序下载页面
 
 有关以前版本的更改列表，请参阅[更新日志](https://sourceforge.net/p/docfetcher/wiki/ChangeLog/)。
 
+要在发布新的DocFetcher版本时收到通知电子邮件，请访问[此页面](https://sourceforge.net/projects/docfetcher/)，在"Get an email when there's a new version of DocFetcher"字段中输入您的电子邮件地址，然后点击"Next"按钮。
+
 <table id="download">
   <tr>
     <th>便携版？</th>

@@ -21,6 +21,8 @@ Description: Страница загрузки приложения для по�
 
 Список изменений по сравнению с предыдущими версиями смотрите в [журнале изменений](https://sourceforge.net/p/docfetcher/wiki/ChangeLog/).
 
+Чтобы получать уведомление по электронной почте о выходе новой версии DocFetcher, перейдите на [эту страницу](https://sourceforge.net/projects/docfetcher/), введите свой адрес электронной почты в поле "Get an email when there's a new version of DocFetcher" и нажмите кнопку "Next".
+
 <table id="download">
   <tr>
     <th>Портативная?</th>

@@ -21,6 +21,8 @@ La differenza principale tra le versioni non portatili e portatili è che le pri
 
 Per un elenco delle modifiche rispetto alle versioni precedenti, consultare il [changelog](https://sourceforge.net/p/docfetcher/wiki/ChangeLog/).
 
+Per ricevere un'email di notifica quando viene rilasciata una nuova versione di DocFetcher, visitare [questa pagina](https://sourceforge.net/projects/docfetcher/), inserire il proprio indirizzo email nel campo "Get an email when there's a new version of DocFetcher" e fare clic sul pulsante "Next".
+
 <table id="download">
   <tr>
     <th>Portatile?</th>

@@ -21,6 +21,8 @@ Taşınabilir olmayan ve taşınabilir sürümler arasındaki temel fark, birinc
 
 Önceki sürümlerdeki değişikliklerin listesi için [değişiklik günlüğüne](https://sourceforge.net/p/docfetcher/wiki/ChangeLog/) bakın.
 
+Yeni bir DocFetcher sürümü yayınlandığında bildirim e-postası almak için [bu sayfaya](https://sourceforge.net/projects/docfetcher/) gidin, e-posta adresinizi "Get an email when there's a new version of DocFetcher" alanına girin ve "Next" düğmesine tıklayın.
+
 <table id="download">
   <tr>
     <th>Taşınabilir mi?</th>

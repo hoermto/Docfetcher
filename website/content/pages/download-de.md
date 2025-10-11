@@ -21,6 +21,8 @@ Der Hauptunterschied zwischen den nicht-portablen und portablen Versionen besteh
 
 Eine Liste der Änderungen gegenüber früheren Versionen finden Sie im [Änderungsverlauf](https://sourceforge.net/p/docfetcher/wiki/ChangeLog/).
 
+Um eine Benachrichtigungs-E-Mail zu erhalten, wenn eine neue DocFetcher-Version veröffentlicht wird, gehen Sie zu [dieser Seite](https://sourceforge.net/projects/docfetcher/), geben Sie Ihre E-Mail-Adresse im Feld "Get an email when there's a new version of DocFetcher" ein und klicken Sie auf die Schaltfläche "Next".
+
 <table id="download">
   <tr>
     <th>Portabel?</th>
