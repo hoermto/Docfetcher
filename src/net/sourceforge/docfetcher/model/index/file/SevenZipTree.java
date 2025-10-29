@@ -132,7 +132,15 @@ final class SevenZipTree extends SolidArchiveTree <SevenZipEntry> {
 			 * echo "Hello World" | 7za a -si test.7z
 			 */
 			String path = entry.getName();
-			assert path == null || (! path.contains("\\") && ! path.startsWith("/"));
+			if (path == null) {
+				return null;
+			}
+			// Normalize path: replace backslashes with forward slashes
+			path = path.replace('\\', '/');
+			// Remove leading slash to ensure relative path
+			if (path.startsWith("/")) {
+				path = path.substring(1);
+			}
 			return path;
 		}
 		public long getLastModified(SevenZipEntry entry) {
