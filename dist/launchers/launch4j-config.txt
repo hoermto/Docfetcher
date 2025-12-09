@@ -13,7 +13,9 @@ Classpath
 ==============================
 Custom classpath: checked
 Main class: net.sourceforge.docfetcher.Main
-Classpath: lib\*.jar
+Classpath:
+	lang
+	lib\*.jar
 
 JRE
 ==============================
