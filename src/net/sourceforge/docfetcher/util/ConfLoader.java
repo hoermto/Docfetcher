@@ -73,8 +73,13 @@ public final class ConfLoader {
 										boolean createIfMissing)
 			throws IOException, FileNotFoundException {
 		if (! propFile.exists()) {
-			if (createIfMissing)
+			if (createIfMissing) {
+				File parentDir = propFile.getParentFile();
+				if (parentDir != null && !parentDir.exists()) {
+					parentDir.mkdirs();
+				}
 				propFile.createNewFile();
+			}
 			else
 				throw new FileNotFoundException();
 		}
