@@ -243,7 +243,9 @@ public final class FolderWatcher {
 					int id = listener.addWatch(fileToWatch);
 					watchIdMap.put(index, id);
 				}
-				catch (Exception e) {
+				catch (Throwable e) {
+					// Catch both JNotifyException and UnsatisfiedLinkError (which can occur
+					// when running from network paths or when native libraries fail to load)
 					String url = ManualLocator.getManualSubpageUrl("Watch_Limit.html");
 					if (url == null) {
 						url = "???";

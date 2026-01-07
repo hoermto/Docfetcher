@@ -438,7 +438,9 @@ public final class IndexRegistry {
 				}
 			});
 		}
-		catch (JNotifyException e) {
+		catch (Throwable e) {
+			// Catch both JNotifyException and UnsatisfiedLinkError (which can occur
+			// when running from network paths or when native libraries fail to load)
 			Util.printErr(e);
 		}
 
