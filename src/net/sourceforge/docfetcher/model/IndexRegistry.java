@@ -37,6 +37,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.ansj.lucene6.AnsjAnalyzer;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.AnalyzerWrapper;
+import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
@@ -44,6 +46,7 @@ import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardFilter;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.util.CharTokenizer;
 import org.apache.lucene.search.BooleanQuery;
@@ -158,11 +161,13 @@ public final class IndexRegistry {
 		case 1:
 			analyzer = new SourceCodeAnalyzer(); break;
 		case 2:
-			analyzer = new AnsjAnalyzer(AnsjAnalyzer.TYPE.index_ansj); break;
+			analyzer = new MaxTermByteLengthAnalyzer(
+				new AnsjAnalyzer(AnsjAnalyzer.TYPE.index_ansj)); break;
 		case 3:
 			analyzer = new WhitespaceAnalyzer(); break;
 		default:
-			analyzer = new StandardAnalyzer(CharArraySet.EMPTY_SET);
+			analyzer = new MaxTermByteLengthAnalyzer(
+				new StandardAnalyzer(CharArraySet.EMPTY_SET));
 		}
 	}
 
@@ -653,6 +658,61 @@ public final class IndexRegistry {
 		}
 	}
 
+	/**
+	 * Token filter that skips tokens whose UTF-8 byte length exceeds Lucene's
+	 * maximum term byte length of 32,766 bytes. This prevents
+	 * IllegalArgumentException when indexing documents containing extremely
+	 * long terms.
+	 *
+	 * @see <a href="https://sourceforge.net/p/docfetcher/bugs/2396/">Bug #2396</a>
+	 */
+	private static class MaxTermByteLengthFilter extends TokenFilter {
+		// Lucene's hard limit for term byte length (see BytesRefHash.MAX_BYTES_LENGTH)
+		private static final int MAX_TERM_BYTE_LENGTH = 32766;
+		private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
+
+		public MaxTermByteLengthFilter(TokenStream input) {
+			super(input);
+		}
+
+		@Override
+		public boolean incrementToken() throws IOException {
+			while (input.incrementToken()) {
+				// Check if the term's UTF-8 byte length exceeds the limit
+				int byteLength = termAtt.toString().getBytes("UTF-8").length;
+				if (byteLength <= MAX_TERM_BYTE_LENGTH) {
+					return true; // Accept this token
+				}
+				// Skip tokens that are too long
+			}
+			return false; // No more tokens
+		}
+	}
+
+	/**
+	 * Analyzer wrapper that adds MaxTermByteLengthFilter to any analyzer.
+	 * Used to wrap external analyzers like StandardAnalyzer and AnsjAnalyzer.
+	 */
+	private static class MaxTermByteLengthAnalyzer extends AnalyzerWrapper {
+		private final Analyzer delegate;
+
+		public MaxTermByteLengthAnalyzer(Analyzer delegate) {
+			super(delegate.getReuseStrategy());
+			this.delegate = delegate;
+		}
+
+		@Override
+		protected Analyzer getWrappedAnalyzer(String fieldName) {
+			return delegate;
+		}
+
+		@Override
+		protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
+			TokenStream filtered = new MaxTermByteLengthFilter(components.getTokenStream());
+			return new TokenStreamComponents(components.getTokenizer(), filtered);
+		}
+	}
+
 	private static class SourceCodeAnalyzer extends Analyzer {
 		@Override
 		protected TokenStreamComponents createComponents(String fieldName) {
@@ -669,6 +729,7 @@ public final class IndexRegistry {
 			TokenStream sink = new StandardFilter(source);
 			sink = new LowerCaseFilter(sink);
 		    sink = new StopFilter(sink, CharArraySet.EMPTY_SET);
+		    sink = new MaxTermByteLengthFilter(sink);
 			return new TokenStreamComponents(source, sink);
 		}
 	}
@@ -685,6 +746,7 @@ public final class IndexRegistry {
 			TokenStream sink = new StandardFilter(source);
 			sink = new LowerCaseFilter(sink);
 		    sink = new StopFilter(sink, CharArraySet.EMPTY_SET);
+		    sink = new MaxTermByteLengthFilter(sink);
 			return new TokenStreamComponents(source, sink);
 		}
 	}
