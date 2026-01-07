@@ -32,6 +32,7 @@ import java.util.regex.Pattern;
 
 import org.apache.lucene.index.MergePolicy;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.SWTException;
 import org.eclipse.swt.events.ControlAdapter;
 import org.eclipse.swt.events.ControlEvent;
 import org.eclipse.swt.events.ControlListener;
@@ -391,6 +392,25 @@ public final class Application {
 	}
 	
 	private static void handleCrash(@NotNull Throwable t) {
+		// Filter out benign SWTException caused by race condition between widget
+		// disposal and Windows accessibility queries. This can happen when
+		// accessibility features (e.g. screen readers) try to query widget
+		// properties after the widget has been disposed. Only filter if the
+		// exception is coming from the accessibility callback path.
+		// See bug #2395.
+		if (t instanceof SWTException) {
+			SWTException swtEx = (SWTException) t;
+			if (swtEx.code == SWT.ERROR_WIDGET_DISPOSED ||
+				(swtEx.getMessage() != null && swtEx.getMessage().contains("Widget is disposed"))) {
+				// Check if this is from accessibility callbacks
+				String stackTrace = Throwables.getStackTraceAsString(t);
+				if (stackTrace.contains("org.eclipse.swt.accessibility.Accessible")) {
+					// Silently ignore - this is a benign accessibility race condition
+					return;
+				}
+			}
+		}
+
 		for (OutOfMemoryError e : Iterables.filter(Throwables.getCausalChain(t), OutOfMemoryError.class)) {
 			UtilGui.showOutOfMemoryMessage(shell, e);
 			return;
