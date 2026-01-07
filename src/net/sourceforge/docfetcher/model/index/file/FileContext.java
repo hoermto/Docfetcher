@@ -145,7 +145,7 @@ class FileContext {
 			// Text extraction; may throw OutOfMemoryErrors
 			ParseResult parseResult = ParseService.parse(
 				config, file, doc.getName(), doc.getPath(), reporter, cancelable);
-			
+
 			/*
 			 * If we detect a cancel request at this point, the request probably
 			 * came in during the parsing step above. In that case, we'll keep
@@ -161,10 +161,10 @@ class FileContext {
 				writer.add(doc, file, parseResult);
 			else
 				writer.update(doc, file, parseResult);
-			
+
 			// Clear errors from previous indexing operations
 			doc.setError(null);
-			
+
 			return true;
 		}
 		catch (IOException e) {
@@ -175,6 +175,16 @@ class FileContext {
 		}
 		catch (CheckedOutOfMemoryError e) {
 			fail(ErrorType.OUT_OF_MEMORY, doc, e.getCause());
+		}
+		catch (ArrayIndexOutOfBoundsException e) {
+			/*
+			 * Bug #2413: This is a known Lucene bug (LUCENE-8118, LUCENE-8614)
+			 * that occurs when indexing documents with extremely large numbers
+			 * of tokens, causing an integer overflow in Lucene's ByteBlockPool.
+			 * We treat this as a parsing failure so the user gets an appropriate
+			 * error message rather than being told to increase the Java heap size.
+			 */
+			fail(ErrorType.PARSING, doc, e);
 		}
 		return false;
 	}
