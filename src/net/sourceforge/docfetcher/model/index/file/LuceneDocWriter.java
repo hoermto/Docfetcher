@@ -54,20 +54,48 @@ abstract class LuceneDocWriter {
 		 */
 		Document luceneDoc = new Document();
 		String filename = doc.getName();
-		
+
 		if (appendMetadata()) {
 			String extension = Util.getExtension(filename);
-			luceneDoc.add(Fields.UID.create(doc.getUniqueId()));
+			try {
+				luceneDoc.add(Fields.UID.create(doc.getUniqueId()));
+			} catch (IllegalArgumentException e) {
+				/*
+				 * This can happen if we encounter a file with an extremely long path
+				 * that exceeds Lucene's maximum term length.
+				 */
+				if (e.getMessage() == null || !e.getMessage().contains("immense term")) {
+					throw e;
+				}
+			}
 			luceneDoc.add(Fields.FILENAME.create(filename));
-			luceneDoc.add(Fields.TYPE.create(extension));
-			luceneDoc.add(Fields.PARSER.create(parseResult.getParserName()));
+			try {
+				luceneDoc.add(Fields.TYPE.create(extension));
+			} catch (IllegalArgumentException e) {
+				if (e.getMessage() == null || !e.getMessage().contains("immense term")) {
+					throw e;
+				}
+			}
+			try {
+				luceneDoc.add(Fields.PARSER.create(parseResult.getParserName()));
+			} catch (IllegalArgumentException e) {
+				if (e.getMessage() == null || !e.getMessage().contains("immense term")) {
+					throw e;
+				}
+			}
 			String title = parseResult.getTitle();
 			if (title == null || title.trim().isEmpty())
 				luceneDoc.add(Fields.TITLE.create(Util.splitFilename(filename)[0]));
 			else
 				luceneDoc.add(Fields.TITLE.create(title));
 			luceneDoc.add(Fields.SIZE.create(file.length()));
-			luceneDoc.add(Fields.LAST_MODIFIED.create(String.valueOf(doc.getLastModified())));
+			try {
+				luceneDoc.add(Fields.LAST_MODIFIED.create(String.valueOf(doc.getLastModified())));
+			} catch (IllegalArgumentException e) {
+				if (e.getMessage() == null || !e.getMessage().contains("immense term")) {
+					throw e;
+				}
+			}
 			List<String> authors = parseResult.getAuthors();
 			if (authors != null)
 				for (String author : authors)

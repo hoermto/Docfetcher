@@ -104,13 +104,35 @@ final class OutlookContext {
 			size = body.getBytes().length;
 		}
 		
-		luceneDoc.add(Fields.UID.create(doc.getUniqueId()));
+		try {
+			luceneDoc.add(Fields.UID.create(doc.getUniqueId()));
+		} catch (IllegalArgumentException e) {
+			/*
+			 * This can happen if we encounter an email with attachments whose
+			 * combined filename length is extremely large.
+			 */
+			if (e.getMessage() == null || !e.getMessage().contains("immense term")) {
+				throw e;
+			}
+		}
 		luceneDoc.add(Fields.SUBJECT.create(subject));
-		luceneDoc.add(Fields.TYPE.create("outlook")); //$NON-NLS-1$
+		try {
+			luceneDoc.add(Fields.TYPE.create("outlook")); //$NON-NLS-1$
+		} catch (IllegalArgumentException e) {
+			if (e.getMessage() == null || !e.getMessage().contains("immense term")) {
+				throw e;
+			}
+		}
 		luceneDoc.add(Fields.SENDER.create(sender));
 		luceneDoc.add(Fields.RECIPIENTS.create(recipients));
 		luceneDoc.add(Fields.SIZE.create(size));
-		luceneDoc.add(Fields.PARSER.create(Fields.EMAIL_PARSER));
+		try {
+			luceneDoc.add(Fields.PARSER.create(Fields.EMAIL_PARSER));
+		} catch (IllegalArgumentException e) {
+			if (e.getMessage() == null || !e.getMessage().contains("immense term")) {
+				throw e;
+			}
+		}
 
 		/*
 		 * The date returned by getMessageDeliveryTime can be null. See bug
@@ -119,7 +141,13 @@ final class OutlookContext {
 		Date date = email.getMessageDeliveryTime();
 		if (date != null) {
 			String timestamp = String.valueOf(date.getTime());
-			luceneDoc.add(Fields.DATE.create(timestamp));
+			try {
+				luceneDoc.add(Fields.DATE.create(timestamp));
+			} catch (IllegalArgumentException e) {
+				if (e.getMessage() == null || !e.getMessage().contains("immense term")) {
+					throw e;
+				}
+			}
 		}
 		
 		StringBuilder contents = new StringBuilder();
