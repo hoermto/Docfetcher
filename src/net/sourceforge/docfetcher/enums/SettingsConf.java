@@ -574,7 +574,26 @@ public final class SettingsConf {
 
 	public static String loadHeaderComment() throws IOException {
 		URL url = SettingsConf.class.getResource("settings-conf-header.txt");
-		return Resources.toString(url, Charsets.UTF_8);
+		try {
+			return Resources.toString(url, Charsets.UTF_8);
+		} catch (LinkageError e) {
+			// Fallback for corrupted/incompatible Guava library (e.g., ClassFormatError)
+			// Use standard Java API instead
+			java.io.InputStream in = url.openStream();
+			try {
+				java.io.BufferedReader reader = new java.io.BufferedReader(
+					new java.io.InputStreamReader(in, "UTF-8"));
+				StringBuilder sb = new StringBuilder();
+				String line;
+				while ((line = reader.readLine()) != null) {
+					sb.append(line);
+					sb.append('\n');
+				}
+				return sb.toString();
+			} finally {
+				in.close();
+			}
+		}
 	}
 
 }
