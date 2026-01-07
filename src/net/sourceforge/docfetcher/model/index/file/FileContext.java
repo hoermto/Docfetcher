@@ -181,6 +181,12 @@ class FileContext {
 			 * Bug #2413: This is a known Lucene bug (LUCENE-8118, LUCENE-8614)
 			 * that occurs when indexing documents with extremely large numbers
 			 * of tokens, causing an integer overflow in Lucene's ByteBlockPool.
+			 *
+			 * Bug #2409: This also catches ArrayIndexOutOfBoundsException from
+			 * the ANSJ tokenizer library when processing certain text, likely
+			 * due to edge cases in Chinese character processing (String.getChars
+			 * in IndexAnalysis.java:86).
+			 *
 			 * We treat this as a parsing failure so the user gets an appropriate
 			 * error message rather than being told to increase the Java heap size.
 			 */
