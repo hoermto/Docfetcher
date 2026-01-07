@@ -17,6 +17,7 @@ import java.io.FileFilter;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.InvalidPathException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -749,6 +750,9 @@ public final class Util {
 			path = file.getCanonicalPath();
 		}
 		catch (IOException e) {
+			path = file.getAbsolutePath();
+		}
+		catch (InvalidPathException e) {
 			path = file.getAbsolutePath();
 		}
 		return lib.GetFileAttributesW(new WString(path));
