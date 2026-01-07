@@ -126,7 +126,7 @@ abstract class MSOffice2007Parser extends FileParser {
 				 * 1.1.16. This crash is probably also related to the POI
 				 * upgrade to 3.11, and upgrading the Java runtime also fixes
 				 * it.
-				 * 
+				 *
 				 * First bug reports:
 				 * https://sourceforge.net/p/docfetcher/bugs/1059/
 				 * https://sourceforge.net/p/docfetcher/bugs/1068/
@@ -137,6 +137,23 @@ abstract class MSOffice2007Parser extends FileParser {
 			else {
 				throw e;
 			}
+		}
+		catch (ExceptionInInitializerError e) {
+			/*
+			 * Apache POI's StringUtil class has a static initializer that
+			 * loads the Big5 charset. On some Java installations (especially
+			 * minimal/modular JREs), the Big5 charset is not available in
+			 * the java.base module (it's in jdk.charsets), causing an
+			 * UnsupportedCharsetException wrapped in ExceptionInInitializerError.
+			 *
+			 * Bug reports:
+			 * https://sourceforge.net/p/docfetcher/bugs/2308/
+			 * https://sourceforge.net/p/docfetcher/bugs/2438/
+			 */
+			String msg = "Your Java installation is missing required character set support. "
+					+ "Please use a complete Java runtime (JRE) that includes the jdk.charsets module, "
+					+ "or upgrade to a newer version of DocFetcher.";
+			throw new ParseException(msg, e);
 		}
 		catch (NoSuchMethodError e) {
 			if (e.getMessage().contains("XMLEventFactory.newFactory")) {

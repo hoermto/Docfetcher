@@ -66,6 +66,17 @@ final class MSExcelParser extends MSOfficeParser {
 				Closeables.closeQuietly(in);
 				return extractWithJexcelAPI(file);
 			}
+			catch (ExceptionInInitializerError | NoClassDefFoundError e) {
+				/*
+				 * Apache POI's StringUtil class has a static initializer that
+				 * loads the Big5 charset. On some Java installations (especially
+				 * minimal/modular JREs), the Big5 charset is not available,
+				 * causing an UnsupportedCharsetException wrapped in an
+				 * ExceptionInInitializerError. Fall back to JExcelAPI library.
+				 */
+				Closeables.closeQuietly(in);
+				return extractWithJexcelAPI(file);
+			}
 			finally {
 				Closeables.closeQuietly(extractor);
 			}
