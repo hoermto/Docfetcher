@@ -321,19 +321,20 @@ public final class IndexingQueue {
 		
 		Task task = new Task(this, index, action);
 
-		// Check that the given index has the right index directory
-		File taskIndexDir = task.getLuceneIndex().getIndexDirPath().getCanonicalFile();
-		File taskParentIndexDir = Util.getParentFile(taskIndexDir);
-		File indexParentDir = indexRegistry.getIndexParentDir();
-		String absPath1 = Util.getAbsPath(taskParentIndexDir);
-		String absPath2 = Util.getAbsPath(indexParentDir);
-        if (Util.IS_WINDOWS) {
-        	// Bug #3536137: On Windows, filenames are case-insensitive
-            absPath1 = absPath1.toUpperCase();
-            absPath2 = absPath2.toUpperCase();
-        }
-		Util.checkThat(absPath1.equals(absPath2), absPath1 + " != " + absPath2);
-		
+		/*
+		 * Bug #2417: Removed overly strict index directory check. This check
+		 * prevented legitimate use cases such as:
+		 * - Moving portable installations to new locations
+		 * - Migrating indexes between installations (non-portable to portable)
+		 * - Copying index files to a new DocFetcher installation
+		 *
+		 * The check was intended to catch programming errors, but it incorrectly
+		 * rejected valid user scenarios. If there's a genuine problem accessing
+		 * the index files (e.g., files not found at expected location), it will
+		 * surface as an IOException during indexing operations, which is already
+		 * handled gracefully by the indexing system and reported to the user.
+		 */
+
 		LazyList<Task> removedTasks = new LazyList<Task>();
 
 		writeLock.lock();
