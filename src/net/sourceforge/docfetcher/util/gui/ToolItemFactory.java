@@ -49,6 +49,10 @@ public final class ToolItemFactory {
 	@NotNull
 	public ToolItem create() {
 		ToolItem item = new ToolItem(toolBar, style);
+		// Set enabled state before setting image to avoid SWT creating
+		// disabled image variants that consume GDI handles.
+		if (!enabled)
+			item.setEnabled(false);
 		if (image != null)
 			item.setImage(image);
 		if (text != null)
@@ -57,8 +61,6 @@ public final class ToolItemFactory {
 			item.setToolTipText(toolTip);
 		if (selectionListener != null)
 			item.addSelectionListener(selectionListener);
-		if (!enabled)
-			item.setEnabled(false);
 		return item;
 	}
 	
