@@ -1,9 +1,13 @@
 /bin/
 /build/
+/out/
 /subprojects/macos-launcher/target/
 /website/output/
 /website/.venv/
+/.bsp/
 /.idea/
+/.metals/
+/.vscode/
 
 /build-jre.txt
 /code-signing-macos.txt
