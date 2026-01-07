@@ -119,6 +119,8 @@ final class AppendingStyledTextContent implements StyledTextContent {
 	
 	public String getLine(int lineIndex) {
 		Integer start = lineToOffset.get(lineIndex);
+		if (start == null)
+			return "";
 		Integer end = lineToOffset.get(lineIndex + 1);
 		if (end == null)
 			end = buffer.length();
