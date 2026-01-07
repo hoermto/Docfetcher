@@ -49,7 +49,7 @@ public final class PagingPdfParser {
 			catch (InvalidPasswordException e) {
 				throw new ParseException(Msg.doc_pw_protected.get());
 			}
-			
+
 			PagingStripper stripper = new PagingStripper();
 			if (ProgramConf.Bool.PdfPreviewVisualOrder.get()) {
 				stripper.setSortByPosition(true);
@@ -62,6 +62,18 @@ public final class PagingPdfParser {
 			} else {
 				throw new ParseException(e);
 			}
+		}
+		catch (NoClassDefFoundError e) {
+			// Check if this error was caused by OutOfMemoryError during class initialization
+			Throwable cause = e.getCause();
+			if (cause instanceof ExceptionInInitializerError) {
+				Throwable rootCause = cause.getCause();
+				if (rootCause instanceof OutOfMemoryError) {
+					throw new CheckedOutOfMemoryError((OutOfMemoryError) rootCause);
+				}
+			}
+			// If not OOM-related, treat as a general parse exception
+			throw new ParseException(e);
 		}
 		catch (OutOfMemoryError e) {
 			throw new CheckedOutOfMemoryError(e);
