@@ -288,7 +288,8 @@ public final class Searcher {
 					}
 				}
 			};
-			collector.setDelegate(TopScoreDocCollector.create(MAX_RESULTS, null));
+			int maxResults = Math.max(1, MAX_RESULTS);
+			collector.setDelegate(TopScoreDocCollector.create(maxResults, null));
 			try{
 				luceneSearcher.search(query, collector);
 			}
@@ -343,10 +344,11 @@ public final class Searcher {
 		readLock.lock();
 		try {
 			checkIndexesExist();
-			
+
 			// Perform search; might throw OutOfMemoryError
+			int maxResults = Math.max(1, MAX_RESULTS);
 			builder.add(query,BooleanClause.Occur.MUST);
-			ScoreDoc[] scoreDocs = luceneSearcher.search(builder.build(), MAX_RESULTS).scoreDocs;
+			ScoreDoc[] scoreDocs = luceneSearcher.search(builder.build(), maxResults).scoreDocs;
 			
 			// Create result documents
 			ResultDocument[] results = new ResultDocument[scoreDocs.length];
@@ -438,9 +440,12 @@ public final class Searcher {
 		readLock.lock();
 		try {
 			checkIndexesExist();
-			
+
 			// Perform search; might throw OutOfMemoryError
-			int maxResults = (webQuery.pageIndex + 1) * PAGE_SIZE;
+			// Protect against integer overflow when calculating maxResults
+			long maxResultsLong = ((long) webQuery.pageIndex + 1) * PAGE_SIZE;
+			int maxResults = (int) Math.min(maxResultsLong, Integer.MAX_VALUE);
+			maxResults = Math.max(1, maxResults);
 			builder.add(query, BooleanClause.Occur.MUST);
 			TopDocs topDocs = luceneSearcher.search(builder.build(), maxResults);
 			ScoreDoc[] scoreDocs = topDocs.scoreDocs;
