@@ -415,7 +415,7 @@ public final class Application {
 				ConfLoader.save(settingsConfFile, SettingsConf.class, comment);
 			}
 			catch (IOException e) {
-				AppUtil.showStackTraceInOwnDisplay(e);
+				handleConfigurationIOException(e, settingsConfFile);
 			}
 		}
 	}
