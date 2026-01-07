@@ -709,18 +709,18 @@ public final class IndexingQueue {
 	// Warning: Cancel handler is called under lock, so caller must take possible
 	// lock-ordering deadlocks into account.
 	/*
-	 * This method must not be called again after a previous call has set the
-	 * shutdown flag.
+	 * If this method is called multiple times, subsequent calls will
+	 * return true immediately without performing any action.
 	 */
 	@ThreadSafe
 	public boolean shutdown(@NotNull final CancelHandler handler) {
 		Util.checkNotNull(handler);
 		LazyList<Task> removedTasks = new LazyList<Task>();
-		
+
 		writeLock.lock();
 		try {
 			if (shutdown)
-				throw new UnsupportedOperationException();
+				return true;
 			if (!removeAll(handler, removedTasks))
 				return false;
 			shutdown = true;
