@@ -75,6 +75,15 @@
   - must be run on Linux
   - requires program mkfs.hfsplus (try package hfsprogs on Ubuntu)
   - output is in the "build" folder
+- mill:
+  - In addition to the build.py script, the main Java codebase can be compiled
+    with Mill, like so:
+    - Incremental compilation: ./mill compile
+    - Clean and compile: ./mill clean && ./mill compile
+  - The Mill build system does not produce release artifacts like build.py, it
+    merely compiles the codebase. The purpose is to complement the long-running
+    Python build script with incremental compilation, to quickly check that new
+    code changes don't break anything.
 - code signing and notarization (optional):
   - code-signing-windows.txt:
     - for code signing on Windows
