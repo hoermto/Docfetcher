@@ -58,6 +58,7 @@ import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 
 import com.google.common.io.Closeables;
 
@@ -498,6 +499,16 @@ public final class Searcher {
 			Query query = queryParser.parse(queryString);
 			boolean isPhraseQuery = queryParser.isPhraseQuery();
 			return new QueryWrapper(query, isPhraseQuery);
+		}
+		catch (TooComplexToDeterminizeException e) {
+			/*
+			 * This happens when wildcard patterns are too complex to convert
+			 * into a deterministic finite automaton, e.g. "???????????L1*".
+			 */
+			String msg = Msg.invalid_query.get() + "\n\n" +
+				"The search pattern is too complex. " +
+				"Please simplify your query by using fewer wildcards.";
+			throw new SearchException(msg);
 		}
 		catch (IllegalArgumentException e) {
 			/*
