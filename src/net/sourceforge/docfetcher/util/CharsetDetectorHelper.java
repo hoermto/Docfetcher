@@ -105,6 +105,14 @@ public final class CharsetDetectorHelper {
 			 */
 			return new String(bytes, Charsets.ISO_8859_1);
 		}
+		catch (NegativeArraySizeException e) {
+			/*
+			 * Bug #2422: NegativeArraySizeException when processing corrupted
+			 * or malformed files where charset decoding results in invalid
+			 * size calculations.
+			 */
+			throw new IOException("File too large or corrupted for charset decoding", e);
+		}
 	}
 
 }
