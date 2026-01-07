@@ -79,9 +79,10 @@ public class StackTraceWindow {
 		UtilGui.setCenteredBounds(shell, 400, 400); // Don't store shell size
 		shell.open();
 		windowCount++;
+		Display display = shell.getDisplay();
 		while (! shell.isDisposed()) {
-			if (! shell.getDisplay().readAndDispatch())
-				shell.getDisplay().sleep();
+			if (! display.readAndDispatch())
+				display.sleep();
 		}
 		windowCount--;
 	}
