@@ -282,6 +282,10 @@ final class HighlightingText {
 	}
 	
 	private void selectAndShowSpan(int start, int end) {
+		int charCount = textViewer.getCharCount();
+		if (start < 0 || end > charCount || start > end) {
+			return;
+		}
 		textViewer.setSelection(start, end);
 		scrollToMiddle((start + end) / 2);
 	}
