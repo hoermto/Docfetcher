@@ -8,6 +8,8 @@
 /build-jre.txt
 /code-signing-macos.txt
 /code-signing-windows.txt
+/dev/bugfixes
+/.project
 
 .settings/
 *.DS_Store
