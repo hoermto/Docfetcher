@@ -415,7 +415,8 @@ public final class Application {
 				ConfLoader.save(settingsConfFile, SettingsConf.class, comment);
 			}
 			catch (IOException e) {
-				handleConfigurationIOException(e, settingsConfFile);
+				boolean displayExists = (Display.getCurrent() != null);
+				handleConfigurationIOException(e, settingsConfFile, displayExists);
 			}
 		}
 	}
@@ -717,7 +718,7 @@ public final class Application {
 	 * Handles IOException during configuration file loading/creation with improved
 	 * error messages, especially for permission-related issues in the portable version.
 	 */
-	private static void handleConfigurationIOException(@NotNull IOException e, @NotNull File confFile) {
+	private static void handleConfigurationIOException(@NotNull IOException e, @NotNull File confFile, boolean displayExists) {
 		String errorMsg = e.getMessage();
 		boolean isPermissionError = errorMsg != null &&
 			(errorMsg.contains("Access is denied") ||
@@ -740,7 +741,14 @@ public final class Application {
 			AppUtil.showErrorOnStart(msg.toString(), false);
 		}
 		else {
-			AppUtil.showStackTraceInOwnDisplay(e);
+			// Bug #2410: Use the Display state passed from caller to choose appropriate error display method
+			if (displayExists) {
+				// Display is active, use it to show the error
+				AppUtil.showStackTrace(e);
+			} else {
+				// No display (called after dispose), create own display for error
+				AppUtil.showStackTraceInOwnDisplay(e);
+			}
 		}
 	}
 
@@ -782,7 +790,7 @@ public final class Application {
 			regenerateConfFile(confFile, ProgramConf.class);
 		}
 		catch (IOException e) {
-			handleConfigurationIOException(e, confFile);
+			handleConfigurationIOException(e, confFile, false); // No display yet
 		}
 		return confFile;
 	}
@@ -863,7 +871,7 @@ public final class Application {
 			ConfLoader.load(confFile, SettingsConf.class, true);
 		}
 		catch (IOException e) {
-			handleConfigurationIOException(e, confFile);
+			handleConfigurationIOException(e, confFile, false); // No display yet
 		}
 		return confFile;
 	}
