@@ -111,7 +111,7 @@ final class HotkeyListenerWindowsImpl implements HotkeyListenerImpl {
 					}
 				}
 			);
-		} catch (JIntellitypeException e) {
+		} catch (Throwable e) {
 			e.printStackTrace();
 		}
 	}
@@ -128,7 +128,7 @@ final class HotkeyListenerWindowsImpl implements HotkeyListenerImpl {
 				toIntellitypeModifier(mask),
 				KeyCodeTranslator.translateSWTKey(key)
 			);
-		} catch (JIntellitypeException e) {
+		} catch (Throwable e) {
 			e.printStackTrace();
 		}
 		return true;
@@ -137,7 +137,7 @@ final class HotkeyListenerWindowsImpl implements HotkeyListenerImpl {
 	public void unregisterHotkey(int id) {
 		try {
 			JIntellitype.getInstance().unregisterHotKey(id);
-		} catch (JIntellitypeException e) {
+		} catch (Throwable e) {
 			e.printStackTrace();
 		}
 	}
@@ -145,7 +145,7 @@ final class HotkeyListenerWindowsImpl implements HotkeyListenerImpl {
 	public void shutdown() {
 		try {
 			JIntellitype.getInstance().cleanUp();
-		} catch (JIntellitypeException e) {
+		} catch (Throwable e) {
 			e.printStackTrace();
 		}
 	}
