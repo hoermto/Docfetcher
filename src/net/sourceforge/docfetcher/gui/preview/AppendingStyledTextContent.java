@@ -169,6 +169,12 @@ final class AppendingStyledTextContent implements StyledTextContent {
 	}
 
 	public int getOffsetAtLine(int lineIndex) {
+		// Clamp to valid range to prevent crashes when SWT's scroll calculation
+		// produces invalid indices (e.g., -1 during edge case scrolling operations)
+		if (lineIndex < 0)
+			lineIndex = 0;
+		else if (lineIndex >= lineToOffset.size())
+			lineIndex = lineToOffset.size() - 1;
 		return lineToOffset.get(lineIndex);
 	}
 	
