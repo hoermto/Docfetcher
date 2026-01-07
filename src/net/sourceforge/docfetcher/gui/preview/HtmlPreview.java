@@ -28,6 +28,7 @@ import net.sourceforge.docfetcher.util.gui.Col;
 import net.sourceforge.docfetcher.util.gui.ToolItemFactory;
 
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.SWTException;
 import org.eclipse.swt.browser.Browser;
 import org.eclipse.swt.browser.LocationAdapter;
 import org.eclipse.swt.browser.LocationEvent;
@@ -228,7 +229,16 @@ abstract class HtmlPreview extends ToolBarForm {
 			browser.setUrl(url);
 		}
 		catch (MalformedURLException e) {
-			browser.setUrl(path);
+			try {
+				browser.setUrl(path);
+			} catch (SWTException e2) {
+				// Bug #2428: Ignore SWTException when setting URL
+				// This can occur when the IE OLE component is in an invalid state
+			}
+		}
+		catch (SWTException e) {
+			// Bug #2428: Ignore SWTException when setting URL
+			// This can occur when the IE OLE component is in an invalid state
 		}
 		locationBar.setText(path);
 		htmlBt.setEnabled(allowSwitchingToTextPreview);
@@ -236,7 +246,12 @@ abstract class HtmlPreview extends ToolBarForm {
 	}
 
 	public void clear() {
-		browser.setText("");
+		try {
+			browser.setText("");
+		} catch (SWTException e) {
+			// Bug #2428: Ignore SWTException when clearing browser
+			// This can occur when the IE OLE component is in an invalid state
+		}
 		locationBar.setText("");
 		htmlBt.setEnabled(false);
 		htmlBt.setSelection(false);
