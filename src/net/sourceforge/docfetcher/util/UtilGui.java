@@ -679,7 +679,7 @@ public final class UtilGui {
 	 */
 	public static boolean launch(@NotNull String filename) {
 		Util.checkNotNull(filename);
-		
+
 		/*
 		 * Program.launch fails on Kubuntu 16.04 but still returns true, so we
 		 * will have to bypass it altogether. See:
@@ -687,13 +687,22 @@ public final class UtilGui {
 		 */
 		if (Util.IS_LINUX_KDE)
 			return launchXdgOpen(filename);
-		
-		if (Program.launch(filename))
-			return true;
-		
+
+		try {
+			if (Program.launch(filename))
+				return true;
+		}
+		catch (Throwable t) {
+			/*
+			 * Program.launch may throw UnsatisfiedLinkError when native libraries
+			 * are missing (e.g. libgnomevfs-2.so.0 in snap packages). Fall back
+			 * to xdg-open in such cases. Bug #2361.
+			 */
+		}
+
 		if (!Util.IS_LINUX)
 			return false;
-		
+
 		return launchXdgOpen(filename);
 	}
 
