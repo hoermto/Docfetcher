@@ -88,7 +88,8 @@ public final class SystemTrayHider {
 		// Open system tray menu when the user clicks on it
 		trayItem.addMenuDetectListener(new MenuDetectListener() {
 			public void menuDetected(MenuDetectEvent e) {
-				trayMenu.setVisible(true);
+				if (!trayMenu.isDisposed())
+					trayMenu.setVisible(true);
 			}
 		});
 		
