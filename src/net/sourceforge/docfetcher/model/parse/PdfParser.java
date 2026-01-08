@@ -67,6 +67,29 @@ public final class PdfParser extends StreamParser {
 				 */
 				throw new ParseException(e);
 			}
+			catch (UnsatisfiedLinkError e) {
+				/*
+				 * Bug #2357: PDFBox's initialization of PDDocument triggers AWT
+				 * component initialization for image/graphics rendering. When AWT
+				 * native libraries (libawt_xawt.so on Linux, awt.dll on Windows)
+				 * cannot load due to missing dependencies, an UnsatisfiedLinkError
+				 * is thrown.
+				 *
+				 * On Linux: Can occur when libawt_xawt.so's dependencies are
+				 * missing (e.g., in minimal Java installations).
+				 *
+				 * On Windows: Can occur when awt.dll's MSVC runtime dependencies
+				 * (msvcp120.dll, msvcr120.dll) are missing.
+				 *
+				 * This is similar to bugs #2361, #2398, #2404, #2419, and #2441,
+				 * where UnsatisfiedLinkError prevented graceful error handling.
+				 *
+				 * By catching and converting to ParseException, we allow indexing
+				 * to continue with other files rather than crashing the entire
+				 * indexing process.
+				 */
+				throw new ParseException(e);
+			}
 			
 			final int pageCount;
 			try {

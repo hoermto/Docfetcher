@@ -182,6 +182,10 @@ class FileContext {
 			 * that occurs when indexing documents with extremely large numbers
 			 * of tokens, causing an integer overflow in Lucene's ByteBlockPool.
 			 *
+			 * Bug #2360: This also catches ArrayIndexOutOfBoundsException from
+			 * Lucene's ByteSliceReader when buffer management issues occur during
+			 * index flushing with complex documents.
+			 *
 			 * Bug #2409: This also catches ArrayIndexOutOfBoundsException from
 			 * the ANSJ tokenizer library when processing certain text, likely
 			 * due to edge cases in Chinese character processing (String.getChars
