@@ -204,7 +204,7 @@ final class ErrorTable {
 	private void copySelectedErrorsToClipboard() {
 		if (errors.isEmpty())
 			return;
-		
+
 		List<IndexingError> sel = tv.getSelection();
 		if (sel.isEmpty())
 			sel = errors;
@@ -212,7 +212,18 @@ final class ErrorTable {
 		StringBuilder sb = new StringBuilder();
 		boolean first = true;
 		for (IndexingError error : sel) {
-			File file = error.getTreeNode().getPath().getCanonicalFile();
+			File file = null;
+			try {
+				file = error.getTreeNode().getPath().getCanonicalFile();
+			} catch (NullPointerException e) {
+				/*
+				 * Similar to bug #1128: The file path may be null if the
+				 * file was deleted or is no longer accessible when copying
+				 * error information to the clipboard.
+				 */
+			}
+			if (file == null)
+				continue;
 			if (!first)
 				sb.append(Util.LS).append(Util.LS);
 			sb.append(error.getLocalizedMessage());
@@ -220,7 +231,7 @@ final class ErrorTable {
 			sb.append(file.getPath());
 			first = false;
 		}
-		
+
 		UtilGui.setClipboard(sb.toString());
 	}
 
