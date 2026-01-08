@@ -155,6 +155,31 @@ public final class PdfParser extends StreamParser {
 				 */
 				throw new ParseException(e);
 			}
+			catch (NoClassDefFoundError e) {
+				/*
+				 * Bug #2292: PDFBox's font initialization (FontMapperImpl, PDType1Font,
+				 * etc.) can fail with NoClassDefFoundError when OutOfMemoryError occurs
+				 * during static initialization. Java wraps the OutOfMemoryError in an
+				 * ExceptionInInitializerError, which then manifests as NoClassDefFoundError
+				 * on subsequent access attempts.
+				 *
+				 * This is similar to bug #2423 (in PagingPdfParser) and bug #1977.
+				 * The fix unwraps the error chain to detect OutOfMemoryError and
+				 * re-throw it as CheckedOutOfMemoryError, allowing ParseService to
+				 * display a user-friendly out-of-memory message.
+				 *
+				 * If not OOM-related, the NoClassDefFoundError is treated as a
+				 * general parse exception.
+				 */
+				Throwable cause = e.getCause();
+				if (cause instanceof ExceptionInInitializerError) {
+					Throwable rootCause = cause.getCause();
+					if (rootCause instanceof OutOfMemoryError) {
+						throw (OutOfMemoryError) rootCause;
+					}
+				}
+				throw new ParseException(e);
+			}
 			catch (ExceptionInInitializerError e) {
 				/*
 				 * Thrown since PDFBox 2.0.9, see bug #1477.
