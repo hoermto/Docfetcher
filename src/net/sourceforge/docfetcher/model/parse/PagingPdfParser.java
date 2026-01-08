@@ -101,6 +101,34 @@ public final class PagingPdfParser {
 			// If not OOM-related, treat as a general parse exception
 			throw new ParseException(e);
 		}
+		catch (ExceptionInInitializerError e) {
+			/*
+			 * Bug #2305: PDFBox's initialization of PDDocument can fail with
+			 * ExceptionInInitializerError when encountering malformed or
+			 * corrupted ICC color profiles in PDF files. This manifests as
+			 * a NullPointerException in java.awt.color.ICC_Profile during
+			 * static initialization of PDFBox color handling classes.
+			 *
+			 * Example error chain:
+			 * - ExceptionInInitializerError in PDDocument.<clinit>
+			 * - Caused by: NullPointerException in ICC_Profile.intFromBigEndian
+			 *
+			 * This typically occurs when:
+			 * 1. PDF contains a malformed ICC color profile
+			 * 2. Java's color management system encounters null profile data
+			 * 3. PDFBox attempts to initialize color space handling
+			 *
+			 * We must also check if the root cause is OutOfMemoryError,
+			 * which can occur during class initialization and should be
+			 * handled specially (similar to bug #2423).
+			 */
+			Throwable rootCause = e.getCause();
+			if (rootCause instanceof OutOfMemoryError) {
+				throw new CheckedOutOfMemoryError((OutOfMemoryError) rootCause);
+			}
+			// If not OOM-related, treat as a general parse exception
+			throw new ParseException(e);
+		}
 		catch (OutOfMemoryError e) {
 			throw new CheckedOutOfMemoryError(e);
 		}
