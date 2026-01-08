@@ -235,6 +235,16 @@ public final class Searcher {
             	Util.printErr(e);
                 corrupted.add(new CorruptedIndex(index, e));
             }
+            catch (RuntimeException e) {
+            	// Catch IllegalStateException and other runtime exceptions that
+            	// can occur when opening corrupted or incompatible indexes.
+            	// For example: "missing attribute: PerFieldPostingsFormat.suffix"
+            	Util.printErr(e);
+            	IOException wrappedException = new IOException(
+            		"Failed to open index due to corruption or incompatibility: " +
+            		e.getMessage(), e);
+                corrupted.add(new CorruptedIndex(index, wrappedException));
+            }
         }
         luceneSearcher = new IndexSearcher(new DecoratedMultiReader(readers.toArray(new IndexReader[readers.size()])));
         return corrupted;

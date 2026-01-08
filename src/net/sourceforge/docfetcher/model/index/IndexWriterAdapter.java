@@ -14,6 +14,7 @@ package net.sourceforge.docfetcher.model.index;
 import java.io.Closeable;
 import java.io.IOException;
 
+import net.sourceforge.docfetcher.gui.ManualLocator;
 import net.sourceforge.docfetcher.model.Fields;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.util.CheckedOutOfMemoryError;
@@ -21,6 +22,7 @@ import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.VisibleForPackageGroup;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
@@ -44,6 +46,17 @@ public final class IndexWriterAdapter implements Closeable {
 			"Please exclude the index folder from antivirus scans, " +
 			"then rebuild the index.";
 
+	private static String getIndexCorruptionMsg() {
+		String url = ManualLocator.getManualSubpageUrl("Memory_Limit.html");
+		if (url == null) {
+			return "Index corruption detected. This is usually caused by running out of " +
+				"memory during a previous indexing operation.";
+		}
+		return "Index corruption detected. This is usually caused by running out of " +
+				"memory during a previous indexing operation. Please see the following file " +
+				"for instructions on increasing the memory limit, then rebuild the index.\n" + url;
+	}
+
 	@NotNull private IndexWriter writer;
 
 	public IndexWriterAdapter(@NotNull Directory luceneDir) throws IOException {
@@ -61,8 +74,17 @@ public final class IndexWriterAdapter implements Closeable {
 		catch (OutOfMemoryError e) {
 			reopenWriterAndThrow(e);
 		}
+		catch (CorruptIndexException e) {
+			throw new IOException(getIndexCorruptionMsg(), e);
+		}
 		catch (AlreadyClosedException e) {
-			throw new IOException(EXTERNAL_MODIFICATION_MSG, e);
+			// Check if the cause is CorruptIndexException
+			Throwable cause = e.getCause();
+			if (cause instanceof CorruptIndexException) {
+				throw new IOException(getIndexCorruptionMsg(), e);
+			} else {
+				throw new IOException(EXTERNAL_MODIFICATION_MSG, e);
+			}
 		}
 		catch (IllegalStateException e) {
 			if (e.getMessage().contains("OutOfMemoryError")) {
@@ -82,8 +104,17 @@ public final class IndexWriterAdapter implements Closeable {
 		catch (OutOfMemoryError e) {
 			reopenWriterAndThrow(e);
 		}
+		catch (CorruptIndexException e) {
+			throw new IOException(getIndexCorruptionMsg(), e);
+		}
 		catch (AlreadyClosedException e) {
-			throw new IOException(EXTERNAL_MODIFICATION_MSG, e);
+			// Check if the cause is CorruptIndexException
+			Throwable cause = e.getCause();
+			if (cause instanceof CorruptIndexException) {
+				throw new IOException(getIndexCorruptionMsg(), e);
+			} else {
+				throw new IOException(EXTERNAL_MODIFICATION_MSG, e);
+			}
 		}
 		catch (IllegalStateException e) {
 			if (e.getMessage().contains("OutOfMemoryError")) {
