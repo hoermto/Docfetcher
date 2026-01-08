@@ -114,7 +114,31 @@ public final class IndexWriterAdapter implements Closeable {
 	}
 	
 	public void close() throws IOException {
-		writer.close();
+		try {
+			writer.close();
+		}
+		catch (AssertionError e) {
+			/*
+			 * On certain filesystems (e.g., CIFS, network mounts), Lucene's
+			 * fsync operation on directories may fail with an IOException,
+			 * which Lucene then wraps in an AssertionError with the message:
+			 * "On Linux and MacOSX fsyncing a directory should not throw
+			 * IOException, we just don't want to rely on that in production
+			 * (undocumented)."
+			 *
+			 * Since directory fsync is a best-effort operation for metadata
+			 * durability and not critical for index integrity, we can safely
+			 * ignore this error. The index will still be valid even if the
+			 * directory metadata wasn't synced.
+			 */
+			String msg = e.getMessage();
+			if (msg != null && msg.contains("fsyncing a directory")) {
+				// Ignore the error - directory fsync is best-effort
+			} else {
+				// Re-throw if it's a different kind of AssertionError
+				throw e;
+			}
+		}
 	}
 
 }
