@@ -173,6 +173,8 @@ final class ErrorTable {
 						 */
 						continue;
 					}
+					if (file == null)
+						continue;
 					File parent = Util.getParentFile(file);
 					if (parent.exists())
 						launcher.addFile(parent);
