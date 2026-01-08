@@ -15,6 +15,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.InvalidPathException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -242,7 +243,8 @@ public final class UtilModel {
 	/**
 	 * Tries to unpack the given zip archive entry. Throws an IOException if the
 	 * entry is password-protected. Returns null if the given file is not a zip
-	 * archive entry.
+	 * archive entry or if the entry has an illegal filename that cannot be
+	 * extracted on the current filesystem.
 	 */
 	@Nullable
 	@VisibleForPackageGroup
@@ -257,8 +259,20 @@ public final class UtilModel {
 		long requiredSpace = tzFile.length();
 		config.checkDiskSpaceInTempDir(requiredSpace);
 		File unpackedFile = config.createDerivedTempFile(file.getName());
-		/* This throws an IOException if the zip entry is password-protected. */
-		tzFile.cp(unpackedFile);
+		try {
+			/* This throws an IOException if the zip entry is password-protected. */
+			tzFile.cp(unpackedFile);
+		}
+		catch (InvalidPathException e) {
+			/*
+			 * TrueZIP may throw InvalidPathException when the archive entry
+			 * filename contains characters that are illegal on the current
+			 * filesystem (e.g., colons on Windows). In such cases, we cannot
+			 * extract the file, so return null to skip it.
+			 */
+			unpackedFile.delete();
+			return null;
+		}
 		return unpackedFile;
 	}
 	
