@@ -815,9 +815,15 @@ public final class UtilGui {
 	public static void setClipboard(@NotNull String text) {
 		Util.checkNotNull(text);
 		Clipboard clipboard = new Clipboard(Display.getCurrent());
-		Transfer[] types = new Transfer[] { TextTransfer.getInstance() };
-		clipboard.setContents(new Object[] {text}, types);
-		clipboard.dispose();
+		try {
+			Transfer[] types = new Transfer[] { TextTransfer.getInstance() };
+			clipboard.setContents(new Object[] {text}, types);
+		} catch (org.eclipse.swt.SWTError e) {
+			// Bug #2304: Silently ignore SWTError when clipboard is locked
+			// by another application (common on Windows XP)
+		} finally {
+			clipboard.dispose();
+		}
 	}
 
 	/**
@@ -848,8 +854,14 @@ public final class UtilGui {
 			i++;
 		}
 	
-		clipboard.setContents(new Object[] {sb.toString(), filePaths}, types);
-		clipboard.dispose();
+		try {
+			clipboard.setContents(new Object[] {sb.toString(), filePaths}, types);
+		} catch (org.eclipse.swt.SWTError e) {
+			// Bug #2304: Silently ignore SWTError when clipboard is locked
+			// by another application (common on Windows XP)
+		} finally {
+			clipboard.dispose();
+		}
 	}
 
 	/**
