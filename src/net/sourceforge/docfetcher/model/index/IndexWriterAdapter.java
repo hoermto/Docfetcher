@@ -13,6 +13,7 @@ package net.sourceforge.docfetcher.model.index;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 
 import net.sourceforge.docfetcher.gui.ManualLocator;
 import net.sourceforge.docfetcher.model.Fields;
@@ -60,9 +61,19 @@ public final class IndexWriterAdapter implements Closeable {
 	@NotNull private IndexWriter writer;
 
 	public IndexWriterAdapter(@NotNull Directory luceneDir) throws IOException {
-		IndexWriterConfig config
-				= new IndexWriterConfig(IndexRegistry.getAnalyzer());
-		writer = new IndexWriter(luceneDir, config);
+		try {
+			IndexWriterConfig config
+					= new IndexWriterConfig(IndexRegistry.getAnalyzer());
+			writer = new IndexWriter(luceneDir, config);
+		}
+		catch (CorruptIndexException e) {
+			throw new IOException(getIndexCorruptionMsg(), e);
+		}
+		catch (NoSuchFileException e) {
+			// Bug #2281: Missing segment files, typically caused by OOME during
+			// a previous indexing session that left orphaned file references
+			throw new IOException(getIndexCorruptionMsg(), e);
+		}
 	}
 
 	// may throw OutOfMemoryError
@@ -77,10 +88,15 @@ public final class IndexWriterAdapter implements Closeable {
 		catch (CorruptIndexException e) {
 			throw new IOException(getIndexCorruptionMsg(), e);
 		}
+		catch (NoSuchFileException e) {
+			// Bug #2281: Missing segment files, typically caused by OOME during
+			// a previous indexing session that left orphaned file references
+			throw new IOException(getIndexCorruptionMsg(), e);
+		}
 		catch (AlreadyClosedException e) {
-			// Check if the cause is CorruptIndexException
+			// Check if the cause is CorruptIndexException or NoSuchFileException
 			Throwable cause = e.getCause();
-			if (cause instanceof CorruptIndexException) {
+			if (cause instanceof CorruptIndexException || cause instanceof NoSuchFileException) {
 				throw new IOException(getIndexCorruptionMsg(), e);
 			} else {
 				throw new IOException(EXTERNAL_MODIFICATION_MSG, e);
@@ -107,10 +123,15 @@ public final class IndexWriterAdapter implements Closeable {
 		catch (CorruptIndexException e) {
 			throw new IOException(getIndexCorruptionMsg(), e);
 		}
+		catch (NoSuchFileException e) {
+			// Bug #2281: Missing segment files, typically caused by OOME during
+			// a previous indexing session that left orphaned file references
+			throw new IOException(getIndexCorruptionMsg(), e);
+		}
 		catch (AlreadyClosedException e) {
-			// Check if the cause is CorruptIndexException
+			// Check if the cause is CorruptIndexException or NoSuchFileException
 			Throwable cause = e.getCause();
-			if (cause instanceof CorruptIndexException) {
+			if (cause instanceof CorruptIndexException || cause instanceof NoSuchFileException) {
 				throw new IOException(getIndexCorruptionMsg(), e);
 			} else {
 				throw new IOException(EXTERNAL_MODIFICATION_MSG, e);
