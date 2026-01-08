@@ -891,6 +891,29 @@ public final class Util {
 	}
 
 	/**
+	 * Sanitizes a filename by replacing characters that are not safe for use
+	 * in file paths with underscores. Uses a whitelist approach: only letters,
+	 * digits, and a few safe characters (space, underscore, dash, dot, hash)
+	 * are preserved. All other characters are replaced with underscores.
+	 * This method is needed when extracting files from archives that may
+	 * contain filenames with characters that are valid on other operating
+	 * systems but illegal on Windows.
+	 */
+	@NotNull
+	public static String sanitizeFilename(@NotNull String filename) {
+		StringBuilder sb = new StringBuilder(filename.length());
+		for (int i = 0; i < filename.length(); i++) {
+			char c = filename.charAt(i);
+			if (Character.isLetterOrDigit(c) || c == ' ' || c == '_' || c == '-' || c == '.' || c == '#') {
+				sb.append(c);
+			} else {
+				sb.append('_');
+			}
+		}
+		return sb.toString();
+	}
+
+	/**
 	 * For the given filename and a list of file extensions, this method returns
 	 * true if any of the file extensions match the filename. A match occurs
 	 * when the given filename, after being lower-cased, ends with '.' and the
@@ -1279,7 +1302,10 @@ public final class Util {
 	public static File createDerivedTempFile(	@NotNull String filename,
 												@NotNull File tempDir)
 			throws IOException {
-		String[] nameParts = Util.splitFilename(filename);
+		// Sanitize filename to avoid InvalidPathException on Windows when
+		// extracting archive entries with illegal path characters
+		String sanitized = Util.sanitizeFilename(filename);
+		String[] nameParts = Util.splitFilename(sanitized);
 		if (! nameParts[1].equals(""))
 			nameParts[1] = "." + nameParts[1];
 		return Util.createTempFile(
