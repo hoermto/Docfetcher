@@ -24,6 +24,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 
 import com.google.common.io.Closeables;
@@ -35,9 +36,14 @@ import com.google.common.io.Closeables;
  */
 @VisibleForPackageGroup
 public final class IndexWriterAdapter implements Closeable {
-	
+
 	public static final Term idTerm = new Term(Fields.UID.key());
-	
+
+	private static final String EXTERNAL_MODIFICATION_MSG =
+			"Index corrupted by external process (e.g., antivirus software). " +
+			"Please exclude the index folder from antivirus scans, " +
+			"then rebuild the index.";
+
 	@NotNull private IndexWriter writer;
 
 	public IndexWriterAdapter(@NotNull Directory luceneDir) throws IOException {
@@ -54,6 +60,9 @@ public final class IndexWriterAdapter implements Closeable {
 		}
 		catch (OutOfMemoryError e) {
 			reopenWriterAndThrow(e);
+		}
+		catch (AlreadyClosedException e) {
+			throw new IOException(EXTERNAL_MODIFICATION_MSG, e);
 		}
 		catch (IllegalStateException e) {
 			if (e.getMessage().contains("OutOfMemoryError")) {
@@ -72,6 +81,9 @@ public final class IndexWriterAdapter implements Closeable {
 		}
 		catch (OutOfMemoryError e) {
 			reopenWriterAndThrow(e);
+		}
+		catch (AlreadyClosedException e) {
+			throw new IOException(EXTERNAL_MODIFICATION_MSG, e);
 		}
 		catch (IllegalStateException e) {
 			if (e.getMessage().contains("OutOfMemoryError")) {
