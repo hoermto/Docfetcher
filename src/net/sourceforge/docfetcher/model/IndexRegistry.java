@@ -479,7 +479,7 @@ public final class IndexRegistry {
 			addIndex(index, serFile.lastModified());
 			return true;
 		}
-		catch (Exception e) {
+		catch (Throwable e) {
 			e.printStackTrace();
 			return false;
 		}
