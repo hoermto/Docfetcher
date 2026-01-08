@@ -67,6 +67,27 @@ public final class PdfParser extends StreamParser {
 				 */
 				throw new ParseException(e);
 			}
+			catch (NoClassDefFoundError e) {
+				/*
+				 * Bug #2252: When PDFBox attempts to load encrypted PDF files,
+				 * it initializes encryption/decryption classes from the
+				 * javax.crypto package (NoSuchPaddingException, Cipher, etc.).
+				 * On Java 9+ with module system restrictions, these JCE classes
+				 * may not be accessible, resulting in NoClassDefFoundError.
+				 *
+				 * The error occurs in PDFBox's SecurityHandlerFactory when it
+				 * tries to instantiate encryption handlers via reflection for
+				 * encrypted PDFs.
+				 *
+				 * This is similar to bug #2077 (OpenDocument NoClassDefFoundError
+				 * on Java 9+) and other module system restriction issues.
+				 *
+				 * By catching and converting to ParseException, we allow indexing
+				 * to continue with other files rather than crashing the entire
+				 * indexing process.
+				 */
+				throw new ParseException(e);
+			}
 			catch (UnsatisfiedLinkError e) {
 				/*
 				 * Bug #2357: PDFBox's initialization of PDDocument triggers AWT
