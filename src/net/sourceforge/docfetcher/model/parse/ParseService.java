@@ -17,6 +17,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.InvalidPathException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -224,6 +225,10 @@ public final class ParseService {
 			}
 			catch (IOException e) {
 				// Ignore and continue with detecting the type by filename
+			}
+			catch (InvalidPathException e) {
+				// Ignore archive entries with illegal filename characters and
+				// fall back to detecting the type by filename
 			}
 		}
 		
