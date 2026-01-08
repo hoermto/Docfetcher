@@ -752,15 +752,15 @@ public final class Application {
 	}
 
 	/**
-	 * Handles IOException during configuration file loading/creation with improved
-	 * error messages, especially for permission-related issues in the portable version.
+	 * Handles IOException during configuration file loading/creation with.
 	 */
 	private static void handleConfigurationIOException(@NotNull IOException e, @NotNull File confFile, boolean displayExists) {
-		String errorMsg = e.getMessage();
-		boolean isPermissionError = errorMsg != null &&
-			(errorMsg.contains("Access is denied") ||
-			 errorMsg.contains("Permission denied") ||
-			 errorMsg.contains("access denied"));
+		// Check for permission errors by testing if the directory exists but is
+		// not writable.
+		File parentDir = Util.getParentFile(confFile);
+		boolean isPermissionError = parentDir != null &&
+			parentDir.exists() &&
+			!parentDir.canWrite();
 
 		if (isPermissionError && SystemConf.Bool.IsPortable.get()) {
 			String programDir = new File(Util.USER_DIR_PATH).getAbsolutePath();
@@ -772,8 +772,8 @@ public final class Application {
 			msg.append("Possible solutions:\n\n");
 			msg.append("1. Use the official installer instead of the portable version. The installer will place files in the appropriate user directories. (Recommended)\n\n");
 			msg.append("2. Move the portable version to a writable location such as your Desktop, Documents folder, or a folder in your user directory.\n\n");
-			msg.append("3. Run the program as Administrator. (Not recommended for security reasons)\n\n");
-			msg.append("Technical details: " + e.getClass().getSimpleName() + ": " + errorMsg);
+			msg.append("3. Run the program as Administrator. (Not recommended for security reasons.)\n\n");
+			msg.append("Technical details: " + e.getClass().getSimpleName() + ": " + e.getMessage());
 
 			AppUtil.showErrorOnStart(msg.toString(), false);
 		}
@@ -881,6 +881,9 @@ public final class Application {
 			String outStr = Util.join(Util.LS, outLines);
 			Util.getParentFile(confFile).mkdirs();
 			Files.write(outStr, confFile, Charsets.UTF_8);
+		}
+		catch (IOException e1) {
+			handleConfigurationIOException(e1, confFile, false);
 		}
 		catch (Exception e1) {
 			AppUtil.showStackTraceInOwnDisplay(e1);
