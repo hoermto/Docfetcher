@@ -87,7 +87,24 @@ abstract class OpenOfficeParser extends FileParser {
 	protected final ParseResult parse(	@NotNull File file,
 										@NotNull ParseContext context)
 			throws ParseException {
-		OpenDocumentParser tikaParser = new OpenDocumentParser();
+		OpenDocumentParser tikaParser;
+		try {
+			tikaParser = new OpenDocumentParser();
+		}
+		catch (NoClassDefFoundError e) {
+			/*
+			 * Bug #2077: On some Java installations (especially Java 9+ with
+			 * module system restrictions or incomplete classpaths), Tika's
+			 * OpenDocumentParser initialization fails with NoClassDefFoundError
+			 * for Apache Commons IO classes like CloseShieldInputStream.
+			 * This occurs even when the classes exist in the classpath, likely
+			 * due to Java module system classloading issues.
+			 *
+			 * Re-throw as ParseException to allow indexing to continue for
+			 * other files.
+			 */
+			throw new ParseException(e);
+		}
 		BodyContentHandler contentHandler = new BodyContentHandler(-1);
 		Metadata metadata = new Metadata();
 		TikaInputStream in = null;
@@ -99,7 +116,7 @@ abstract class OpenOfficeParser extends FileParser {
 			 * attachments in Outlook PST files. As a workaround, make Tika use
 			 * ZipFile instead by wrapping the input file in a TikaInputStream.
 			 * See: https://sourceforge.net/p/docfetcher/bugs/1224/
-			 * 
+			 *
 			 * Note that we're using Paths.get(...) instead of the simpler
 			 * file.toPath(), since the latter is not implemented for TFile
 			 * objects.
