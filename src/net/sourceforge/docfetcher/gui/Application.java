@@ -409,6 +409,23 @@ public final class Application {
 					return;
 				}
 			}
+
+			// Filter out benign SWTException caused by GTK/SWT library bug during
+			// widget disposal. This manifests as "g_object_get_qdata returned unexpected
+			// index value" error on Linux systems with certain GTK themes. This is a
+			// known issue in Eclipse SWT's GTK implementation that occurs during
+			// shell/widget disposal and is outside DocFetcher's control.
+			// See bug #2369.
+			if (swtEx.getMessage() != null && swtEx.getMessage().contains("g_object_get_qdata")) {
+				String stackTrace = Throwables.getStackTraceAsString(t);
+				// Only filter if this is happening during widget disposal/deregistration
+				if (stackTrace.contains("Display.removeWidget") ||
+					stackTrace.contains("Widget.deregister") ||
+					stackTrace.contains("Widget.releaseWidget")) {
+					// Silently ignore - this is a benign GTK/SWT library bug
+					return;
+				}
+			}
 		}
 
 		for (OutOfMemoryError e : Iterables.filter(Throwables.getCausalChain(t), OutOfMemoryError.class)) {
