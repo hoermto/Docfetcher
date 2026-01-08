@@ -63,6 +63,32 @@ public final class PagingPdfParser {
 				throw new ParseException(e);
 			}
 		}
+		catch (UnsatisfiedLinkError e) {
+			/*
+			 * Bug #2342: PDFBox's initialization of PDDocument triggers AWT
+			 * component initialization for image/graphics rendering. When AWT
+			 * native libraries (libawt_xawt.so on Linux, awt.dll on Windows)
+			 * cannot load due to missing dependencies, an UnsatisfiedLinkError
+			 * is thrown during PDF preview operations.
+			 *
+			 * On Linux: Can occur when libawt_xawt.so's dependencies are
+			 * missing (e.g., in minimal Java installations or when running
+			 * with Java 17 that lacks X11 graphics dependencies).
+			 *
+			 * On Windows: Can occur when awt.dll's MSVC runtime dependencies
+			 * (msvcp120.dll, msvcr120.dll) are missing.
+			 *
+			 * This is the preview counterpart to bug #2357 (which affected
+			 * PDF indexing). Both bugs share the same root cause and are
+			 * similar to bugs #2361, #2398, #2404, #2419, and #2441, where
+			 * UnsatisfiedLinkError prevented graceful error handling.
+			 *
+			 * By catching and converting to ParseException, we allow the
+			 * preview panel to display an error message rather than crashing
+			 * the application.
+			 */
+			throw new ParseException(e);
+		}
 		catch (NoClassDefFoundError e) {
 			// Check if this error was caused by OutOfMemoryError during class initialization
 			Throwable cause = e.getCause();
