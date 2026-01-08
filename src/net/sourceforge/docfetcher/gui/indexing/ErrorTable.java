@@ -91,8 +91,27 @@ final class ErrorTable {
 				}
 			}
 			protected int compare(IndexingError e1, IndexingError e2) {
-				File f1 = e1.getTreeNode().getPath().getCanonicalFile();
-				File f2 = e2.getTreeNode().getPath().getCanonicalFile();
+				File f1 = null;
+				File f2 = null;
+				try {
+					f1 = e1.getTreeNode().getPath().getCanonicalFile();
+				} catch (NullPointerException e) {
+					/* Similar to bug #1128: file path may be null if deleted */
+				}
+				try {
+					f2 = e2.getTreeNode().getPath().getCanonicalFile();
+				} catch (NullPointerException e) {
+					/* Similar to bug #1128: file path may be null if deleted */
+				}
+
+				// Handle null cases: nulls sort to the end
+				if (f1 == null && f2 == null)
+					return 0;
+				if (f1 == null)
+					return 1;
+				if (f2 == null)
+					return -1;
+
 				return f1.compareTo(f2);
 			}
 		});
