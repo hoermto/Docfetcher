@@ -79,20 +79,33 @@ public final class CharsetDetectorHelper {
 				throw new IOException("Charset not found: " + charsetOverride.trim());
 			}
 		}
-		
+
 		if (charsetDetector == null)
 			charsetDetector = new UniversalDetector(null);
-		
+
 		byte[] buf = new byte[4096];
 		ByteArrayInputStream byteIn = new ByteArrayInputStream(bytes);
-		
-		int nread;
-		while ((nread = byteIn.read(buf)) > 0 && !charsetDetector.isDone())
-			charsetDetector.handleData(buf, 0, nread);
-		charsetDetector.dataEnd();
-		String charsetName = charsetDetector.getDetectedCharset();
-		charsetDetector.reset();
-		
+
+		String charsetName = null;
+		try {
+			int nread;
+			while ((nread = byteIn.read(buf)) > 0 && !charsetDetector.isDone())
+				charsetDetector.handleData(buf, 0, nread);
+			charsetDetector.dataEnd();
+			charsetName = charsetDetector.getDetectedCharset();
+		}
+		catch (ArrayIndexOutOfBoundsException e) {
+			/*
+			 * Bug #2235: ArrayIndexOutOfBoundsException in universalchardet's
+			 * SequenceModel.getPrecedence() when processing certain files with
+			 * unusual byte sequences. Fall back to ISO_8859_1 encoding.
+			 */
+			charsetName = null;
+		}
+		finally {
+			charsetDetector.reset();
+		}
+
 		try {
 			return charsetName == null
 				? new String(bytes, Charsets.ISO_8859_1)
