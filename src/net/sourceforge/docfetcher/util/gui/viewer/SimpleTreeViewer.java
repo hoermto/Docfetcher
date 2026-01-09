@@ -380,12 +380,22 @@ public abstract class SimpleTreeViewer<E> {
 			if (filter(next))
 				newChildren.add(next);
 		} while (it.hasNext());
-		
+
 		if (!found)
 			newChildren.add(element);
 		sort(newChildren);
 		int index = newChildren.indexOf(element);
-		createItem(parentItem, element, index);
+
+		/*
+		 * Workaround for bug #2248: Due to rare SWT bugs or race conditions,
+		 * the calculated index may be out of bounds. If that happens, just
+		 * append to the end.
+		 */
+		try {
+			createItem(parentItem, element, index);
+		} catch (IllegalArgumentException e) {
+			createItem(parentItem, element, -1);
+		}
 	}
 	
 	// Will do nothing if the element is not registered
