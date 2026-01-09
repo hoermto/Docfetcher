@@ -26,6 +26,7 @@ import net.sourceforge.docfetcher.util.annotations.VisibleForPackageGroup;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.RAFDirectory;
 import org.apache.lucene.store.RAMDirectory;
 
 @VisibleForPackageGroup
@@ -156,6 +157,18 @@ public abstract class TreeIndex <
 	public final Directory getLuceneDir() throws IOException {
 		if (fileIndexDirPath != null) {
 			assert ramIndexDir == null;
+			/*
+			 * Use RAFDirectory on Windows to avoid EXCEPTION_IN_PAGE_ERROR crashes
+			 * that can occur with MMapDirectory in long-running processes. MMapDirectory
+			 * (the default on Windows 64-bit) uses memory-mapped files which become
+			 * unstable when combined with thread interruption (used in DocFetcher's
+			 * cancellation mechanism), causing JVM crashes after many hours of operation.
+			 * RAFDirectory is the official Lucene recommendation for applications using
+			 * thread interruption, offering better performance than SimpleFSDirectory
+			 * while remaining thread-interruption safe. See bug #2242.
+			 */
+			if (Util.IS_WINDOWS)
+				return new RAFDirectory(getIndexDirPath().getCanonicalFile().toPath());
 			return FSDirectory.open(getIndexDirPath().getCanonicalFile().toPath());
 		}
 		if (ramIndexDir == null) // may be null after deserialization
