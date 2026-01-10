@@ -502,6 +502,14 @@ public final class Searcher {
 	@ThreadSafe
 	private static QueryWrapper createQuery(@NotNull String queryString)
 			throws SearchException {
+		// Normalize Unicode quotation marks to ASCII quotes to avoid parse errors
+		// Bug #2226: Users might copy-paste text with curly quotes
+		queryString = queryString
+			.replace('\u201C', '"')  // Left double quotation mark
+			.replace('\u201D', '"')  // Right double quotation mark
+			.replace('\u2018', '\'') // Left single quotation mark
+			.replace('\u2019', '\''); // Right single quotation mark
+
 		PhraseDetectingQueryParser queryParser = new PhraseDetectingQueryParser(
 			Fields.CONTENT.key(), IndexRegistry.getAnalyzer());
 		queryParser.setAllowLeadingWildcard(true);
@@ -509,7 +517,7 @@ public final class Searcher {
 		queryParser.setMultiTermRewriteMethod(rewriteMethod);
 		if (!SettingsConf.Bool.UseOrOperator.get())
 			queryParser.setDefaultOperator(QueryParser.AND_OPERATOR);
-		
+
 		try {
 			Query query = queryParser.parse(queryString);
 			boolean isPhraseQuery = queryParser.isPhraseQuery();
