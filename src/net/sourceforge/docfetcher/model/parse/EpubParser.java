@@ -166,6 +166,21 @@ public final class EpubParser extends FileParser {
 				.setTitle(title)
 				.addAuthor(creator);
 		}
+		catch (java.util.zip.ZipError e) {
+			/*
+			 * java.util.zip.ZipError is an Error (not Exception) that occurs
+			 * at the native level when the JVM's ZIP library encounters corrupted
+			 * or invalid ZIP entries. EPUB files are ZIP archives, so corrupted
+			 * EPUB files can trigger this error. Since this is an Error rather
+			 * than an Exception, it bypasses normal exception handling.
+			 *
+			 * Bug report:
+			 * https://sourceforge.net/p/docfetcher/bugs/2188/
+			 */
+			String msg = "The file appears to be corrupted or invalid. "
+					+ "Try opening it with an EPUB reader to verify if it's a valid document.";
+			throw new ParseException(msg, e);
+		}
 		catch (IOException e) {
 			throw new ParseException(e);
 		}

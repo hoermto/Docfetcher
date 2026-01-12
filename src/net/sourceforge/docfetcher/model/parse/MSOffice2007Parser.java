@@ -176,6 +176,25 @@ abstract class MSOffice2007Parser extends FileParser {
 				throw e;
 			}
 		}
+		catch (java.util.zip.ZipError e) {
+			/*
+			 * java.util.zip.ZipError is an Error (not Exception) that occurs
+			 * at the native level when the JVM's ZIP library encounters corrupted
+			 * or invalid ZIP entries. Office 2007+ files (.docx, .xlsx, .pptx, etc.)
+			 * are ZIP files, so corrupted Office files can trigger this error.
+			 *
+			 * The error typically has a message like "jzentry == 0" with details
+			 * about the file being read. Since this is an Error rather than an
+			 * Exception, it bypasses normal exception handling and crashes the
+			 * application if not caught explicitly.
+			 *
+			 * Bug report:
+			 * https://sourceforge.net/p/docfetcher/bugs/2188/
+			 */
+			String msg = "The file appears to be corrupted or invalid. "
+					+ "Try opening it in Microsoft Office to verify if it's a valid document.";
+			throw new ParseException(msg, e);
+		}
 		catch (Exception e) {
 			throw new ParseException(e);
 		}
@@ -197,6 +216,12 @@ abstract class MSOffice2007Parser extends FileParser {
 		try {
 			pkg = OPCPackage.open(file.getPath(), PackageAccess.READ);
 			return extractText(pkg);
+		}
+		catch (java.util.zip.ZipError e) {
+			// See comment in parse() method above for details about this error
+			String msg = "The file appears to be corrupted or invalid. "
+					+ "Try opening it in Microsoft Office to verify if it's a valid document.";
+			throw new ParseException(msg, e);
 		}
 		catch (Exception e) {
 			throw new ParseException(e);

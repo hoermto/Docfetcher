@@ -136,6 +136,22 @@ abstract class OpenOfficeParser extends FileParser {
 			}
 			return result;
 		}
+		catch (java.util.zip.ZipError e) {
+			/*
+			 * java.util.zip.ZipError is an Error (not Exception) that occurs
+			 * at the native level when the JVM's ZIP library encounters corrupted
+			 * or invalid ZIP entries. OpenDocument files (.odt, .ods, .odp, etc.)
+			 * are ZIP files, so corrupted OpenDocument files can trigger this error
+			 * when Tika tries to parse them. Since this is an Error rather than an
+			 * Exception, it bypasses normal exception handling.
+			 *
+			 * Bug report:
+			 * https://sourceforge.net/p/docfetcher/bugs/2188/
+			 */
+			String msg = "The file appears to be corrupted or invalid. "
+					+ "Try opening it in LibreOffice to verify if it's a valid document.";
+			throw new ParseException(msg, e);
+		}
 		catch (CharConversionException e) {
 			if (matchesPasswordError(e)) {
 				throw new ParseException(Msg.doc_pw_protected.get());
