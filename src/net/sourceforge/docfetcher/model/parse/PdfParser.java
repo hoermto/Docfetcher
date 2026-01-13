@@ -207,7 +207,28 @@ public final class PdfParser extends StreamParser {
 				 */
 				throw new ParseException(e);
 			}
-			
+			catch (InternalError e) {
+				/*
+				 * Bug #2158: When PDFBox attempts to decrypt encrypted PDF files,
+				 * it initializes Java security providers via
+				 * SecurityHandlersManager.getInstance(). This triggers loading of
+				 * cryptographic provider JAR files (e.g., sunec.jar) from the JRE.
+				 *
+				 * If the Java installation is corrupted or incomplete (missing JAR
+				 * files in jre/lib/ext/), the classloader throws InternalError with
+				 * a wrapped FileNotFoundException.
+				 *
+				 * This typically occurs with malformed Java installations where
+				 * security provider libraries are missing or the java.ext.dirs
+				 * system property points to invalid paths.
+				 *
+				 * By catching and converting to ParseException, we allow indexing
+				 * to continue with other files rather than crashing the entire
+				 * indexing process.
+				 */
+				throw new ParseException(e);
+			}
+
 			writer.write(" ");
 			writer.write(annotations.toString());
 			
