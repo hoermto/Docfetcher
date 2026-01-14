@@ -503,16 +503,16 @@ public final class SettingsConf {
 	@Description("# Font entries, consisting of font name, height and style.")
 	public enum FontDescription implements Storable {
 		/*
-		 * Note: Lucida Sans Unicode seems to be the only Unicode font available
-		 * by default on all Windows versions. See:
-		 * https://stackoverflow.com/questions/9360394/what-are-standard-unicode-fonts
+		 * Note: The font choices below prioritize broad Unicode support,
+		 * including Vietnamese. CJK languages use OS-level font fallback as
+		 * these fonts don't include full CJK glyph sets.
 		 */
-		PreviewWindows ("Lucida Sans Unicode", 11, SWT.NORMAL),
-		PreviewLinux ("Sans", 10, SWT.NORMAL),
-		PreviewMacOsX ("Helvetica", 12, SWT.NORMAL),
-		PreviewMonoWindows ("Courier New", 10, SWT.NORMAL),
-		PreviewMonoLinux ("Monospace", 10, SWT.NORMAL),
-		PreviewMonoMacOsX ("Monaco", 10, SWT.NORMAL),
+		PreviewWindows ("Segoe UI", 11, SWT.NORMAL),
+		PreviewLinux ("DejaVu Sans", 10, SWT.NORMAL),
+		PreviewMacOsX ("SF Pro Text", 12, SWT.NORMAL),
+		PreviewMonoWindows ("Consolas", 10, SWT.NORMAL),
+		PreviewMonoLinux ("Liberation Mono", 10, SWT.NORMAL),
+		PreviewMonoMacOsX ("Menlo", 10, SWT.NORMAL),
 		;
 
 		private static Pattern fontPattern = Pattern.compile(
