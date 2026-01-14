@@ -68,6 +68,20 @@ abstract class MSOfficeParser extends FileParser {
 				// Discard throwable cause, we don't want to show its message
 				throw new ParseException(Msg.doc_pw_protected.get());
 			}
+			catch (ExceptionInInitializerError | NoClassDefFoundError e) {
+				/*
+				 * Apache POI's StringUtil class has a static initializer that
+				 * loads the Big5 charset. On some Java installations (especially
+				 * minimal/modular JREs), the Big5 charset is not available,
+				 * causing an UnsupportedCharsetException wrapped in an
+				 * ExceptionInInitializerError or NoClassDefFoundError.
+				 *
+				 * Bug reports:
+				 * https://sourceforge.net/p/docfetcher/bugs/2151/
+				 * https://sourceforge.net/p/docfetcher/bugs/2438/
+				 */
+				throw new ParseException(e);
+			}
 			finally {
 				Closeables.closeQuietly(extractor);
 			}
@@ -96,6 +110,26 @@ abstract class MSOfficeParser extends FileParser {
 				// Discard throwable cause, we don't want to show its message
 				throw new ParseException(Msg.doc_pw_protected.get());
 			}
+			catch (ExceptionInInitializerError | NoClassDefFoundError e) {
+				/*
+				 * Apache POI's StringUtil class has a static initializer that
+				 * loads the Big5 charset. On some Java installations (especially
+				 * minimal/modular JREs), the Big5 charset is not available,
+				 * causing an UnsupportedCharsetException wrapped in an
+				 * ExceptionInInitializerError or NoClassDefFoundError.
+				 *
+				 * Bug reports:
+				 * https://sourceforge.net/p/docfetcher/bugs/2151/
+				 * https://sourceforge.net/p/docfetcher/bugs/2438/
+				 *
+				 * Since there's no fallback library for PowerPoint documents, we
+				 * provide a clear error message to help users resolve the issue.
+				 */
+				throw new ParseException(
+					"Cannot parse PowerPoint document due to missing character set support in Java installation. " +
+					"Please ensure your Java Runtime Environment includes the Big5 charset " +
+					"(typically found in the jdk.charsets module or extended charset libraries).");
+			}
 			finally {
 				Closeables.closeQuietly(ppe);
 			}
@@ -107,13 +141,34 @@ abstract class MSOfficeParser extends FileParser {
 			super(Msg.filetype_vsd.get(), "vsd", "vss", "vst", "vsw");
 		}
 		protected String extractText(File file)
-				throws IOException {
+				throws IOException, ParseException {
 			VisioTextExtractor extractor = null;
 			try {
 				InputStream in = new FileInputStream(file);
 				extractor = new VisioTextExtractor(in);
 				return extractor.getText();
-			} finally {
+			}
+			catch (ExceptionInInitializerError | NoClassDefFoundError e) {
+				/*
+				 * Apache POI's StringUtil class has a static initializer that
+				 * loads the Big5 charset. On some Java installations (especially
+				 * minimal/modular JREs), the Big5 charset is not available,
+				 * causing an UnsupportedCharsetException wrapped in an
+				 * ExceptionInInitializerError or NoClassDefFoundError.
+				 *
+				 * Bug reports:
+				 * https://sourceforge.net/p/docfetcher/bugs/2151/
+				 * https://sourceforge.net/p/docfetcher/bugs/2438/
+				 *
+				 * Since there's no fallback library for Visio documents, we
+				 * provide a clear error message to help users resolve the issue.
+				 */
+				throw new ParseException(
+					"Cannot parse Visio document due to missing character set support in Java installation. " +
+					"Please ensure your Java Runtime Environment includes the Big5 charset " +
+					"(typically found in the jdk.charsets module or extended charset libraries).");
+			}
+			finally {
 				Closeables.closeQuietly(extractor);
 			}
 		}
