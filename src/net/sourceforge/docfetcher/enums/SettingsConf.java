@@ -508,11 +508,11 @@ public final class SettingsConf {
 		 * these fonts don't include full CJK glyph sets.
 		 */
 		PreviewWindows ("Segoe UI", 11, SWT.NORMAL),
-		PreviewLinux ("DejaVu Sans", 10, SWT.NORMAL),
-		PreviewMacOsX ("SF Pro Text", 12, SWT.NORMAL),
-		PreviewMonoWindows ("Consolas", 10, SWT.NORMAL),
-		PreviewMonoLinux ("Liberation Mono", 10, SWT.NORMAL),
-		PreviewMonoMacOsX ("Menlo", 10, SWT.NORMAL),
+		PreviewLinux ("DejaVu Sans", 11, SWT.NORMAL),
+		PreviewMacOsX ("SF Pro Text", 13, SWT.NORMAL),
+		PreviewMonoWindows ("Consolas", 12, SWT.NORMAL),
+		PreviewMonoLinux ("Liberation Mono", 12, SWT.NORMAL),
+		PreviewMonoMacOsX ("Menlo", 12, SWT.NORMAL),
 		;
 
 		private static Pattern fontPattern = Pattern.compile(
