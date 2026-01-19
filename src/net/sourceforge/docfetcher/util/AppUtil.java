@@ -666,4 +666,28 @@ public final class AppUtil {
 		return new File("lang");
 	}
 
+	/**
+	 * Tests if the given directory is writable by attempting to create and
+	 * delete a temporary file. This is more reliable than File.canWrite(),
+	 * especially on Windows with UAC-protected directories.
+	 *
+	 * @param dir The directory to test
+	 * @return true if the directory exists, is a directory, and is writable
+	 */
+	public static boolean canWriteToDirectory(@NotNull File dir) {
+		if (!dir.exists() || !dir.isDirectory())
+			return false;
+
+		File testFile = new File(dir, ".write-test-" + System.currentTimeMillis());
+		try {
+			if (testFile.createNewFile()) {
+				testFile.delete();
+				return true;
+			}
+		} catch (IOException e) {
+			// Cannot write to this directory
+		}
+		return false;
+	}
+
 }

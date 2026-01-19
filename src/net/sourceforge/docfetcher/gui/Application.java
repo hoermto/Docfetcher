@@ -756,11 +756,12 @@ public final class Application {
 	 */
 	private static void handleConfigurationIOException(@NotNull IOException e, @NotNull File confFile, boolean displayExists) {
 		// Check for permission errors by testing if the directory exists but is
-		// not writable.
+		// not writable. Use a reliable write test instead of canWrite() which
+		// is unreliable on Windows with UAC-protected directories.
 		File parentDir = Util.getParentFile(confFile);
 		boolean isPermissionError = parentDir != null &&
 			parentDir.exists() &&
-			!parentDir.canWrite();
+			!AppUtil.canWriteToDirectory(parentDir);
 
 		if (isPermissionError && SystemConf.Bool.IsPortable.get()) {
 			String programDir = new File(Util.USER_DIR_PATH).getAbsolutePath();
