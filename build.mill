@@ -4,6 +4,8 @@ import mill._
 import mill.javalib._
 
 object `package` extends JavaModule {
+	def mainClass = Some("net.sourceforge.docfetcher.Main")
+	
 	def lib = Task.Source("lib")
 
 	override def unmanagedClasspath = Task {
