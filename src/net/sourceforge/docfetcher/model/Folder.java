@@ -243,7 +243,17 @@ public abstract class Folder
 	public synchronized final void removeDocument(@Nullable D doc) {
 		if (documents == null || doc == null) return;
 		D candidate = documents.remove(doc.getName());
-		Util.checkThat(candidate == doc);
+		if (candidate == null) {
+			// Document not found in map - possibly already removed
+			return;
+		}
+		if (candidate != doc) {
+			/* Map contained a different object with the same name. Put it back
+			 * and remove the actual document from the parent reference. */
+			documents.put(candidate.getName(), candidate);
+			doc.parent = null;
+			return;
+		}
 		doc.parent = null;
 		if (documents.isEmpty())
 			documents = null;
@@ -284,12 +294,29 @@ public abstract class Folder
 			if (subFolders == null)
 				return;
 			F candidate = subFolders.remove(subFolder.getName());
-			Util.checkThat(candidate == subFolder);
+			if (candidate == null) {
+				// Subfolder not found in map - possibly already removed
+				return;
+			}
+			if (candidate != subFolder) {
+				/* Map contained a different object with the same name. Put it
+				 * back and remove the actual subfolder from the parent
+				 * reference. */
+				subFolders.put(candidate.getName(), candidate);
+				/*
+				 * Folder instances must always either have a parent or a path,
+				 * so we'll reconstruct the subfolder's path and set it before
+				 * we nullify the parent.
+				 */
+				subFolder.path = subFolder.getPath();
+				subFolder.parent = null;
+				return;
+			}
 
 			/*
-			 * Folder instances must always either have a parent or a path, so we'll
-			 * reconstruct the subfolder's path and set it before we nullify the
-			 * parent.
+			 * Folder instances must always either have a parent or a path, so
+			 * we'll reconstruct the subfolder's path and set it before we
+			 * nullify the parent.
 			 */
 			subFolder.path = subFolder.getPath();
 			subFolder.parent = null;
