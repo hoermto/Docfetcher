@@ -174,11 +174,17 @@ JINJA_GLOBALS = {
     'LANG_URLS': LANG_URLS
 }
 
-# Add page title variables to JINJA_GLOBALS for each non-English language
+# Add JINJA_GLOBALS for each non-English language
 for lang in I18N_SUBSITES.keys():
     if 'JINJA_GLOBALS' not in I18N_SUBSITES[lang]:
         I18N_SUBSITES[lang]['JINJA_GLOBALS'] = {}
     globals_dict = I18N_SUBSITES[lang]['JINJA_GLOBALS']
+
+    # Copy all shared variables from main JINJA_GLOBALS
+    for key, value in JINJA_GLOBALS.items():
+        globals_dict[key] = value
+
+    # Override with language-specific page titles
     globals_dict['PAGE_TITLE_OVERVIEW'] = I18N_SUBSITES[lang]['SITENAME']
     globals_dict['PAGE_TITLE_DOWNLOAD'] = MENU_ITEMS[lang]['download']
     globals_dict['PAGE_TITLE_SCREENSHOTS'] = MENU_ITEMS[lang]['screenshots']
