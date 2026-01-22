@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -37,7 +38,13 @@ import com.pff.PSTMessage;
 import com.pff.PSTRecipient;
 
 final class OutlookContext {
-	
+
+	/*
+	 * Lucene has a hard limit of 32766 bytes for indexed terms. To prevent crashes,
+	 * we skip emails whose UID (essentially the full path) would exceed this limit.
+	 */
+	private static final int MAX_LUCENE_TERM_LENGTH = 32766;
+
 	private final IndexingConfig config;
 	private final IndexWriterAdapter writer;
 	private final IndexingReporter reporter;
@@ -63,6 +70,18 @@ final class OutlookContext {
 	public void index(	@NotNull MailDocument doc,
 						@NotNull PSTMessage email,
 						boolean added) throws IndexingException {
+		// Check if UID would exceed Lucene's term length limit
+		String uid = doc.getUniqueId();
+		int uidByteLength = uid.getBytes(StandardCharsets.UTF_8).length;
+		if (uidByteLength > MAX_LUCENE_TERM_LENGTH) {
+			String msg = String.format(
+				"Email path too long (%d bytes in UTF-8 encoding, maximum is %d bytes).",
+				uidByteLength, MAX_LUCENE_TERM_LENGTH
+			);
+			UtilModel.fail(reporter, ErrorType.PARSING, doc, new IllegalArgumentException(msg));
+			return;
+		}
+
 		fileCount.increment();
 		reporter.info(new IndexingInfo(InfoType.EXTRACTING, doc, fileCount.get()));
 		try {

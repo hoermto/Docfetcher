@@ -13,6 +13,7 @@ package net.sourceforge.docfetcher.model.index.file;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import net.sourceforge.docfetcher.model.Cancelable;
 import net.sourceforge.docfetcher.model.Path;
@@ -134,12 +135,30 @@ class FileContext {
 		return indexParentDir;
 	}
 	
+	/*
+	 * Lucene has a hard limit of 32766 bytes for indexed terms. To prevent crashes,
+	 * we skip files whose UID (essentially the full path) would exceed this limit.
+	 */
+	private static final int MAX_LUCENE_TERM_LENGTH = 32766;
+
 	// returns success
 	// if the indexing is canceled before or during the execution of this method,
 	// the last-modified value of the given document will be set to -1.
 	public final boolean index(	@NotNull FileDocument doc,
 								@NotNull File file,
 								boolean isAdded) throws IndexingException {
+		// Check if UID would exceed Lucene's term length limit
+		String uid = doc.getUniqueId();
+		int uidByteLength = uid.getBytes(StandardCharsets.UTF_8).length;
+		if (uidByteLength > MAX_LUCENE_TERM_LENGTH) {
+			String msg = String.format(
+				"File path too long (%d bytes in UTF-8 encoding, maximum is %d bytes).",
+				uidByteLength, MAX_LUCENE_TERM_LENGTH
+			);
+			fail(ErrorType.PARSING, doc, new IllegalArgumentException(msg));
+			return false;
+		}
+
 		info(InfoType.EXTRACTING, doc);
 		try {
 			// Text extraction; may throw OutOfMemoryErrors
