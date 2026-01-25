@@ -89,6 +89,23 @@ public final class PagingPdfParser {
 			 */
 			throw new ParseException(e);
 		}
+		catch (StackOverflowError e) {
+			/*
+			 * Bug #2085: PDFBox's COSParser.checkPagesDictionary can cause
+			 * infinite recursion when parsing malformed PDF files that contain
+			 * circular references in their pages dictionary structure. This
+			 * results in a StackOverflowError.
+			 *
+			 * The recursive checkPagesDictionary method traverses the PDF page
+			 * tree, and if the tree contains cycles (malformed PDF), the
+			 * recursion never terminates.
+			 *
+			 * By catching and converting to ParseException, we allow the
+			 * preview panel to display an error message rather than crashing
+			 * the application.
+			 */
+			throw new ParseException(e);
+		}
 		catch (NoClassDefFoundError e) {
 			// Check if this error was caused by OutOfMemoryError during class initialization
 			Throwable cause = e.getCause();
