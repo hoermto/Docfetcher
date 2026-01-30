@@ -215,6 +215,24 @@ class FileContext {
 			 */
 			fail(ErrorType.PARSING, doc, e);
 		}
+		catch (LinkageError e) {
+			/*
+			 * Bug #2083: Rare JVM bug in Java 8u261 that causes LinkageError
+			 * with "not invoker: invokeBasic" during Lucene's AttributeFactory
+			 * initialization via MethodHandle.invokeBasic. This appears to be
+			 * a transient JVM issue with method handle invocation that occurs
+			 * during the creation of Lucene token stream attributes.
+			 *
+			 * The error propagates from:
+			 * MethodHandleNatives.linkMethod -> AttributeFactory.createInstance
+			 * -> Field.tokenStream -> DefaultIndexingChain.processField
+			 *
+			 * We treat this as a parsing failure since the file cannot be
+			 * indexed properly due to the JVM bug. The user can retry indexing
+			 * the file, which may succeed on subsequent attempts.
+			 */
+			fail(ErrorType.PARSING, doc, e);
+		}
 		return false;
 	}
 	
