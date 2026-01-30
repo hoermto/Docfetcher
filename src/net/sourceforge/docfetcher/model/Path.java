@@ -95,10 +95,27 @@ public final class Path implements Serializable {
 	
 	@NotNull
 	private static String normalizeUnicode(@NotNull String str, boolean composed) {
-	    Normalizer.Form form = composed ? Normalizer.Form.NFC : Normalizer.Form.NFD;
-	    if (!Normalizer.isNormalized(str, form))
-			return Normalizer.normalize(str, form);
-	    return str;
+		try {
+			Normalizer.Form form = composed ? Normalizer.Form.NFC : Normalizer.Form.NFD;
+			if (!Normalizer.isNormalized(str, form))
+				return Normalizer.normalize(str, form);
+			return str;
+		}
+		catch (NoClassDefFoundError e) {
+			/*
+			 * Bug #2074: Rare JVM initialization issue where
+			 * sun.text.normalizer.NormalizerImpl fails to initialize, typically
+			 * occurring after a Java update without JVM restart. This can cause
+			 * NoClassDefFoundError when calling Normalizer.isNormalized() or
+			 * Normalizer.normalize().
+			 *
+			 * Since Unicode normalization is primarily for ensuring consistent
+			 * path representation (especially on Mac OS X), falling back to the
+			 * unnormalized string is safer than crashing. The user can restart
+			 * the application to resolve the underlying JVM initialization issue.
+			 */
+			return str;
+		}
 	}
 	
 	@NotNull
