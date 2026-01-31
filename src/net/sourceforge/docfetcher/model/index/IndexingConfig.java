@@ -81,6 +81,8 @@ public class IndexingConfig implements Serializable {
 		"tar", "tar.gz", "tgz", "tar.bz2", "tb2", "tbz");
 	
 	private static final Pattern dotSlashPattern = Pattern.compile("\\.\\.?[/\\\\].*");
+	// URI schemes per RFC 3986: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+	private static final Pattern validUriSchemePattern = Pattern.compile("[a-zA-Z][a-zA-Z0-9+.\\-]*");
 	
 	@Nullable private File tempDir;
 	
@@ -247,6 +249,15 @@ public class IndexingConfig implements Serializable {
 		return ImmutableList.copyOf(set);
 	}
 
+	/**
+	 * Checks if a string is a valid URI scheme per RFC 3986.
+	 * URI schemes must start with a letter and contain only letters, digits,
+	 * plus, period, or hyphen.
+	 */
+	private static boolean isValidUriScheme(@NotNull String scheme) {
+		return scheme != null && validUriSchemePattern.matcher(scheme).matches();
+	}
+
 	@Immutable
 	@NotNull
 	public final List<PatternAction> getPatternActions() {
@@ -284,9 +295,15 @@ public class IndexingConfig implements Serializable {
 		}
 		
 		for (String ext : zipExtensions) {
-			FsScheme scheme = FsScheme.create(ext);
-			if (!driverMap.containsKey(scheme))
-				driverMap.put(scheme, zipDriver);
+			if (!isValidUriScheme(ext))
+				continue;
+			try {
+				FsScheme scheme = FsScheme.create(ext);
+				if (!driverMap.containsKey(scheme))
+					driverMap.put(scheme, zipDriver);
+			} catch (IllegalArgumentException e) {
+				// Skip extensions that cannot be used as URI schemes
+			}
 		}
 		
 		FsDriverProvider driverProvider = new FsDriverProvider() {
@@ -296,7 +313,10 @@ public class IndexingConfig implements Serializable {
 		};
 		
 		Set<String> extensions = new LinkedHashSet<String>();
-		extensions.addAll(zipExtensions);
+		for (String ext : zipExtensions) {
+			if (isValidUriScheme(ext))
+				extensions.add(ext);
+		}
 		if (!skipTarArchives)
 			extensions.addAll(tarExtensions);
 		if (detectExecutableArchives)
