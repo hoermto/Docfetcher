@@ -141,6 +141,27 @@ public final class PdfParser extends StreamParser {
 				 */
 				throw new ParseException(e);
 			}
+			catch (StackOverflowError e) {
+				/*
+				 * Bug #2066: PDFBox's PDPageTree iterator can cause infinite
+				 * recursion when parsing malformed PDF files that contain
+				 * circular references in their page tree structure. This
+				 * results in a StackOverflowError during getNumberOfPages().
+				 *
+				 * The PDPageTree$PageIterator.enqueueKids method recursively
+				 * traverses the PDF page tree, and if the tree contains cycles
+				 * (malformed PDF), the recursion never terminates.
+				 *
+				 * This is similar to bug #2085, but occurs at a different
+				 * location in PDFBox - during page enumeration rather than
+				 * during initial document loading.
+				 *
+				 * By catching and converting to ParseException, we allow indexing
+				 * to continue with other files rather than crashing the entire
+				 * indexing process. The malformed PDF file will simply be skipped.
+				 */
+				throw new ParseException(e);
+			}
 			StringWriter writer = new StringWriter();
 			final StringBuilder annotations = new StringBuilder();
 			
