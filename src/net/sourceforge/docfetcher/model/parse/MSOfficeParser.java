@@ -236,22 +236,32 @@ abstract class MSOfficeParser extends FileParser {
 		try {
 			return extractText(file);
 		}
-		catch (AssertionError e) {
-			// Bug #469
-			throw new ParseException(e);
-		}
-		catch (IOException e) {
-			throw new ParseException(e);
-		}
-		catch (RuntimeException e) {
+		catch (Throwable e) {
 			/*
-			 * As seen in numerous bug reports (3439858, 3439576, 3439057,
-			 * 3438353, 3437768, 3437667), Apache POI seems to throw a lot of
-			 * runtime exceptions, taking down the entire program with it. To
-			 * avoid crashing, we'll intercept all runtime exceptions and turn
-			 * them into regular indexing errors.
+			 * Catch Throwable instead of specific exception types to handle:
+			 * - AssertionError (Bug #469)
+			 * - IOException
+			 * - RuntimeException from Apache POI (bugs 3439858, 3439576, 3439057,
+			 *   3438353, 3437768, 3437667)
+			 * - AbstractMethodError from JVM incompatibilities (Bug #2065)
+			 *
+			 * We need to be careful when wrapping the throwable in ParseException
+			 * because the Exception constructor can itself throw AbstractMethodError
+			 * if there's a JVM version mismatch.
 			 */
-			throw new ParseException(e);
+			try {
+				throw new ParseException(e);
+			}
+			catch (AbstractMethodError ame) {
+				/*
+				 * If creating ParseException with the original throwable fails
+				 * due to JVM incompatibility, fall back to a string message.
+				 * This can happen when code compiled against one Java version
+				 * runs on another where Throwable.toString() signature changed.
+				 */
+				throw new ParseException(
+					"Error parsing MS Office document: " + e.getClass().getName());
+			}
 		}
 	}
 	
