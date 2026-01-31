@@ -782,6 +782,18 @@ public final class Util {
 		catch (IOException e) {
 			return false;
 		}
+		catch (UnsatisfiedLinkError e) {
+			/*
+			 * JNA native library loading can fail in various environments:
+			 * - Missing MSVC runtime redistributables
+			 * - Incompatible JVM architecture (32-bit vs 64-bit)
+			 * - System encoding issues (e.g., UTF-8 on Windows with Chinese paths)
+			 * - Corrupted or missing jna.dll dependencies
+			 * When JNA fails to load, we can't determine if the file is a junction
+			 * or symlink, so we conservatively assume it's not.
+			 */
+			return false;
+		}
 	}
 
 	/**
