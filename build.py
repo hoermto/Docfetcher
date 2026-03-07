@@ -4,7 +4,7 @@
 # Build: Compilation
 #===============================================================================
 
-import os, os.path as osp, re, shutil, sys
+import os, os.path as osp, re, shutil, subprocess, sys
 from datetime import datetime
 from os.path import join
 from build_lib import *
@@ -184,6 +184,8 @@ if is_linux or is_macos:
 
 licenses_file = deploy_licenses(build_dir)
 
+print("Building documentation...")
+subprocess.run(["uv", "run", "python", "build.py"], cwd="doc", check=True)
 
 #===============================================================================
 # Build utilities
@@ -198,8 +200,8 @@ def create_base_build(dst, is_portable, force_macos=False):
 			join(dst, "conf/program-conf.txt")
 		)
 	
-	# Copy prebuilt documentation from dist/help to dst/doc
-	help_dir = "dist/help"
+	# Copy built documentation from doc/output to dst/help
+	help_dir = "doc/output"
 	if osp.isdir(help_dir):
 		doc_dst = join(dst, "help")
 		os.makedirs(doc_dst, exist_ok=True)
