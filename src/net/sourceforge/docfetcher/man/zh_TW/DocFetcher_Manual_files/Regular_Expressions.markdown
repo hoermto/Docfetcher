@@ -1,27 +1,27 @@
-Regular Expressions
+正規表示式 
 ===================
-This page is meant to be a very brief introduction to regular expressions. It is by no means exhaustive, since regular expressions basically represent an entire pattern matching language. If you want to dig deeper, you can find a ton of information about it on the internet; just search for 'regular expression tutorial' or 'regular expression introduction' or something like that.
+本頁面旨在提供正規表示式的簡短介紹。這絕非詳盡無遺，因為正規表示式基本上代表了一整套模式比對語言。如果您想深入了解，可以在網路上找到大量相關資訊；只需搜尋「正規表示式教學」或「正規表示式介紹」等類似內容即可。
 
-Matching all Microsoft Excel files: `.*\.xlsx?`
+比對所有 Microsoft Excel 檔案：`.*\.xlsx?` 
 -----------------------------------------------
-In regular expressions (often abbreviated to "regex"), certain characters have a special meaning. For example, the ***dot*** (`'.'`) stands for exactly one unknown character. So you could, for instance, use the regex `h.llo` to match strings like `hallo` or `hello`, but also `hzllo` or `h8llo`.
+在正規表示式（通常縮寫為 "regex"）中，某些字元具有特殊含義。例如，***點***（`'.'`）代表剛好一個未知字元。因此，您可以（例如）使用正規表示式 `h.llo` 來比對字串，像是 `hallo` 或 `hello`，但也可以比對 `hzllo` 或 `h8llo`。
 
-Another special character is the ***asterisk*** (`'*'`), which stands for "the preceding character, repeated zero or more times". So if you enter the regex `hello*`, the following strings would match: `hell`, `hello`, `helloo`, `hellooo`, and so on.
+另一個特殊字元是***星號***（`'*'`），代表「前一個字元重複零次或多次」。因此，如果您輸入正規表示式 `hello*`，將會比對以下字串：`hell`、`hello`、`helloo`、`hellooo` 等等。
 
-As a consequence of these rules, if the dot and the asterisk are put together, they will match an arbitrary sequence of characters. For example, the regex `gen.*ion` would match: `genion`, `generalization`, `generation`, `gentrification`, and so on.
+根據這些規則，如果將點和星號放在一起，它們將比對任意的字元序列。例如，正規表示式 `gen.*ion` 將會比對：`genion`、`generalization`、`generation`、`gentrification` 等等。
 
-A special character similar to the asterisk is the ***question mark*** (`'?'`), which stands for "the preceding character, zero times or exactly once". You might also rephrase it as "the preceding character may or may not be there". Like the asterisk, it can be combined with a dot. Therefore, the regex `hell.?` would match: `hell`, `hello`, `hells`, `hell4`, etc.
+類似星號的特殊字元是***問號***（`'?'`），代表「前一個字元出現零次或剛好一次」。您也可以將其改寫為「前一個字元可能存在也可能不存在」。就像星號一樣，它可以與點結合使用。因此，正規表示式 `hell.?` 將會比對：`hell`、`hello`、`hells`、`hell4` 等。
 
-Since characters such as the dot and the asterisk have a special meaning, if you want to match them *literally*, you'll have to *escape* them. This is done by preceding them with another special character, the ***backslash*** (`'\'`). A typical case where the backslash is needed is matching the dot in a filename. For example, to match all files with the filename `license.txt`, you have to use the regex `license\.txt` instead of just `license.txt` &mdash; the latter would also match, for example, `license-txt`.
+由於點和星號等字元具有特殊含義，如果您想*字面*比對它們，您必須將它們*跳脫*。作法是在它們前面加上另一個特殊字元：***反斜線***（`'\'`）。需要使用反斜線的典型情況是比對檔名中的點。例如，若要比對檔名為 `license.txt` 的所有檔案，您必須使用正規表示式 `license\.txt`，而不是只有 `license.txt` — 後者也會比對（例如）`license-txt`。
 
-So, if we put all this together, we can write down a regex that matches all Microsoft Excel files, like so: `.*\.xlsx?`. This regex basically says: An arbitrary sequence of characters, followed by a literal dot, followed by "xls", with an optional "x" at the end.
+因此，如果我們將這一切結合起來，我們可以寫出一個比對所有 Microsoft Excel 檔案的正規表示式，如下所示：`.*\.xlsx?`。這個正規表示式基本上代表：任意的字元序列，後面接著一個字面意義的點，然後是 "xls"，最後有一個可選的 "x"。
 
-Matching a sequence of digits: `journal\d+\.doc`
+比對數字序列：`journal\d+\.doc` 
 ------------------------------------------------
-Suppose you want to match all Microsoft Word files that start with "journal" and end with a timestamp, like this: "journal2007.doc". Moreover, what you *don't* want is to match files like "journalism.doc".
+假設您想比對所有以 "journal" 開頭並以時間戳記結尾的 Microsoft Word 檔案，如下所示："journal2007.doc"。此外，您*不*想比對像 "journalism.doc" 這樣的檔案。
 
-A regex like `journal.*\.doc` isn't going to work here because it would match "journalism.doc" as well. The first step towards the solution is to replace the dot with either `[0-9]` or `\d`, which both match exactly ***one digit***. The expression `[0-9]` is actually a more general notation than `\d`, because you can, for example, write `[4-6]` to match only the digits `4`, `5` and `6`. It even works for letters: `[m-p]` matches all lowercase letters from m through p.
+像是 `journal.*\.doc` 這樣的正規表示式在這裡行不通，因為它也會比對 "journalism.doc"。解決方案的第一步是將點替換為 `[0-9]` 或 `\d`，這兩者都剛好比對***一個數字***。運算式 `[0-9]` 實際上是比 `\d` 更通用的表示法，因為您（例如）可以寫 `[4-6]` 來僅比對數字 `4`、`5` 和 `6`。它甚至適用於字母：`[m-p]` 會比對從 m 到 p 的所有小寫字母。
 
-So, if we combine `\d` with an asterisk, we can write down the regex `journal\d*\.doc`, which will match "journal2007.doc", but not "journalism.doc". But wait, that's not quite right: Recall that the asterisk means "the preceding character, repeated *zero* or more times". In this case, we don't want *zero* digits after "journal", we want *at least one* &mdash; otherwise the regex would also match the file "journal.doc".
+因此，如果我們將 `\d` 與星號結合，我們可以寫出正規表示式 `journal\d*\.doc`，它會比對 "journal2007.doc"，但不會比對 "journalism.doc"。但等等，這不太對：回想一下，星號的意思是「前一個字元重複*零*次或多次」。在這種情況下，我們不希望 "journal" 後面有*零*個數字，我們希望*至少有一個* — 否則，該正規表示式也會比對檔案 "journal.doc"。
 
-So here's another special character for you: The ***plus*** symbol (`'+'`) stands for "the preceding character, repeated one or more times". The final version of our regex is therefore: `journal\d+\.doc`
+因此，這裡為您介紹另一個特殊字元：***加號***符號（`'+'`）代表「前一個字元重複一次或多次」。因此，我們正規表示式的最終版本為：`journal\d+\.doc`

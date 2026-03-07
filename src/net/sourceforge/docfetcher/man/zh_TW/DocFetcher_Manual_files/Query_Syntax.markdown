@@ -1,92 +1,92 @@
-Query Syntax
+查詢語法 
 ============
-This page gives an overview of the available query syntax, going from "basic" to "advanced". The query syntax is provided by Apache Lucene, DocFetcher's underlying search engine, and it's described in a more technical manner on Lucene's [query syntax page](http://lucene.apache.org/java/3_4_0/queryparsersyntax.html).
+本頁面概述了可用的查詢語法，從「基礎」到「進階」。 查詢語法由 DocFetcher 的底層搜尋引擎 Apache Lucene 提供，在 Lucene 的[查詢語法頁面](http://lucene.apache.org/java/3_4_0/queryparsersyntax.html)有更具技術性的詳細說明。 
 
-Boolean Operators
+布林運算子 
 -----------------
-DocFetcher supports the boolean operators `OR`, `AND` and `NOT`. If words are concatenated *without* boolean operators, DocFetcher will by default treat them as if they were concatenated with `OR`. If you don't like that, you can go to the [preferences](Preferences.html) and set `AND` as the default.
+DocFetcher 支援 `OR`、`AND` 與 `NOT` 等布林運算子。 如果單字之間*沒有*使用布林運算子連接，DocFetcher 預設會將它們視為使用 `OR` 連接。 如果您不喜歡這個設定，可以前往[偏好設定](Preferences.html)將預設值改為 `AND`。
 
-Instead of `OR`, `AND` and `NOT`, you can also use `||`, `&&` and `'-'` (minus symbol), respectively. You can use *parentheses* to group certain expressions. Here are some examples:
+您也可以使用 `||`、`&&` 與 `'-'`（減號）來分別取代 `OR`、`AND` 與 `NOT`。 您可以使用*括號*來將特定的運算式分組。以下是一些範例： 
 
-Query                    | Resulting documents contain...
--------------------------|---------------------------------------------
-`dog OR cat`             | either `dog`, or `cat`, or both
-`dog AND cat`            | both `dog` and `cat`
-`dog cat`                | (by default equivalent to the query `dog OR cat`)
-`dog NOT cat`            | `dog`, but not `cat`
-`-dog cat`               | `cat`, but not `dog`
-`(dog OR cat) AND mouse` | `mouse`, and either `dog` or `cat`, or both
+查詢  |  結果文件包含...
+ -------------------------|---------------------------------------------
+`dog OR cat`             | `dog` 或 `cat`，或兩者皆有 
+`dog AND cat`            | 同時包含 `dog` 與 `cat` 
+`dog cat`                | （預設等同於查詢 `dog OR cat`） 
+`dog NOT cat`            | 包含 `dog`，但不包含 `cat` 
+`-dog cat`               | 包含 `cat`，但不包含 `dog` 
+`(dog OR cat) AND mouse` | 包含 `mouse`，且包含 `dog` 或 `cat`（或兩者皆有） 
 
 
-Searching is case-insensitive
+搜尋不區分大小寫 
 -----------------------------
-DocFetcher does not distinguish between lowercase and uppercase characters, so it doesn't matter if the words you enter are completely lowercase, or completely uppercase, or a mix of both. The only exceptions are the keywords `OR`, `AND`, `NOT` and `TO`, which must always be entered in uppercase. (For the `TO` keyword, see the 'range searches' section below.)
+DocFetcher 不區分小寫與大寫字元，因此您輸入的單字是完全小寫、完全大寫，或是兩者混合都沒有關係。 唯一的例外是關鍵字 `OR`、`AND`、`NOT` 與 `TO`，它們必須始終以大寫輸入。 （關於 `TO` 關鍵字，請參閱下方的「範圍搜尋」章節。） 
 
 
-Phrase Searches and Required Terms
+片語搜尋與必要詞彙 
 ----------------------------------
-To search for a phrase (i.e. a sequence of words), put the phrase in double quotes. To indicate that the documents to search for must contain a particular word, put a `'+'` in front of the word. Of course you can combine these constructs with boolean operators and parentheses. Again, some examples:
+若要搜尋片語（即連續的單字），請將片語放在雙引號中。 若要指出要搜尋的文件必須包含特定單字，請在該單字前面加上 `'+'`。 當然，您可以將這些結構與布林運算子和括號結合使用。 同樣地，以下是一些範例： 
 
-Query                 | Resulting documents contain...
+查詢                 |  結果文件包含... 
 ----------------------|-------------------------------------
-`"dog cat mouse"`     | the words `dog`, `cat` and `mouse`, in that particular order
-`+dog cat`            | definitely `dog`, and maybe also `cat`
-`"dog cat" AND mouse` | the phrase `dog cat`, and the word `mouse`
-`+dog +cat`           | (equivalent to the query `dog AND cat`)
+`"dog cat mouse"`     | 以該特定順序出現的 `dog`、`cat` 與 `mouse` 等單字 
+`+dog cat`            | 絕對包含 `dog`，可能也包含 `cat` 
+`"dog cat" AND mouse` | 片語 `dog cat`，以及單字 `mouse` 
+`+dog +cat`           | （等同於查詢 `dog AND cat`） 
 
 
-Wildcards
+萬用字元 
 ---------
-Question marks (`'?'`) and asterisks (`'*'`) can be used to indicate that some characters are unknown. The question mark stands for exactly one unknown character, while the asterisk stands for zero or more unknown characters. Examples:
+問號 (`'?'`) 與星號 (`'*'`) 可用於表示某些字元是未知的。 問號代表剛好一個未知字元，而星號代表零個或多個未知字元。 範例： 
 
-Query        | Resulting documents contain...
+查詢        | 結果文件包含... 
 -------------|-------------------------------------
-`luc?`       | `lucy`, `luca`, ...
-`luc*`       | `luc`, `lucy`, `luck`, `lucene`, ...
-`*ene*`      | `lucene`, `energy`, `generator`, ...
+`luc?`       | `lucy`、`luca`... 
+`luc*`       | `luc`、`lucy`、`luck`、`lucene`... 
+`*ene*`      | `lucene`、`energy`、`generator`... 
 
-Note: If wildcards are used as the first character of a word, the search tends to be slower on average. This is due to how the index is structured: It's as if you tried to look up someone's phone number, and you only know that person's first name. So, in the example above, searching for `*ene*` will probably be slower than the other searches because `*ene*` starts with a wildcard.
+注意：如果萬用字元做為單字的第一個字元使用，搜尋速度平均會變慢。 這是因為索引結構的關係：這就像是您試圖尋找某人的電話號碼，卻只知道那個人的名字一樣。 因此，在上述範例中，搜尋 `*ene*` 的速度可能會比其他搜尋慢，因為 `*ene*` 是以萬用字元開頭。
 
 
-Fuzzy Searches
+模糊搜尋 
 --------------
-Fuzzy searches allow you to search for words *similar* to a given word. For example, if you search for `roam~`, DocFetcher will find documents containing words like `foam` and `roams`.
+模糊搜尋可讓您搜尋與給定單字*相似*的單字。 例如，如果您搜尋 `roam~`，DocFetcher 會找到包含 `foam` 與 `roams` 等單字的文件。
 
-Additionally, you can append a similarity threshold between 0 and 1, like so: `roam~0.8`. The higher the threshold, the higher the similarity of the returned matches. Leaving out the threshold is the same as using the default value of 0.5.
+此外，您還可以附加介於 0 到 1 之間的相似度閾值，例如：`roam~0.8`。 閾值越高，傳回相符項目的相似度就越高。 省略閾值等同於使用預設值 0.5。
 
 
-Proximity Searches
+鄰近搜尋 
 ------------------
-Proximity searches allow you to find words that are within a specific distance away from each other. To do a proximity search, put a tilde (`'~'`) at the end of a phrase, followed by a distance value. &mdash; Note that this is syntactically similar to fuzzy searches. For example, to search for documents containing `wikipedia` and `lucene` within 10 words of each other, type in: `"wikipedia lucene"~10`
+鄰近搜尋可讓您尋找彼此距離在特定範圍內的單字。 若要進行鄰近搜尋，請在片語結尾加上波浪號 (`'~'`)，後面接著距離值。 — 請注意，這在語法上類似於模糊搜尋。 例如，若要搜尋包含 `wikipedia` 與 `lucene` 且兩者相距不超過 10 個單字的文件，請輸入：`"wikipedia lucene"~10` 
 
 
-Boosting Terms
+加權詞彙 
 --------------
-You can influence the relevance sorting of the results by assigning custom weights to words. Example: If you enter `dog^4 cat` instead of just `dog cat`, documents containing `dog` will receive a higher score and therefore move closer to the top of the results.
+您可以透過為單字指派自訂權重，來影響結果的相關性排序。 範例：如果您輸入 `dog^4 cat` 而不僅僅是 `dog cat`，則包含 `dog` 的文件將會獲得較高的分數，因此會移至更接近結果頂端的位置。
 
-Although the boost factor must be positive, it can be less than 1 (e.g. 0.2). If no boost factor is specified, the default value 1 is used.
+雖然加權係數必須為正數，但它可以小於 1（例如 0.2）。 如果未指定加權係數，則會使用預設值 1。
 
 
-Field Searches
+欄位搜尋 
 --------------
-By default, DocFetcher will search in all the textual data it is capable of extracting, i.e. the contents, the filenames and the metadata of the documents. However, you can also restrict your searches to the filename and/or certain metadata fields. For example, to search for documents whose titles contain `wikipedia`, enter: `title:wikipedia`.
+預設情況下，DocFetcher 會在其能夠擷取的所有文字資料中進行搜尋，也就是文件的內容、檔名與中繼資料。 不過，您也可以將搜尋限制在檔名與/或特定的中繼資料欄位。 例如，若要搜尋標題包含 `wikipedia` 的文件，請輸入：`title:wikipedia`。
 
-Field search can be combined with other search constructs, e.g.:
+欄位搜尋可以與其他搜尋結構結合使用，例如： 
 
-* Phrase search using quotes, e.g. `title:"dog cat"`, or using parentheses, e.g. `title:(dog cat)`. If you omit the quotes and parentheses, only `dog` will be matched against the title, not `cat`.
-* Wildcards: `title:dog*` will, for instance, match occurrences of `doggy` in the title.
+* 使用引號的片語搜尋，例如 `title:"dog cat"`，或使用括號，例如 `title:(dog cat)`。如果您省略引號與括號，則只有 `dog` 會與標題進行比對，而 `cat` 則不會。 
+* 萬用字元：`title:dog*` 會（例如）比對標題中出現的 `doggy`。
 
-Which fields are available generally depends on the document format, but you can use this as a rule of thumb:
+哪些欄位可用通常取決於文件格式，但您可以將此作為經驗法則： 
 
 <!-- Do not translate the following field names (filename, title, etc.) -->
-* *Files*: filename, title, author
-* *Emails*: subject, sender, recipients
+* *Files*：filename、title、author 
+* *Emails*：subject、sender、recipients 
 
 
-Range Searches
+範圍搜尋 
 --------------
-DocFetcher allows searching for words that are lexicographically *between* two other words. For example, the word `beta` lies between `alpha` and `gamma`. So, if you want to list all documents that contain words between `alpha` and `gamma`, type in: `[alpha TO gamma]`.
+DocFetcher 允許搜尋在字典順序上介於兩個其他單字*之間*的單字。 例如，單字 `beta` 位於 `alpha` 與 `gamma` 之間。 因此，如果您想要列出所有包含介於 `alpha` 與 `gamma` 之間單字的文件，請輸入：`[alpha TO gamma]`。
 
-When using the square brackets, the range query is *inclusive*, i.e. `alpha` and `gamma` are included in the results. To do an *exclusive* range search, use curly brackets instead: `{alpha TO gamma}`
+使用中括號時，範圍查詢是*包含*的，也就是結果會包含 `alpha` 與 `gamma`。 若要進行*排除*的範圍搜尋，請改用大括號：`{alpha TO gamma}` 
 
-You may combine range searches and field searches as follows: `title:{alpha TO gamma}`. This will restrict the range search to the title field.
+您可以將範圍搜尋與欄位搜尋結合如下：`title:{alpha TO gamma}`。 這會將範圍搜尋限制在標題欄位。

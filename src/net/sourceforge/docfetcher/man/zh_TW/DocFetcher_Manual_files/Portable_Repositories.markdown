@@ -1,29 +1,29 @@
-Portable Document Repositories
+免安裝文件儲存庫 
 ==============================
 
-Basic usage
+基本用法
 -----------
-The portable version of DocFetcher essentially allows you to carry around (and even redistribute) a fully indexed and fully searchable document repository. If you don't have the portable version yet, you can download it from the [project website](http://docfetcher.sourceforge.net/download.html).
+免安裝版的 DocFetcher 基本上可讓您隨身攜帶（甚至重新發布）一個已完全建立索引且可完全搜尋的文件儲存庫。如果您還沒有免安裝版，可以從[專案網站](http://docfetcher.sourceforge.net)下載。
 
-The portable version does not require any installation; just extract the contents of the archive into a folder of your choice. You can then start DocFetcher via the appropriate launcher for your operating system: `DocFetcher.exe` on Windows, `DocFetcher.sh` on Linux and the `DocFetcher` application bundle on Mac OS&nbsp;X. The only requirement is that a Java runtime, version 1.6 or newer, must be installed on the machine.
+免安裝版不需要任何安裝；只需將壓縮檔的內容解壓縮到您選擇的資料夾中即可。然後，您可以透過適合您作業系統的啟動器來啟動 DocFetcher：Windows 上為 `DocFetcher.exe`，Linux 上為 `DocFetcher.sh`，而在 Mac OS X 上則是 `DocFetcher` 應用程式套件。唯一的條件是電腦上必須安裝 Java 執行環境（1.6 或更新版本）。
 
-<u>Relative paths</u>: An important thing to pay attention to is that all indexes must be created with the *relative paths* setting turned on. Without this, DocFetcher will store *absolute* references to your files, so you will only be able to move DocFetcher and its indexes around, but not your files &mdash; at least not without breaking references. Here's an example to illustrate this:
+<u>相對路徑</u>：需要注意的一件重要事情是，所有索引都必須在開啟*相對路徑*設定的情況下建立。如果沒有這麼做，DocFetcher 將會儲存您檔案的*絕對*參照，因此您只能移動 DocFetcher 及其索引，而無法移動您的檔案 —至少在不破壞參照的情況下是無法移動的。以下是一個說明的範例：
 
-* Relative path: `..\..\my-files\some-document.txt`
-* Absolute path: `C:\my-files\some-document.txt`
+* 相對路徑：`..\..\my-files\some-document.txt` 
+* 絕對路徑：`C:\my-files\some-document.txt` 
 
-The relative path basically tells DocFetcher that it can find `some-document.txt` by going up two levels from its current location and then down into the `my-files` folder. The absolute path on the other hand is a fixed reference and independent of DocFetcher's current location, so you can't move `some-document.txt` without breaking the reference (meaning DocFetcher won't be able to locate the file).
+相對路徑基本上是告訴 DocFetcher，它可以透過從目前位置往上兩層，然後向下進入 `my-files` 資料夾來找到 `some-document.txt`。另一方面，絕對路徑是固定的參照，與 DocFetcher 目前的位置無關，所以如果您移動了 `some-document.txt` 就會破壞參照（這意味著 DocFetcher 將無法找到該檔案）。
 
-Note that DocFetcher can only *attempt* to store relative paths: Obviously, it can't do so if you put DocFetcher and your files on different volumes, e.g. DocFetcher in `D:\DocFetcher` and your files in `E:\my-files`.
+請注意，DocFetcher 只能*嘗試*儲存相對路徑：顯然，如果您將 DocFetcher 和您的檔案放在不同的磁碟區上，它就無法這麼做，例如 DocFetcher 位於 `D:\DocFetcher`，而您的檔案位於 `E:\my-files`。
 
-Usability tips
+實用提示 
 --------------
 
-* ***CD-ROM archiving***: Just common sense, but still: If you put DocFetcher on a CD-ROM, you won't be able to save changes to the preferences or the indexes, so remember to properly configure everything before burning it onto the CD-ROM. Also, you might want to include a Java runtime installer.
-* ***Different program titles***: For redistribution of your portable document repository, or to make working with multiple DocFetcher instances less confusing, you can give each DocFetcher instance a different program window title. To do so, open the `Advanced Settings` on the preferences dialog and modify the `AppName` setting.
+* ***CD-ROM 封存***：這只是常識，但還是要提醒：如果您將 DocFetcher 放在 CD-ROM 上，您將無法儲存對偏好設定或索引的變更，因此請記得在將其燒錄到 CD-ROM 之前，先妥善設定好所有內容。此外，您可能會想一併放入 Java 執行環境的安裝程式。
+* ***不同的程式標題***：為了重新發布您的免安裝文件儲存庫，或是為了讓同時使用多個 DocFetcher 執行個體時較不混淆，您可以為每個 DocFetcher 執行個體設定不同的程式視窗標題。若要這麼做，請開啟偏好設定對話方塊上的 `Advanced Settings`（進階設定），然後修改 `AppName` 設定。
 
-Warnings
+警告 
 --------
 
-* ***Don't touch the `indexes` folder***: You may, but are not required to put your files directly into the DocFetcher folder. If you do, leave the `indexes` folder alone, because anything you put in it might become deleted!
-* ***Filename incompatibilities***: Beware of filename incompatibilities between different operating systems. For example, on Linux filenames can contain characters such as ":" or "|", but on Windows they can't. As a result, you can only move a document repository from Linux to Windows or in the opposite direction if it doesn't contain documents with incompatible filenames. Oh, and special characters such as German umlauts are an entirely different matter...
+* ***不要更動 `indexes` 資料夾***：您可以將檔案直接放入 DocFetcher 資料夾中，但這不是必須的。如果您這麼做，請不要動 `indexes` 資料夾，因為您放入其中的任何內容都可能會被刪除！
+* ***檔名不相容***：請注意不同作業系統之間的檔名不相容問題。例如，在 Linux 上，檔名可以包含「:」或「|」等字元，但在 Windows 上則不行。因此，只有當文件儲存庫不包含檔名不相容的文件時，您才能將其從 Linux 移動到 Windows，反之亦然。喔，還有德文母音變音（umlauts）等特殊字元則是完全另一回事...

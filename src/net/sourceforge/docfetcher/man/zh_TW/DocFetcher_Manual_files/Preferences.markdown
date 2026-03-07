@@ -1,14 +1,15 @@
-Preferences
+偏好設定 
 ===========
-Option  |  Comment
+選項  |  說明 
 --------|---------
-Show manual on startup  |  Whether to open the manual when DocFetcher starts up.
-Use OR operator as default in queries (instead of AND)  |  If checked, DocFetcher will treat consecutive words in a query as if they were concatenated with the `OR` operator. Otherwise, the `AND` operator will be used. See the [query syntax](Query_Syntax.html) for more.
-Automatically scroll to first match in preview pane  |  If checked, DocFetcher will automatically scroll to the first match in the preview pane after you click on a file in the result table and the file is loaded into the preview pane.
-Hide program in System Tray after opening files  |  If checked, DocFetcher will automatically hide in the System Tray whenever you double-click a file on the result pane, or open a folder from the `Search Scope` area.
-When closing program window, hide in System Tray instead of exiting  |  If checked, DocFetcher will be minimized into the System Tray instead of being closed if you click on the close button of the main program window.
-Clear search history on exit  |  If checked, DocFetcher will wipe out its history of entered queries on exit.
-Highlight color  |  The color to use for higlighting matches in the text preview.
-Preview font (normal)  |  The font to use in the text preview; applies to all document formats except plain text files.
-Preview font (fixed width)  |  The font to use for the text preview; applies only to plain text files. You are not required to pick a fixed-width font here, although it's usually a sensible choice.
-Global hotkey  |  The keyboard shortcut specified here can be used to move the DocFetcher window to the top after it has lost focus.
+啟動時顯示手冊  |  啟動 DocFetcher 時是否開啟手冊。
+在查詢中預設使用 OR 運算子（而非 AND）  | 若勾選，DocFetcher 會將查詢中連續的單字視為以 `OR` 運算子連接。否則，將使用 `AND` 運算子。詳情請參閱[查詢語法](Query_Syntax.html)。
+自動捲動至預覽窗格中的第一個相符項目  |  若勾選，當您在結果表格中點擊檔案，且該檔案載入預覽窗格後，DocFetcher 會自動捲動至預覽窗格中的第一個相符項目。
+開啟檔案後將程式隱藏至系統匣  | 若勾選，每當您在結果窗格中連按兩下檔案，或從「搜尋範圍」區域開啟資料夾時，DocFetcher 會自動隱藏至系統匣。
+關閉程式視窗時，隱藏至系統匣而非結束  | 若勾選，如果您點擊主程式視窗的關閉按鈕，DocFetcher 將會最小化至系統匣，而不會關閉。
+結束時清除搜尋紀錄  |  若勾選，DocFetcher 會在結束時清除已輸入的查詢紀錄。
+斷詞  |  建立索引時使用的斷詞演算法。標準演算法適用於英文和德文等西方語言。原始碼和中文演算法則分別適用於為原始碼和中文文字建立索引。變更斷詞演算法需要重新建立所有現有的索引。
+醒目提示色彩  | 用於在文字預覽中醒目提示相符項目的色彩。
+預覽字型（一般）  | 用於文字預覽的字型；適用於除純文字檔案外的所有文件格式。
+預覽字型（等寬）  |  用於文字預覽的字型；僅適用於純文字檔案。您不必在此選擇等寬字型，儘管這通常是個明智的選擇。
+全域快速鍵  | 在此指定的鍵盤快速鍵可用於在 DocFetcher 視窗失去焦點後，將其移至最上層。

@@ -1,39 +1,39 @@
-Basic Idea: A Queue of Indexing Tasks
+基本概念：索引任務佇列 
 =====================================
-The indexing configuration window is made up of one or more tabs, each of which represents an index to be created or updated. All the tabs together form a task queue, whose items are processed one by one. You can add more tasks to the queue via the `'+'` button on the top right.
+索引設定視窗由一個或多個分頁組成，每個分頁代表一個要建立或更新的索引。 所有分頁共同組成一個任務佇列，其中的項目會逐一處理。 您可以透過右上角的「+」按鈕將更多任務加入佇列。
 
-Each tab has a `Run` button on the bottom right. By clicking it, you confirm that the task is properly configured and ready for indexing. The indexing starts as soon as there is one ready task in the queue.
+每個分頁右下角都有一個「執行 (Run)」按鈕。 點擊該按鈕，即代表您確認任務已設定妥當並準備好進行索引。 只要佇列中有一個準備就緒的任務，索引就會開始。
 
-On the right of the `'+'` button is another button. Clicking this one will minimize the whole configuration window into DocFetcher's status bar. This allows you to perform searches on the existing indexes while creating new ones in the background.
+「+」按鈕右側還有另一個按鈕。 點擊此按鈕會將整個設定視窗最小化到 DocFetcher 的狀態列中。 這樣您就可以在背景建立新索引的同時，在現有索引上執行搜尋。
 
-You can cancel any task by clicking on the close button (`'x'`) of its tab. When a task is cancelled, you'll be given the choice of either keeping or discarding the partially created index. The point is that you can stop indexing at any point and resume later. Resuming is simply done by running an index update on the partial index, via `Update Index` from the `Search Scope` area's context menu.
+您可以點擊分頁的關閉按鈕（「x」）來取消任何任務。 取消任務時，您可以選擇保留或捨棄已部分建立的索引。 重點是您可以在任何時候停止索引，並在稍後繼續。 若要繼續，只需透過「搜尋範圍 (Search Scope)」區域的右鍵選單選擇「更新索引 (Update Index)」，對部分建立的索引執行更新即可。
 
-The configuration window itself has a close button as well (on Windows, this is the `'x'` button on the top right). If you click on it, all indexing tasks will be cancelled and removed from the queue.
+設定視窗本身也有一個關閉按鈕（在 Windows 上，這是右上角的「x」按鈕）。 如果您點擊它，所有索引任務將被取消並從佇列中移除。
 
-Indexing Options
+索引選項 
 ================
-Note: This section focuses on the available indexing options for folder and archive indexes. For the options for Outlook PST indexes, see the relevant entries in the 'Miscellaneous' table below.
+注意：本節重點介紹資料夾和壓縮檔索引可用的索引選項。 有關 Outlook PST 索引的選項，請參閱下方「雜項 (Miscellaneous)」表格中的相關條目。
 
-File Extensions
+副檔名 (File Extensions) 
 ---------------
-The 'file extensions' control allows you to specify which files should be treated as plain text files or zip archives. One common usage scenario is to make DocFetcher index certain kinds of source code files. Notice the two `'...'` buttons on the right? If you click on these, DocFetcher will walk through the folder to be indexed and gather all file extensions into a list for you to choose from.
+「副檔名」控制項可讓您指定哪些檔案應被視為純文字檔或 zip 壓縮檔。 一個常見的使用情境是讓 DocFetcher 索引特定種類的原始碼檔案。 注意到右邊的兩個「...」按鈕了嗎？如果您點擊它們，DocFetcher 將會遍歷要索引的資料夾，並將所有副檔名收集成一個清單供您選擇。
 
-Exclude Files / Detect Mime Type
+排除檔案 / 偵測 MIME 類型 (Exclude Files / Detect Mime Type) 
 --------------------------------
-By adding items to the table, you can (1) exclude certain files from indexing, and (2) enable mime type detection for certain files. This is all based on regular expressions (regexes), so if you don't know how to use them, read up on the [introduction to regular expressions](Regular_Expressions.html).
+透過將項目新增至表格，您可以 (1) 排除特定檔案不進行索引，以及 (2) 啟用特定檔案的 MIME 類型偵測。 這一切都基於正規表示式 (Regex)，所以如果您不知道如何使用它們，請閱讀[正規表示式簡介]Regular_Expressions.html)。
 
-Now, here's how the table works: Each item in the table is a regex with an associated action. The regex can be matched either against filenames or against filepaths, and the action is either "exclude file" or "detect mime type". During indexing, when a file is matched by a regex, the action of the regex is applied to the file.
+現在，說明表格的運作方式：表格中的每個項目都是一個正規表示式及其關聯的動作。 正規表示式可以比對檔名或檔案路徑，而動作則是「排除檔案」或「偵測 MIME 類型」。 在索引期間，當檔案符合正規表示式時，該正規表示式的動作就會套用到該檔案。
 
-You can add items to and remove items from the table with the `'+'` and `'-'` buttons on the right. The up and down buttons allow you increase or decrease the *priority* of the selected table item. The priority becomes significant when a file is matched by more than one regex in the table; in that case the regex with the highest priority wins, and all others are ignored.
+您可以使用右側的「+」和「-」按鈕來新增或移除表格中的項目。 向上和向下按鈕可讓您增加或減少所選表格項目的*優先級*。 當檔案符合表格中多個正規表示式時，優先級就會變得很重要； 在這種情況下，優先級最高的正規表示式會勝出，而其他所有正規表示式都會被忽略。
 
-Directly below the table, there's a little tool that helps you with writing regexes: Click on the `'...'` button on the right of it to choose a certain file from the folder to be indexed. The filepath of this file will show up in the text field. Then the text line above the text field will tell you whether the regex currently selected in the table matches the selected file.
+在表格正下方，有一個可以幫助您撰寫正規表示式的小工具：點擊其右側的「...」按鈕，從要索引的資料夾中選擇一個特定檔案。 這個檔案的路徑將顯示在文字欄位中。 然後，文字欄位上方的文字行會告訴您目前在表格中所選的正規表示式是否符合所選的檔案。
 
-Miscellaneous
+雜項 (Miscellaneous) 
 -------------
-Option | Comment
+選項 | 說明
 -------|--------
-HTML pairing  |  Whether HTML files and their associated folders (e.g. a file `foo.html` and a folder `foo_files`) should be treated as a single document.
-Detect executable zip and 7z archives (slower)  |  If enabled, DocFetcher will check for *every* file with the extension `exe` whether it's an executable zip or 7z archive.
-Index filename even if file contents can't be extracted  |  If enabled, DocFetcher will include *all* files in its index, regardless of whether any file contents can be extracted. Enable this for full filename searching. Note however that DocFetcher might then take up a lot more memory, depending on the number of files in the indexed folder. In case you run out of memory, you can [raise the memory limit](Memory_Limit.html).
-Store relative paths if possible (for portability)  |  This setting is important if you're using the portable version of DocFetcher. You can read more about this on the page about [portable document repositories](Portable_Repositories.html).
-Watch folders for file changes  |  Whether DocFetcher should detect changes in the indexed folders and update its indexes accordingly. This setting does not affect the DocFetcher daemon.
+HTML 配對  |  HTML 檔案及其關聯資料夾（例如檔案 `foo.html` 和資料夾 `foo_files`）是否應被視為單一文件。
+偵測可執行 zip 與 7z 壓縮檔（較慢）  |  如果啟用，DocFetcher 將會檢查*每個*副檔名為 `exe` 的檔案，確認它是否為可執行的 zip 或 7z 壓縮檔。
+即使無法提取檔案內容，仍索引檔名  |  如果啟用，DocFetcher 將會在其索引中包含*所有*檔案，無論是否能提取任何檔案內容。 啟用此選項可進行完整的檔名搜尋。但請注意，DocFetcher 可能因此佔用多得多的記憶體，具體取決於已索引資料夾中的檔案數量。 萬一您的記憶體耗盡，您可以[提高記憶體限制](Memory_Limit.html)。 
+盡可能儲存相對路徑（為了可攜性）  |  如果您使用的是免安裝版（可攜版）的 DocFetcher，此設定非常重要。 您可以在關於[可攜式文件庫](Portable_Repositories.html)的頁面上閱讀更多相關資訊。 
+監控資料夾的檔案變更  |  DocFetcher 是否應偵測已索引資料夾中的變更，並相應地更新其索引。 此設定不會影響 DocFetcher 背景服務 (daemon)。

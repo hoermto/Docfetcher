@@ -1,25 +1,29 @@
-How to raise the memory limit
+如何提高記憶體上限 
 =============================
-DocFetcher has a default memory limit of 256&nbsp;MB, which is set on startup. The limit can be raised by fiddling with the platform-specific launchers:
+DocFetcher 的預設記憶體上限為 256 MB，此限制會在啟動時設定。 您可以透過調整各平台專用的啟動器來提高此上限： 
 
 Windows
 -------
-The Windows version of DocFetcher ships with ready-made alternative launchers that set different heap sizes. Follow these steps to use them:
+Windows 版的 DocFetcher 內建了現成的替代啟動器，可設定不同的堆積大小。 請依照以下步驟使用這些啟動器： 
 
-* Open the DocFetcher folder. If you're using the portable version of DocFetcher, this is just the folder you downloaded and unpacked. If you're using the non-portable version, the DocFetcher folder will be in `C:\Program Files`, or `C:\Program Files (x86)`, or a similar location.
-* The alternative launchers are inside the `DocFetcher\misc` folder. They are named `DocFetcher-XXX.exe`, where `XXX` is the heap size set by the respective launcher. For example, the launcher `DocFetcher-512.exe` will set a heap size of 512&nbsp;MB.
-* Before you can use any of these launchers, **you must first move or copy it into the DocFetcher folder**. It's not necessary to delete the default launcher or to rename the alternative launcher.
+* 開啟 DocFetcher 資料夾。 如果您使用的是免安裝版的 DocFetcher，這就是您下載並解壓縮的資料夾。 如果您使用的是安裝版，DocFetcher 資料夾將位於 `C:\Program Files` 或 `C:\Program Files (x86)`，或類似的路徑。 
+* 替代啟動器位於 `DocFetcher\misc` 資料夾中。它們的命名方式為 `DocFetcher-XXX.exe`，其中的 `XXX` 代表該啟動器所設定的堆積大小。 例如，啟動器 `DocFetcher-512.exe` 會將堆積大小設定為 512 MB。 
+* 在使用這些啟動器之前，**您必須先將其移動或複製到 DocFetcher 資料夾中**。 您不需要刪除預設啟動器或重新命名替代啟動器。
 
-Another way of changing the memory limit is to copy the file `misc\DocFetcher.bat` into the DocFetcher folder and alter the expression `-Xmx256m` in the last line of the file, for example to `-Xmx512m`.
+另一種更改記憶體上限的方法是將 `misc\DocFetcher.bat` 檔案複製到 DocFetcher 資料夾，並修改檔案最後一行的 `-Xmx256m` 參數，例如改為 `-Xmx512m`。 
 
-Linux
+Linux 
 -----
-Open the launcher script `DocFetcher/DocFetcher.sh` with a text editor, and in the last line, alter the expression `-Xmx256m` as needed, for example to `-Xmx512m`.
+使用文字編輯器開啟啟動器指令碼 `DocFetcher/DocFetcher.sh`，並根據需求修改最後一行的 `-Xmx256m` 參數，例如改為 `-Xmx512m`。 
 
-Mac OS&nbsp;X
+Mac OS X 
 -------------
-Both in the non-portable and the portable version, DocFetcher is launched via an application bundle. In the non-portable version, the application bundle is just what you got out of the downloaded disk image. In the portable version, the application bundle can be found in the DocFetcher folder.
+在 Mac OS X 上，記憶體上限是透過名為 `memory-limit.txt` 的檔案來設定。 此檔案的位置取決於您使用的版本： 
 
-In both cases, the application bundle is actually a folder with the extension `.app`. There should be a context menu entry in Finder to open this folder. If your Mac OS&nbsp;X language is English, this menu entry will be named `Show Package Contents`.
+* **免安裝版**：在 DocFetcher 資料夾中，使用文字編輯器開啟 `conf/memory-limit.txt` 檔案。 
+* **安裝版**：在家目錄中，使用文字編輯器開啟 `.docfetcher/conf/memory-limit.txt` 檔案。 請注意，以點開頭的資料夾在 Finder 中預設為隱藏。 若要顯示隱藏的檔案，請在 Finder 中按下 `Cmd+Shift+.` (Command+Shift+句號)，或使用終端機瀏覽至該檔案。
 
-Inside the folder, you will find this launcher script: `Contents/MacOS/DocFetcher`. Open it with a text editor, and in the last line, alter the expression `-Xmx256m` as needed, for example to `-Xmx512m`.
+如果該檔案尚未存在，請啟動 DocFetcher 一次，系統便會自動建立。 開啟檔案後： 
+
+* 您會在幾行註解下方看到類似 `4g` 的數值。 將其變更為所需的記憶體上限，例如將其改為 `8g` 以使用 8 GB 的 RAM。 
+* 儲存並關閉該檔案，如果程式仍在執行中，請將其關閉，然後重新啟動程式。
