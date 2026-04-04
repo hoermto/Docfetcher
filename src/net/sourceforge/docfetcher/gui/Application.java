@@ -428,6 +428,20 @@ public final class Application {
 			}
 		}
 
+		// Filter out benign NullPointerException caused by SWT bug on Windows 7 where
+		// MenuItem.getMenu() returns null during popup menu rendering. This occurs in
+		// newer SWT versions that added per-monitor DPI scaling (getMonitorZoom), which
+		// fails on Windows 7 because getMenu() unexpectedly returns null for certain menu
+		// items. The app functions normally despite this error. See bug #2450.
+		if (t instanceof NullPointerException) {
+			StackTraceElement[] frames = t.getStackTrace();
+			if (frames.length > 0
+					&& frames[0].getClassName().equals("org.eclipse.swt.widgets.MenuItem")
+					&& frames[0].getMethodName().equals("getMonitorZoom")) {
+				return;
+			}
+		}
+
 		for (OutOfMemoryError e : Iterables.filter(Throwables.getCausalChain(t), OutOfMemoryError.class)) {
 			UtilGui.showOutOfMemoryMessage(shell, e);
 			return;
