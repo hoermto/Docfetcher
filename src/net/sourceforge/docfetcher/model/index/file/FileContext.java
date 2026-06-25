@@ -195,7 +195,7 @@ class FileContext {
 		catch (CheckedOutOfMemoryError e) {
 			fail(ErrorType.OUT_OF_MEMORY, doc, e.getCause());
 		}
-		catch (ArrayIndexOutOfBoundsException e) {
+		catch (ArrayIndexOutOfBoundsException | AssertionError e) {
 			/*
 			 * Bug #2413: This is a known Lucene bug (LUCENE-8118, LUCENE-8614)
 			 * that occurs when indexing documents with extremely large numbers
@@ -209,6 +209,10 @@ class FileContext {
 			 * the ANSJ tokenizer library when processing certain text, likely
 			 * due to edge cases in Chinese character processing (String.getChars
 			 * in IndexAnalysis.java:86).
+			 *
+			 * AssertionError is also caught here because Lucene's ByteSliceReader
+			 * can throw it during index flushing when buffer management state is
+			 * invalid for certain documents (same code path as Bug #2360).
 			 *
 			 * We treat this as a parsing failure so the user gets an appropriate
 			 * error message rather than being told to increase the Java heap size.
