@@ -89,6 +89,13 @@ public final class FolderWatcher {
 				}
 			}
 		};
+		/*
+		 * This thread only adds/removes native OS folder watches; it never
+		 * touches the on-disk index. If a native watch call hangs (observed
+		 * with folders on removable/USB drives), it must not be able to keep
+		 * the JVM running after the main window has closed.
+		 */
+		thread.setDaemon(true);
 		thread.start();
 	}
 

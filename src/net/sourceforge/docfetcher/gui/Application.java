@@ -1441,12 +1441,26 @@ public final class Application {
 					if (folderWatcher != null)
 						folderWatcher.shutdown();
 
-					if (hotkeyHandler != null)
-						hotkeyHandler.shutdown();
-
 					indexRegistry.getSearcher().shutdown();
 				}
 			}.start();
+
+			/*
+			 * Hotkey teardown goes through native code that has been known to
+			 * hang. It doesn't touch the index, so it must run independently
+			 * of (and must not delay) the searcher shutdown above, which needs
+			 * to interrupt the index deletion thread. Daemonized so a hang
+			 * here can't keep the JVM from exiting.
+			 */
+			if (hotkeyHandler != null) {
+				Thread hotkeyShutdownThread = new Thread() {
+					public void run() {
+						hotkeyHandler.shutdown();
+					}
+				};
+				hotkeyShutdownThread.setDaemon(true);
+				hotkeyShutdownThread.start();
+			}
 		}
 	}
 
