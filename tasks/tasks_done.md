@@ -10,3 +10,7 @@
   - Already available per index as 'Watch folders for file changes' (enabled by default): file create/delete/rename/modify events trigger a background index update while DocFetcher runs; the daemon covers changes while it is closed.
   - New: 'Update indexes on startup' option (General tab, on by default) updates all watched indexes in the background at startup, so offline changes are picked up even without the daemon.
   - Fix: the daemon's indexes file is always written to the location the daemon expects, so the hand-off keeps working with a custom index folder.
+- add option: start with windows, close to minimize to task bar. Add option to exit app
+  - 'Start DocFetcher with Windows' checkbox (General tab, Windows only): creates/removes a per-user startup entry (HKCU Run key) for DocFetcher.exe; the program starts as a normal window.
+  - 'When closing the program window' dropdown: Exit / Minimize to taskbar / Hide in system tray (replaces the tray checkbox; old setting migrated).
+  - Exit: new toolbar button (power icon) and Ctrl+Q; both exit regardless of the close setting. The system tray menu keeps its Exit entry.

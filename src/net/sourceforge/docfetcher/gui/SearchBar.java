@@ -53,6 +53,7 @@ public final class SearchBar {
 	public final Event<Void> evtOpenManual = new Event<Void>();
 	public final Event<Void> evtOpenPreferences = new Event<Void>();
 	public final Event<Void> evtOpenSearchSettings = new Event<Void>();
+	public final Event<Void> evtExit = new Event<Void>();
 
 	private final Composite comp;
 	private final Combo searchBox;
@@ -158,6 +159,13 @@ public final class SearchBar {
 				}
 			}).create();
 		}
+
+		tif.image(Img.EXIT.get()).toolTip(Msg.exit_app.get().replace('\t', ' '))
+				.listener(new SelectionAdapter() {
+					public void widgetSelected(SelectionEvent e) {
+						evtExit.fire(null);
+					}
+				}).create();
 
 		// Make the search box smaller when there's not enough space left
 		comp.addControlListener(new ControlAdapter() {

@@ -6,3 +6,5 @@
 - no git push allowed
 
 # changes
+
+[] add check to run the app only once at a time

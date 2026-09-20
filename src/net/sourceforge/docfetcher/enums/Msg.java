@@ -800,6 +800,30 @@ public enum Msg {
 		"watched for changes are updated in the background when the program " +
 		"starts."),
 	
+	pref_close_action ("When closing the program window:",
+		Comments.prefOption + "Dropdown for choosing what happens when the " +
+		"user clicks on the close button of the main window."),
+	close_action_exit ("Exit",
+		"Choice for the 'When closing the program window' option: The " +
+		"program exits."),
+	close_action_minimize ("Minimize to taskbar",
+		"Choice for the 'When closing the program window' option: The window " +
+		"is minimized to the taskbar instead of exiting."),
+	close_action_tray ("Hide in system tray",
+		"Choice for the 'When closing the program window' option: The window " +
+		"is hidden in the system tray instead of exiting."),
+	pref_start_with_windows ("Start DocFetcher with Windows",
+		Comments.prefOption + "If checked, the program is started " +
+		"automatically when the user logs on to Windows."),
+	autostart_failed (
+		"The Windows startup entry could not be changed: {0}",
+		"Error message shown when registering or unregistering the program " +
+		"as a Windows startup program failed. The reason is inserted in the " +
+		"{0} slot."),
+	exit_app ("Exit DocFetcher\tCtrl+Q",
+		"Tooltip of the toolbar button that exits the program. The '\tCtrl+Q' " +
+		"is a keyboard shortcut and might need translation."),
+	
 	// Search settings dialog (document types and search scope filters)
 	search_settings_title ("Search Settings",
 		"Window title of the dialog containing the search filters, i.e. the " +

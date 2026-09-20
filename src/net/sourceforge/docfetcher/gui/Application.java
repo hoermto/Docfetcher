@@ -134,6 +134,7 @@ public final class Application {
 	private static StatusBar statusBar;
 	@Nullable private static HintOverlay docfetcherProTip;
 	private static boolean systemTrayShutdown = false;
+	private static boolean exitRequested = false; // set by the Exit button and Ctrl+Q
 	private static File settingsConfFile;
 	
 	private static boolean indexRegistryLoaded = false; // should only be accessed from SWT thread
@@ -242,6 +243,13 @@ public final class Application {
 		// Load program configuration and preferences
 		programConfFile = loadProgramConf(confPathOverride);
 		settingsConfFile = loadSettingsConf(confPathOverride);
+		
+		// Migrate the legacy 'close to tray' checkbox to the close action setting
+		if (SettingsConf.Bool.CloseToTray.get()) {
+			if (SettingsConf.Int.CloseAction.get() == SettingsConf.CLOSE_ACTION_EXIT)
+				SettingsConf.Int.CloseAction.set(SettingsConf.CLOSE_ACTION_TRAY);
+			SettingsConf.Bool.CloseToTray.set(false);
+		}
 		
 		/*
 		 * Determine the index folder. A custom index folder set in the
@@ -538,6 +546,9 @@ public final class Application {
 				 * impossible to type a capital F in the search field. */
 				else if (m == SWT.MOD1 && k == 'f') {
 					searchBar.setFocus();
+				}
+				else if (m == SWT.MOD1 && k == 'q') {
+					requestExit();
 				}
 				else {
 					e.doit = true;
@@ -1149,6 +1160,12 @@ public final class Application {
 			}
 		});
 
+		searchBar.evtExit.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				requestExit();
+			}
+		});
+
 		resultPanel.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
 			public void update(List<ResultDocument> eventData) {
 				if (!eventData.isEmpty())
@@ -1491,10 +1508,32 @@ public final class Application {
 		docfetcherProTip = overlay;
 	}
 
+	/**
+	 * Exits the program, regardless of the configured close action. The usual
+	 * shutdown sequence applies, e.g. the user is asked what to do with
+	 * running indexing tasks.
+	 */
+	private static void requestExit() {
+		exitRequested = true;
+		shell.close();
+		/*
+		 * If the close was vetoed, e.g. because the user chose not to abort
+		 * the indexing, reset the flag so that the next click on the close
+		 * button honors the configured close action again.
+		 */
+		if (!shell.isDisposed())
+			exitRequested = false;
+	}
+
 	private static void handleShellClosed(@NotNull ShellEvent e) {
-		if (SettingsConf.Bool.CloseToTray.get() && !systemTrayShutdown && !Util.IS_UBUNTU_UNITY) {
+		int closeAction = SettingsConf.Int.CloseAction.get();
+		boolean forceExit = systemTrayShutdown || exitRequested;
+		if (!forceExit && closeAction == SettingsConf.CLOSE_ACTION_TRAY && !Util.IS_UBUNTU_UNITY) {
 			e.doit = false;
 			systemTrayHider.hide();
+		} else if (!forceExit && closeAction == SettingsConf.CLOSE_ACTION_MINIMIZE) {
+			e.doit = false;
+			shell.setMinimized(true);
 		} else {
 			e.doit = indexRegistry.getQueue().shutdown(new CancelHandler() {
 				public CancelAction cancel() {

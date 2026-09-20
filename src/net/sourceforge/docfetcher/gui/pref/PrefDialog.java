@@ -41,6 +41,7 @@ import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilGui;
+import net.sourceforge.docfetcher.util.WindowsAutostart;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.VisibleForPackageGroup;
 import net.sourceforge.docfetcher.util.gui.ConfigComposite;
@@ -107,15 +108,15 @@ public final class PrefDialog {
 		));
 
 		if (!Util.IS_UBUNTU_UNITY) {
-			checkOptions.addAll(Arrays.<PrefOption> asList(
-			new CheckOption(
+			checkOptions.add(new CheckOption(
 				Msg.pref_hide_in_systray.get(),
-				SettingsConf.Bool.HideOnOpen),
-
-			new CheckOption(
-				Msg.pref_close_to_systray.get(),
-					SettingsConf.Bool.CloseToTray)
-			));
+				SettingsConf.Bool.HideOnOpen));
+		}
+		
+		if (WindowsAutostart.isSupported()) {
+			checkOptions.add(new AutostartOption(
+				Msg.pref_start_with_windows.get(),
+				ProgramConf.Str.AppName.get()));
 		}
 
 		checkOptions.addAll(Arrays.<PrefOption> asList(
@@ -150,7 +151,38 @@ public final class PrefDialog {
 			SettingsConf.Int.LuceneAnalyzer,
 			choices, choiceIndices);
 		
+		// The system tray is not supported on Ubuntu Unity
+		String[] closeChoices;
+		int[] closeIndices;
+		if (Util.IS_UBUNTU_UNITY) {
+			closeChoices = new String[] {
+				Msg.close_action_exit.get(),
+				Msg.close_action_minimize.get()
+			};
+			closeIndices = new int[] {
+				SettingsConf.CLOSE_ACTION_EXIT,
+				SettingsConf.CLOSE_ACTION_MINIMIZE
+			};
+		}
+		else {
+			closeChoices = new String[] {
+				Msg.close_action_exit.get(),
+				Msg.close_action_minimize.get(),
+				Msg.close_action_tray.get()
+			};
+			closeIndices = new int[] {
+				SettingsConf.CLOSE_ACTION_EXIT,
+				SettingsConf.CLOSE_ACTION_MINIMIZE,
+				SettingsConf.CLOSE_ACTION_TRAY
+			};
+		}
+		
 		fieldOptions.addAll(Arrays.asList(
+			new DropdownOption(
+				Msg.pref_close_action.get(),
+				SettingsConf.Int.CloseAction,
+				closeChoices, closeIndices),
+			
 			new BoolDropdownOption(
 				Msg.pref_preview_position.get(),
 				SettingsConf.Bool.ShowPreviewPanelAtBottom,

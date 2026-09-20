@@ -67,6 +67,11 @@ import com.google.common.primitives.Ints;
 public final class SettingsConf {
 
 	// TODO pre-release: remove unused entries
+	
+	// Values of Int.CloseAction
+	public static final int CLOSE_ACTION_EXIT = 0;
+	public static final int CLOSE_ACTION_MINIMIZE = 1;
+	public static final int CLOSE_ACTION_TRAY = 2;
 
 	@Description("# Boolean entries. Allowed values: true, false")
 	public enum Bool implements Storable {
@@ -91,7 +96,7 @@ public final class SettingsConf {
 		HighlightingEnabled (true),
 		ShowRelativePathsMessage (true),
 		AutoScrollToFirstMatch (true),
-		CloseToTray (false), // Default must be 'false' since system tray not supported on Ubuntu Unity
+		CloseToTray (false), // Legacy, migrated to Int.CloseAction on startup
 		AllowOnlyOneInstance (false),
 		;
 
@@ -129,6 +134,13 @@ public final class SettingsConf {
 	@Description("# Integer entries.")
 	public enum Int implements Storable {
 		LuceneAnalyzer (getDefaultAnalyzer()),
+		
+		/*
+		 * What happens when the main window is closed: 0 = exit, 1 = minimize
+		 * to taskbar, 2 = hide in system tray. The default must be 0 since the
+		 * system tray is not supported on Ubuntu Unity.
+		 */
+		CloseAction (CLOSE_ACTION_EXIT),
 		;
 
 		public final Event<Integer> evtChanged = new Event<Integer> ();

@@ -64,7 +64,7 @@ final class DropdownOption extends PrefOption {
 
 	@Override
 	protected void restoreDefault() {
-		dropdown.setText(getChoice(enumOption.get()));
+		dropdown.setText(getChoice(enumOption.defaultValue));
 	}
 
 	@Override
@@ -84,7 +84,8 @@ final class DropdownOption extends PrefOption {
 				return choices[i];
 			}
 		}
-		throw new IllegalArgumentException();
+		// Unknown value, e.g. a choice that isn't available on this platform
+		return choices[0];
 	}
 
 }
