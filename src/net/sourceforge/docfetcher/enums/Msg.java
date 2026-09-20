@@ -721,6 +721,9 @@ public enum Msg {
 	path ("Path"),
 	authors ("Authors"),
 	last_modified ("Last Modified"),
+	pages ("Pages",
+		"Header of the result table column showing the number of pages of a " +
+		"document (or slides of a presentation)."),
 	subject ("Subject"),
 	sender ("Sender"),
 	send_date ("Send Date"),

@@ -32,6 +32,7 @@ public final class ParseResult {
 	@Nullable private List<String> authors;
 	@Nullable private List<String> miscMetadata;
 	@NotNull private String parserName;
+	private int pageCount = -1;
 	
 	public ParseResult(@Nullable CharSequence content) {
 		setContent(content);
@@ -104,6 +105,23 @@ public final class ParseResult {
 			for (String metadata0 : miscMetadata)
 				metadata.append(metadata0).append(" ");
 		return metadata;
+	}
+	
+	/**
+	 * Returns the number of pages of the document, or -1 if unknown. For
+	 * presentations, this is the number of slides.
+	 */
+	public int getPageCount() {
+		return pageCount;
+	}
+	
+	/**
+	 * Sets the number of pages; values below 1 mean "unknown".
+	 */
+	@NotNull
+	public ParseResult setPageCount(int pageCount) {
+		this.pageCount = pageCount > 0 ? pageCount : -1;
+		return this;
 	}
 	
 	// Should not be called by Parser implementations

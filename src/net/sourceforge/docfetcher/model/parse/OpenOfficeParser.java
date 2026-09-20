@@ -25,6 +25,7 @@ import net.sourceforge.docfetcher.util.annotations.Nullable;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.io.TikaInputStream;
 import org.apache.tika.metadata.Metadata;
+import org.apache.tika.metadata.PagedText;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.apache.tika.parser.odf.OpenDocumentParser;
 import org.apache.tika.sax.BodyContentHandler;
@@ -129,6 +130,16 @@ abstract class OpenOfficeParser extends FileParser {
 				.addMiscMetadata(metadata.get(TikaCoreProperties.DESCRIPTION))
 				.addMiscMetadata(metadata.get(TikaCoreProperties.TRANSITION_SUBJECT_TO_OO_SUBJECT))
 				.addMiscMetadata(metadata.get(TikaCoreProperties.KEYWORDS));
+			// Page count from meta.xml (text documents only)
+			String pages = metadata.get(PagedText.N_PAGES);
+			if (pages != null) {
+				try {
+					result.setPageCount(Integer.parseInt(pages.trim()));
+				}
+				catch (NumberFormatException e) {
+					// Ignore malformed values
+				}
+			}
 			for (String name : metadata.names()) {
 				if (name.startsWith("custom:")) {
 					result.addMiscMetadata(metadata.get(name));

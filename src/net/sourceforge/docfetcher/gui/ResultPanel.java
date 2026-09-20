@@ -59,8 +59,6 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
 
-import com.google.common.primitives.Longs;
-
 /**
  * @author Tran Nam Quang
  */
@@ -162,24 +160,39 @@ public final class ResultPanel {
 			}
 		});
 		
-		viewer.addColumn(new Column<ResultDocument>(Msg.score.get(), SWT.RIGHT) {
+		dateColumn = new VariableHeaderColumn<ResultDocument>(Msg.last_modified.get(), Msg.send_date.get()) {
 			protected String getLabel(ResultDocument element) {
-				return String.valueOf(element.getScore());
+				Date date = getDate(element);
+				return date == null ? "" : dateFormat.format(date);
 			}
 			protected int compare(ResultDocument e1, ResultDocument e2) {
-				return -1 * Float.compare(e1.getScore(), e2.getScore());
+				Date date1 = getDate(e1);
+				Date date2 = getDate(e2);
+				if (date1 == null) // Place null dates before non-null dates
+					return date2 == null ? 0 : -1;
+				else if (date2 == null)
+					return 1;
+				return date1.compareTo(date2);
+			}
+			@Nullable
+			private Date getDate(ResultDocument element) {
+				if (element.isEmail())
+					return element.getDate();
+				return element.getLastModified();
+			}
+		};
+		viewer.addColumn(dateColumn);
+		
+		viewer.addColumn(new Column<ResultDocument>(Msg.pages.get(), SWT.RIGHT) {
+			protected String getLabel(ResultDocument element) {
+				int pages = element.getPageCount();
+				return pages > 0 ? String.valueOf(pages) : "";
+			}
+			protected int compare(ResultDocument e1, ResultDocument e2) {
+				return Integer.compare(e1.getPageCount(), e2.getPageCount());
 			}
 		});
 		
-		viewer.addColumn(new Column<ResultDocument>(Msg.size.get(), SWT.RIGHT) {
-			protected String getLabel(ResultDocument element) {
-				return String.format("%,d KB", element.getSizeInKB());
-			}
-			protected int compare(ResultDocument e1, ResultDocument e2) {
-				return -1 * Longs.compare(e1.getSizeInKB(), e2.getSizeInKB());
-			}
-		});
-
 		viewer.addColumn(new VariableHeaderColumn<ResultDocument>(Msg.filename.get(), Msg.sender.get()) {
 			protected String getLabel(ResultDocument element) {
 				if (element.isEmail())
@@ -209,37 +222,7 @@ public final class ResultPanel {
 			}
 		});
 		
-		viewer.addColumn(new VariableHeaderColumn<ResultDocument>(Msg.authors.get(), Msg.sender.get()) {
-			protected String getLabel(ResultDocument element) {
-				return element.getAuthors();
-			}
-			protected int compare(ResultDocument e1, ResultDocument e2) {
-				return compareAlphanum(e1.getAuthors(), e2.getAuthors());
-			}
-		});
 		
-		dateColumn = new VariableHeaderColumn<ResultDocument>(Msg.last_modified.get(), Msg.send_date.get()) {
-			protected String getLabel(ResultDocument element) {
-				Date date = getDate(element);
-				return date == null ? "" : dateFormat.format(date);
-			}
-			protected int compare(ResultDocument e1, ResultDocument e2) {
-				Date date1 = getDate(e1);
-				Date date2 = getDate(e2);
-				if (date1 == null) // Place null dates before non-null dates
-					return date2 == null ? 0 : -1;
-				else if (date2 == null)
-					return 1;
-				return date1.compareTo(date2);
-			}
-			@Nullable
-			private Date getDate(ResultDocument element) {
-				if (element.isEmail())
-					return element.getDate();
-				return element.getLastModified();
-			}
-		};
-		viewer.addColumn(dateColumn);
 		
 		SettingsConf.ColumnWidths.ResultPanel.bind(table);
 		SettingsConf.ColumnOrder.ResultPanelColumnOrder.bind(table);

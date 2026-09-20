@@ -163,7 +163,9 @@ SearchHistorySize = 20
 
 # By default, the program initially sorts the results by last-modified date
 # (send date for emails), newest first. To change the initial sorting criterion,
-# specify the number of the column to sort by here. The numbering starts at 1.
+# specify the number of the column to sort by here. The numbering starts at 1
+# and refers to the columns as currently displayed (Title, Last Modified, Pages,
+# Filename, Type, Path).
 # Zero means "use the default", out-of-range values will be ignored.
 # If the value is negative, the sorting is reversed, e.g., "-2" means "sort by
 # second column, but in reversed order".

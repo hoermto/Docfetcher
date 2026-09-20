@@ -100,6 +100,9 @@ abstract class LuceneDocWriter {
 			if (authors != null)
 				for (String author : authors)
 					luceneDoc.add(Fields.AUTHOR.create(author));
+			int pageCount = parseResult.getPageCount();
+			if (pageCount > 0)
+				luceneDoc.add(Fields.PAGES.create(String.valueOf(pageCount)));
 		}
 		
 		/*

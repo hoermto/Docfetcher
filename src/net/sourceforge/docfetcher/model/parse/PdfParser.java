@@ -271,6 +271,7 @@ public final class PdfParser extends StreamParser {
 			writer.write(annotations.toString());
 			
 			ParseResult result = new ParseResult(writer.getBuffer());
+			result.setPageCount(pageCount);
 			extractMetadata(pdfDoc, result);
 			return result;
 		}

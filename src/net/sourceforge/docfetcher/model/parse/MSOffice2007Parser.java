@@ -20,6 +20,7 @@ import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 
 import org.apache.poi.POITextExtractor;
+import org.apache.poi.POIXMLProperties;
 import org.apache.poi.extractor.ExtractorFactory;
 import org.apache.poi.openxml4j.exceptions.OpenXML4JRuntimeException;
 import org.apache.poi.openxml4j.opc.OPCPackage;
@@ -27,6 +28,7 @@ import org.apache.poi.openxml4j.opc.PackageAccess;
 import org.apache.poi.openxml4j.opc.PackageProperties;
 import org.apache.poi.openxml4j.util.ZipSecureFile;
 import org.apache.poi.xssf.extractor.XSSFExcelExtractor;
+import org.openxmlformats.schemas.officeDocument.x2006.extendedProperties.CTProperties;
 
 import com.google.common.io.Closeables;
 
@@ -116,7 +118,8 @@ abstract class MSOffice2007Parser extends FileParser {
 				.addAuthor(author)
 				.addMiscMetadata(description)
 				.addMiscMetadata(keywords)
-				.addMiscMetadata(subject);
+				.addMiscMetadata(subject)
+				.setPageCount(getPageCount(pkg));
 		}
 		catch (NoClassDefFoundError e) {
 			if (e.getMessage().contains("Could not initialize class")) {
@@ -229,6 +232,28 @@ abstract class MSOffice2007Parser extends FileParser {
 		finally {
 			Closeables.closeQuietly(pkg);
 		}
+	}
+	
+	/**
+	 * Returns the page count (Word) or slide count (PowerPoint) recorded in
+	 * the document's extended properties, or -1 if unavailable.
+	 */
+	private static int getPageCount(@NotNull OPCPackage pkg) {
+		try {
+			CTProperties props = new POIXMLProperties(pkg)
+				.getExtendedProperties().getUnderlyingProperties();
+			if (props.isSetPages() && props.getPages() > 0)
+				return props.getPages();
+			if (props.isSetSlides() && props.getSlides() > 0)
+				return props.getSlides();
+		}
+		catch (Exception e) {
+			// Extended properties are optional
+		}
+		catch (LinkageError e) {
+			// Missing optional classes; treat as unavailable
+		}
+		return -1;
 	}
 	
 	// Caller is responsible for closing the given package

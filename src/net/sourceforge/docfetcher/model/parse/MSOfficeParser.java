@@ -218,7 +218,8 @@ abstract class MSOfficeParser extends FileParser {
 			.addAuthor(listener.author)
 			.addMiscMetadata(listener.subject)
 			.addMiscMetadata(listener.keywords)
-			.addMiscMetadata(listener.comments);
+			.addMiscMetadata(listener.comments)
+			.setPageCount(listener.pageCount);
 		}
 		catch (IOException e) {
 			// Ignore, we can live without meta data
@@ -287,6 +288,7 @@ abstract class MSOfficeParser extends FileParser {
 		public String subject;
 		public String keywords;
 		public String comments;
+		public int pageCount = -1;
 		
 		public void processPOIFSReaderEvent(POIFSReaderEvent event) {
 			try {
@@ -306,6 +308,8 @@ abstract class MSOfficeParser extends FileParser {
 				subject = si.getSubject();
 				keywords = si.getKeywords();
 				comments = si.getComments();
+				// Page count for Word documents, slide count for presentations
+				pageCount = si.getPageCount();
 			}
 			catch (Exception e) {
 				// Ignore, we can live without meta data

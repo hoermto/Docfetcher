@@ -234,6 +234,24 @@ public final class ResultDocument {
 		return new java.text.SimpleDateFormat("yyyyMMdd-HHmmss").format(date);
 	}
 	
+	/**
+	 * Returns the number of pages (or slides) of the document, or -1 if
+	 * unknown, e.g. for emails, for formats without page information, or for
+	 * indexes created before page counts were recorded.
+	 */
+	public int getPageCount() {
+		String value = luceneDoc.get(Fields.PAGES.key());
+		if (value == null)
+			return -1;
+		try {
+			int pages = Integer.parseInt(value);
+			return pages > 0 ? pages : -1;
+		}
+		catch (NumberFormatException e) {
+			return -1;
+		}
+	}
+	
 	public boolean isEmail() {
 		return isEmail;
 	}
