@@ -23,7 +23,6 @@ import net.sourceforge.docfetcher.enums.Img;
 import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.gui.ResultPanel.HeaderMode;
 import net.sourceforge.docfetcher.gui.filter.FileTypePanel;
-import net.sourceforge.docfetcher.gui.filter.FilesizePanel;
 import net.sourceforge.docfetcher.gui.filter.IndexPanel;
 import net.sourceforge.docfetcher.model.Fields;
 import net.sourceforge.docfetcher.model.IndexRegistry;
@@ -57,13 +56,12 @@ import com.google.common.collect.Sets;
 public final class SearchQueue {
 	
 	private static enum GuiEvent {
-		SEARCH_OR_LIST, SIZE, TYPE, LOCATION, TYPE_AHEAD, EXPLICIT_SEARCH,
+		SEARCH_OR_LIST, TYPE, LOCATION, TYPE_AHEAD, EXPLICIT_SEARCH,
 	}
 	
 	private static final String spaces = Strings.repeat(" ", 5);
 
 	private final SearchBar searchBar;
-	private final FilesizePanel filesizePanel;
 	private final FileTypePanel fileTypePanel;
 	private final IndexPanel indexPanel;
 	private final ResultPanel resultPanel;
@@ -82,15 +80,13 @@ public final class SearchQueue {
 	private boolean allParsersChecked;
 	
 	public SearchQueue(	@NotNull SearchBar searchBar,
-						@NotNull FilesizePanel filesizePanel,
 						@NotNull FileTypePanel fileTypePanel,
 						@NotNull IndexPanel indexPanel,
 						@NotNull ResultPanel resultPanel,
 						@NotNull StatusBar statusBar) {
-		Util.checkNotNull(searchBar, filesizePanel, fileTypePanel);
+		Util.checkNotNull(searchBar, fileTypePanel);
 		Util.checkNotNull(indexPanel, resultPanel, statusBar);
 		this.searchBar = searchBar;
-		this.filesizePanel = filesizePanel;
 		this.fileTypePanel = fileTypePanel;
 		this.indexPanel = indexPanel;
 		this.resultPanel = resultPanel;
@@ -164,19 +160,6 @@ public final class SearchQueue {
 			}
 		});
 
-		filesizePanel.evtValuesChanged.add(new Event.Listener<Void>() {
-			public void update(Void eventData) {
-				lock.lock();
-				try {
-					queue.add(GuiEvent.SIZE);
-					queueNotEmpty.signal();
-				}
-				finally {
-					lock.unlock();
-				}
-			}
-		});
-		
 		fileTypePanel.evtCheckStatesChanged.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
 				lock.lock();
@@ -310,18 +293,10 @@ public final class SearchQueue {
 		if (results == null)
 			return true;
 		
-		Long[] minMax = filesizePanel.getValuesInKB();
 		final List<ResultDocument> visibleResults = new ArrayList<ResultDocument>();
 
 		// Apply filters
 		for (ResultDocument doc : results) {
-			if (minMax != null) {
-				long size = doc.getSizeInKB();
-				if (minMax[0] != null && size < minMax[0])
-					continue;
-				if (minMax[1] != null && size > minMax[1])
-					continue;
-			}
 			if (!doc.isEmail()) {
 				if (checkedParsers.isEmpty())
 					continue;

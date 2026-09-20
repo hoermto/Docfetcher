@@ -52,10 +52,12 @@ public final class SearchBar {
 	public final Event<Void> evtHideInSystemTray = new Event<Void>();
 	public final Event<Void> evtOpenManual = new Event<Void>();
 	public final Event<Void> evtOpenPreferences = new Event<Void>();
+	public final Event<Void> evtOpenSearchSettings = new Event<Void>();
 
 	private final Composite comp;
 	private final Combo searchBox;
 	private final Button searchBt;
+	private final Button searchSettingsBt;
 	private final ToolBar toolBar;
 	private final MemoryList<String> searchHistory;
 
@@ -108,6 +110,16 @@ public final class SearchBar {
 			}
 		});
 
+		// Opens the dialog with the search filters (document types, search scope)
+		searchSettingsBt = new Button(comp, SWT.PUSH);
+		searchSettingsBt.setText(Msg.search_settings_bt.get());
+		searchSettingsBt.setToolTipText(Msg.document_types.get() + ", " + Msg.search_scope.get());
+		searchSettingsBt.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				evtOpenSearchSettings.fire(null);
+			}
+		});
+
 		toolBar = new ToolBar(comp, SWT.FLAT);
 		ToolItemFactory tif = new ToolItemFactory(toolBar);
 
@@ -152,6 +164,7 @@ public final class SearchBar {
 			public void controlResized(ControlEvent e) {
 				Point searchBoxSize = computeSize(searchBox);
 				Point searchBtSize = computeSize(searchBt);
+				Point settingsBtSize = computeSize(searchSettingsBt);
 				Point toolBarSize = computeSize(toolBar);
 
 				Rectangle clientArea = comp.getClientArea();
@@ -161,7 +174,8 @@ public final class SearchBar {
 				int spaceLeft = caWidth;
 				spaceLeft -= toolBarSize.x;
 				spaceLeft -= searchBtSize.x;
-				spaceLeft -= 5; // spacing between search button and toolbar
+				spaceLeft -= settingsBtSize.x + SPACING;
+				spaceLeft -= 5; // spacing between search settings button and toolbar
 
 				int searchBoxMaxWidth = ProgramConf.Int.SearchBoxMaxWidth.get();
 				int searchBoxWidth = Util.clamp(spaceLeft, 0, searchBoxMaxWidth);
@@ -169,6 +183,9 @@ public final class SearchBar {
 
 				int searchBtX = MARGIN + searchBox.getSize().x + SPACING;
 				setBounds(searchBt, searchBtX, searchBtSize.x, caHeight, searchBtSize.y);
+
+				int settingsBtX = searchBtX + searchBtSize.x + SPACING;
+				setBounds(searchSettingsBt, settingsBtX, settingsBtSize.x, caHeight, settingsBtSize.y);
 
 				int toolBarX = caWidth - MARGIN - toolBarSize.x;
 				setBounds(toolBar, toolBarX, toolBarSize.x, caHeight, toolBarSize.y);
@@ -190,15 +207,18 @@ public final class SearchBar {
 	private Point computeSize(int wHint, int hHint) {
 		Point searchBoxSize = computeSize(searchBox);
 		Point searchBtSize = computeSize(searchBt);
+		Point settingsBtSize = computeSize(searchSettingsBt);
 		Point toolBarSize = computeSize(toolBar);
 
 		int width = 0;
 		width += searchBoxSize.x;
 		width += searchBtSize.x;
+		width += settingsBtSize.x;
 		width += toolBarSize.x;
-		width += MARGIN * 2 + SPACING * 2;
+		width += MARGIN * 2 + SPACING * 3;
 
 		int height = Math.max(searchBoxSize.y, searchBtSize.y);
+		height = Math.max(height, settingsBtSize.y);
 		height = Math.max(height, toolBarSize.y);
 		height += MARGIN * 2;
 

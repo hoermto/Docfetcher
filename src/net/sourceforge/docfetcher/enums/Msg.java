@@ -794,6 +794,14 @@ public enum Msg {
 		"Button on the preferences dialog for removing all indexes whose " +
 		"document folders have been deleted."),
 	
+	// Search settings dialog (document types and search scope filters)
+	search_settings_title ("Search Settings",
+		"Window title of the dialog containing the search filters, i.e. the " +
+		"'Document Types' list and the 'Search Scope' tree."),
+	search_settings_bt ("Search Settings...",
+		"Label of the button next to the 'Search' button that opens the " +
+		"search settings dialog."),
+	
 	// Rich document preview
 	preview_render_failed (
 		"The document could not be rendered for preview: {0}",

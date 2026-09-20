@@ -14,12 +14,12 @@ package net.sourceforge.docfetcher.gui;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
-import net.sourceforge.docfetcher.util.gui.FixedSashForm;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.SashForm;
 import org.eclipse.swt.events.MouseAdapter;
 import org.eclipse.swt.events.MouseEvent;
+import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Composite;
@@ -29,17 +29,16 @@ import com.google.common.base.Joiner;
 import com.google.common.primitives.Ints;
 
 /**
- * A three-panel layout with one panel on the left, two panels on the right, and
- * layout toggle buttons in between. The right-hand panels can be either on top
- * of or next to each other, and the second right-hand panel can be hidden.
+ * A two-panel layout with layout toggle buttons: The second panel can be
+ * placed either below or to the right of the first panel, and it can be
+ * hidden.
  * <p>
- * These three panels are to be created by subclassers by implementing
- * {@link #createFirstControl}, {@link #createFirstSubControl} and
- * {@link #createSecondSubControl}.
+ * The two panels are to be created by subclassers by implementing
+ * {@link #createFirstSubControl} and {@link #createSecondSubControl}.
  * 
  * @author Tran Nam Quang
  */
-public abstract class ThreePanelForm extends FixedSashForm {
+public abstract class TwoPanelForm extends Composite {
 	
 	public final Event<Boolean> evtSecondSubControlShown = new Event<Boolean>();
 	public final Event<Boolean> evtSubOrientationChanging = new Event<Boolean>();
@@ -50,37 +49,31 @@ public abstract class ThreePanelForm extends FixedSashForm {
 	@NotNull private Control firstSubControl;
 	@NotNull private Control secondSubControl;
 	@NotNull private Composite firstSubControlWrapper;
-	@NotNull private ThinArrowButton leftBt;
 	@NotNull private ThinArrowButton bottomBt;
 	@NotNull private ThinArrowButton outerRightBt;
 	@NotNull private ThinArrowButton innerRightBt;
 	
-	/**
-	 * Creates an instance with the given parent and the given initial width for
-	 * the left panel.
-	 */
-	public ThreePanelForm(@NotNull Composite parent, int startOffset) {
-		super(parent, SWT.LEFT, startOffset);
+	public TwoPanelForm(@NotNull Composite parent) {
+		super(parent, SWT.NONE);
+		setLayout(new FillLayout());
+		createContents(this);
 	}
 	
 	/**
-	 * Creates and returns the first right-hand panel with the given parent.
+	 * Creates and returns the first panel with the given parent.
 	 */
 	@NotNull
 	protected abstract Control createFirstSubControl(Composite parent);
 	
 	/**
-	 * Creates and returns the second right-hand panel with the given parent.
+	 * Creates and returns the second panel with the given parent.
 	 */
 	@NotNull
 	protected abstract Control createSecondSubControl(Composite parent);
 	
-	protected final Control createSecondControl(Composite parent) {
+	private void createContents(Composite parent) {
 		secondControl = new Composite(parent, SWT.NONE);
-		secondControl.setLayout(UtilGui.createGridLayout(3, false, 0, 0));
-		
-		leftBt = new ThinArrowButton(secondControl, SWT.LEFT);
-		leftBt.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
+		secondControl.setLayout(UtilGui.createGridLayout(2, false, 0, 0));
 		
 		sash = new SashForm(secondControl, SWT.VERTICAL);
 		sash.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
@@ -101,23 +94,6 @@ public abstract class ThreePanelForm extends FixedSashForm {
 		bottomBt.setLayoutData(new GridData(SWT.CENTER, SWT.BOTTOM, false, false));
 
 		secondSubControl = createSecondSubControl(sash);
-		
-		leftBt.addMouseListener(new MouseAdapter() {
-			public void mouseUp(MouseEvent e) {
-				boolean isVisible = ! isFirstControlVisible();
-				setFirstControlVisible(isVisible);
-			}
-		});
-		
-		/*
-		 * Update the orientation of the left button when it's clicked or when
-		 * the left panel is shown or hidden programmatically.
-		 */
-		evtFirstControlShown.add(new Event.Listener<Boolean>() {
-			public void update(Boolean eventData) {
-				leftBt.setOrientation(eventData ? SWT.LEFT : SWT.RIGHT);
-			}
-		});
 		
 		MouseAdapter rightBtHandler = new MouseAdapter() {
 			public void mouseUp(MouseEvent e) {
@@ -144,7 +120,6 @@ public abstract class ThreePanelForm extends FixedSashForm {
 		});
 		
 		updateRightButtons();
-		return secondControl;
 	}
 	
 	private void updateRightButtons() {
@@ -169,7 +144,7 @@ public abstract class ThreePanelForm extends FixedSashForm {
 		
 		outerRightBt.setVisible(showOuterRight);
 		((GridData) outerRightBt.getLayoutData()).exclude = ! showOuterRight;
-		((GridLayout) secondControl.getLayout()).numColumns = showOuterRight ? 3 : 2;
+		((GridLayout) secondControl.getLayout()).numColumns = showOuterRight ? 2 : 1;
 
 		innerRightBt.setVisible(showInnerRight);
 		((GridData) innerRightBt.getLayoutData()).exclude = ! showInnerRight;

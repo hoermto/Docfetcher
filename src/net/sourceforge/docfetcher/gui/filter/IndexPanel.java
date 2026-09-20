@@ -92,12 +92,19 @@ public final class IndexPanel {
 	private final DialogFactory dialogFactory;
 	private final Set<ViewNode> nodesToBeAdded = new HashSet<ViewNode>();
 	
+	/**
+	 * @param dialogParent
+	 *            The shell to use as parent for the indexing dialog. This is
+	 *            usually the main shell, even if the panel itself lives in
+	 *            another shell.
+	 */
 	public IndexPanel(	@NotNull final Composite parent,
-						@NotNull final IndexRegistry indexRegistry) {
-		Util.checkNotNull(parent, indexRegistry);
+						@NotNull final IndexRegistry indexRegistry,
+						@NotNull final Shell dialogParent) {
+		Util.checkNotNull(parent, indexRegistry, dialogParent);
 		this.indexRegistry = indexRegistry;
 
-		dialogFactory = new DialogFactory(parent.getShell()) {
+		dialogFactory = new DialogFactory(dialogParent) {
 			protected IndexingDialog createDialog(Shell shell) {
 				IndexingDialog indexingDialog = new IndexingDialog(shell, indexRegistry);
 				indexingDialog.evtDialogMinimized.add(new Event.Listener<Rectangle>() {

@@ -29,6 +29,7 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
@@ -42,8 +43,6 @@ import org.eclipse.swt.events.ControlEvent;
 import org.eclipse.swt.events.ControlListener;
 import org.eclipse.swt.events.DisposeEvent;
 import org.eclipse.swt.events.DisposeListener;
-import org.eclipse.swt.events.MouseAdapter;
-import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.ShellAdapter;
 import org.eclipse.swt.events.ShellEvent;
 import org.eclipse.swt.events.TraverseEvent;
@@ -55,7 +54,6 @@ import org.eclipse.swt.layout.FormLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
-import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Shell;
 
@@ -76,11 +74,8 @@ import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.enums.SystemConf;
 import net.sourceforge.docfetcher.gui.StatusBar.StatusBarPart;
 import net.sourceforge.docfetcher.gui.filter.FileTypePanel;
-import net.sourceforge.docfetcher.gui.filter.FilesizePanel;
 import net.sourceforge.docfetcher.gui.filter.IndexPanel;
-import net.sourceforge.docfetcher.gui.filter.ToolBarForm;
-import net.sourceforge.docfetcher.gui.filter.TwoFormExpander;
-import net.sourceforge.docfetcher.gui.filter.TwoFormExpander.MaximizedControl;
+import net.sourceforge.docfetcher.gui.filter.SearchSettingsDialog;
 import net.sourceforge.docfetcher.gui.pref.PrefDialog;
 import net.sourceforge.docfetcher.gui.preview.PreviewPanel;
 import net.sourceforge.docfetcher.model.Cancelable;
@@ -95,8 +90,6 @@ import net.sourceforge.docfetcher.model.index.IndexingQueue;
 import net.sourceforge.docfetcher.model.index.Task.CancelAction;
 import net.sourceforge.docfetcher.model.index.Task.CancelHandler;
 import net.sourceforge.docfetcher.model.index.Task.IndexAction;
-import net.sourceforge.docfetcher.model.parse.ParseService;
-import net.sourceforge.docfetcher.model.parse.Parser;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.CharsetDetectorHelper;
@@ -108,7 +101,6 @@ import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 import net.sourceforge.docfetcher.util.collect.AlphanumComparator;
-import net.sourceforge.docfetcher.util.collect.ListMap;
 import net.sourceforge.docfetcher.util.gui.CocoaUIEnhancer;
 import net.sourceforge.docfetcher.util.gui.FormDataFactory;
 import net.sourceforge.docfetcher.util.gui.LazyImageCache;
@@ -128,12 +120,12 @@ public final class Application {
 	@Nullable private static HotkeyHandler hotkeyHandler;
 	private static File programConfFile;
 
-	private static FilesizePanel filesizePanel;
+	private static SearchSettingsDialog searchSettingsDialog;
 	private static FileTypePanel fileTypePanel;
 	private static IndexPanel indexPanel;
 
 	private static volatile Shell shell;
-	private static ThreePanelForm threePanelForm;
+	private static TwoPanelForm twoPanelForm;
 	private static SearchBar searchBar;
 	private static ResultPanel resultPanel;
 	private static PreviewPanel previewPanel;
@@ -145,7 +137,6 @@ public final class Application {
 	private static File settingsConfFile;
 	
 	private static boolean indexRegistryLoaded = false; // should only be accessed from SWT thread
-	private static Runnable clearIndexLoadingMsg; // should only be accessed from SWT thread
 	
 	/*
 	 * The index folder that is used if the user hasn't set a custom index
@@ -322,7 +313,8 @@ public final class Application {
 		configureWebView2DataDir();
 		initCocoaMenu(display);
 		initSystemTrayHider();
-		initThreePanelForm();
+		initSearchSettingsDialog();
+		initTwoPanelForm();
 		initStatusBar();
 		initHotkey();
 		initGlobalKeys(display);
@@ -332,12 +324,11 @@ public final class Application {
 		}
 		
 		new SearchQueue(
-			searchBar, filesizePanel, fileTypePanel, indexPanel, resultPanel,
-			statusBar);
+			searchBar, fileTypePanel, indexPanel, resultPanel, statusBar);
 
 		FormDataFactory fdf = FormDataFactory.getInstance();
 		fdf.bottom().left().right().applyTo(statusBar);
-		fdf.top().bottom(statusBar).applyTo(threePanelForm);
+		fdf.top().bottom(statusBar).applyTo(twoPanelForm);
 
 		// Move focus to search text field
 		searchBar.setFocus();
@@ -797,8 +788,8 @@ public final class Application {
 					UtilGui.runAsyncExec(mainShell, new Runnable() {
 						public void run() {
 							indexRegistryLoaded = true;
-							if (clearIndexLoadingMsg != null)
-								clearIndexLoadingMsg.run();
+							if (searchSettingsDialog != null)
+								searchSettingsDialog.setIndexRegistryLoaded();
 						}
 					});
 				}
@@ -1045,118 +1036,35 @@ public final class Application {
 		return confFile;
 	}
 
-	private static Control createLeftPanel(Composite parent) {
-		final Composite comp = new Composite(parent, SWT.NONE);
-		comp.setLayout(new FormLayout());
-
-		ToolBarForm filesizeForm = new ToolBarForm(comp) {
-			protected Control createToolBar(Composite parent) {
-				final Label item = new Label(parent, SWT.NONE);
-				Image image = SettingsConf.Bool.FilesizeFilterMaximized.get()
-					? Img.MINIMIZE.get()
-					: Img.MAXIMIZE.get();
-				item.setImage(image);
-				item.addMouseListener(new MouseAdapter() {
-					public void mouseUp(MouseEvent e) {
-						boolean isVisible = !isContentsVisible();
-						setContentsVisible(isVisible);
-						Image image = isVisible
-							? Img.MINIMIZE.get()
-							: Img.MAXIMIZE.get();
-						item.setImage(image);
-						comp.layout();
-						SettingsConf.Bool.FilesizeFilterMaximized.set(isVisible);
-					}
-				});
-				item.setCursor(item.getDisplay().getSystemCursor(SWT.CURSOR_HAND));
-				UtilGui.addMouseHighlighter(item);
-				return item;
-			}
-
-			protected Control createContents(Composite parent) {
-				filesizePanel = new FilesizePanel(parent);
-				return filesizePanel.getControl();
-			}
-		};
-		filesizeForm.setText(Msg.min_max_filesize.get());
-		filesizeForm.setContentsVisible(SettingsConf.Bool.FilesizeFilterMaximized.get());
-
-		final TwoFormExpander expander = new TwoFormExpander(comp) {
-			protected Control createFirstContents(Composite parent) {
-				// TODO websearch: Load parser states from file, save parser states to file?
-				List<Parser> parsers = ParseService.getParsers();
-				ListMap<Parser, Boolean> map = ListMap.create(parsers.size());
-				for (Parser parser : parsers)
-					map.add(parser, true);
-				fileTypePanel = new FileTypePanel(parent, map);
-				return fileTypePanel.getControl();
-			}
-			protected Control createSecondContents(Composite parent) {
-				indexPanel = new IndexPanel(parent, indexRegistry);
-				indexPanel.evtIndexingDialogMinimized.add(new Event.Listener<Rectangle>() {
-					public void update(Rectangle eventData) {
-						moveIndexingDialogToStatusBar(eventData);
-					}
-				});
-				indexPanel.evtManageIndexes.add(new Event.Listener<Void>() {
-					public void update(Void eventData) {
-						openPrefDialog(true);
-					}
-				});
-				return indexPanel.getControl();
-			}
-			protected void onMaximizationChanged() {
-				// Save maximization states
-				MaximizedControl maxControl = getMaximizedControl();
-				boolean topMax = maxControl == MaximizedControl.TOP;
-				boolean bottomMax = maxControl == MaximizedControl.BOTTOM;
-				SettingsConf.Bool.TypesFilterMaximized.set(topMax);
-				SettingsConf.Bool.LocationFilterMaximized.set(bottomMax);
-			}
-		};
-		expander.setTopText(Msg.document_types.get());
-		if (indexRegistryLoaded) {
-			expander.setBottomText(Msg.search_scope.get());
-		}
-		else {
-			expander.setBottomText(Msg.search_scope.get() + " (" + Msg.loading.get() + ")");
-			clearIndexLoadingMsg = new Runnable() {
-				public void run() {
-					UtilGui.assertSwtThread();
-					expander.setBottomText(Msg.search_scope.get());
-				}
-			};
-		}
-		expander.setSashWidth(sashWidth);
+	/**
+	 * Creates the dialog holding the search filters (document types, search
+	 * scope). The dialog is created at startup, but only shown on demand, since
+	 * the filter panels must exist for the search queue to work.
+	 */
+	private static void initSearchSettingsDialog() {
+		searchSettingsDialog = new SearchSettingsDialog(
+			shell, indexRegistry, indexRegistryLoaded);
+		fileTypePanel = searchSettingsDialog.getFileTypePanel();
+		indexPanel = searchSettingsDialog.getIndexPanel();
 		
-		// Restore sash weights and maximization states
-		expander.setSashWeights(SettingsConf.IntArray.FilterSash.get());
-		if (SettingsConf.Bool.TypesFilterMaximized.get())
-			expander.setMaximizedControl(MaximizedControl.TOP);
-		if (SettingsConf.Bool.LocationFilterMaximized.get())
-			expander.setMaximizedControl(MaximizedControl.BOTTOM);
-
-		// Save sash weights
-		expander.getFirstControl().addControlListener(new ControlAdapter() {
-			public void controlResized(ControlEvent e) {
-				// Run in asyncExec to make sure both controls have been resized
-				UtilGui.runAsyncExec(expander, new Runnable() {
-					public void run() {
-						MaximizedControl maxControl = expander.getMaximizedControl();
-						if (maxControl != MaximizedControl.NONE)
-							return;
-						int[] weights = expander.getSashWeights();
-						SettingsConf.IntArray.FilterSash.set(weights);
-					}
-				});
+		indexPanel.evtIndexingDialogMinimized.add(new Event.Listener<Rectangle>() {
+			public void update(Rectangle eventData) {
+				moveIndexingDialogToStatusBar(eventData);
 			}
 		});
-
-		FormDataFactory fdf = FormDataFactory.getInstance();
-		fdf.margin(0).left().top().right().applyTo(filesizeForm);
-		fdf.top(filesizeForm, 5).bottom().applyTo(expander);
-
-		return comp;
+		indexPanel.evtManageIndexes.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				// The preferences dialog replaces the modal search settings dialog
+				searchSettingsDialog.close();
+				openPrefDialog(true);
+			}
+		});
+		indexPanel.evtListDocuments.add(new Event.Listener<Set<String>>() {
+			public void update(Set<String> eventData) {
+				// Close the dialog so that the listed documents are visible
+				searchSettingsDialog.close();
+			}
+		});
 	}
 
 	private static Control createRightTopPanel(Composite parent) {
@@ -1183,6 +1091,12 @@ public final class Application {
 		searchBar.evtOpenManual.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
 				showManual();
+			}
+		});
+
+		searchBar.evtOpenSearchSettings.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				searchSettingsDialog.open();
 			}
 		});
 
@@ -1289,12 +1203,8 @@ public final class Application {
 	}
 
 	@NotNull
-	private static void initThreePanelForm() {
-		int filterPanelWidth = SettingsConf.Int.FilterPanelWidth.get();
-		threePanelForm = new ThreePanelForm(shell, filterPanelWidth) {
-			protected Control createFirstControl(Composite parent) {
-				return createLeftPanel(parent);
-			}
+	private static void initTwoPanelForm() {
+		twoPanelForm = new TwoPanelForm(shell) {
 			protected Control createFirstSubControl(Composite parent) {
 				return createRightTopPanel(parent);
 			}
@@ -1315,46 +1225,26 @@ public final class Application {
 			}
 		};
 
-		threePanelForm.setSashWidth(sashWidth);
-		threePanelForm.setSubSashWidth(sashWidth);
+		twoPanelForm.setSubSashWidth(sashWidth);
 
-		// Restore visibility of filter panel and preview panel
-		threePanelForm.setFirstControlVisible(SettingsConf.Bool.ShowFilterPanel.get());
-		threePanelForm.setSecondSubControlVisible(SettingsConf.Bool.ShowPreviewPanel.get());
+		// Restore visibility of preview panel
+		twoPanelForm.setSecondSubControlVisible(SettingsConf.Bool.ShowPreviewPanel.get());
 
 		// Restore orientation and weights of right sash
 		boolean isVertical = SettingsConf.Bool.ShowPreviewPanelAtBottom.get();
-		threePanelForm.setVertical(isVertical);
-		threePanelForm.setSubSashWeights(getRightSashWeights(isVertical));
-
-		// Store visibility of filter panel
-		threePanelForm.evtFirstControlShown.add(new Event.Listener<Boolean>() {
-			public void update(Boolean eventData) {
-				SettingsConf.Bool.ShowFilterPanel.set(eventData);
-			}
-		});
-
-		// Store width of filter panel
-		final Control leftControl = threePanelForm.getFirstControl();
-		leftControl.addControlListener(new ControlAdapter() {
-			public void controlResized(ControlEvent e) {
-				if (leftControl.isVisible()) {
-					int width = leftControl.getSize().x;
-					SettingsConf.Int.FilterPanelWidth.set(width);
-				}
-			}
-		});
+		twoPanelForm.setVertical(isVertical);
+		twoPanelForm.setSubSashWeights(getRightSashWeights(isVertical));
 
 		final boolean[] ignoreControlResize = { false };
 
 		// Store weights of right sash
-		Control topRightControl = threePanelForm.getFirstSubControl();
+		Control topRightControl = twoPanelForm.getFirstSubControl();
 		ControlListener rightControlListener = new ControlAdapter() {
 			public void controlResized(ControlEvent e) {
 				if (!previewPanel.isVisible() || ignoreControlResize[0])
 					return;
-				int[] weights = threePanelForm.getSubSashWeights();
-				if (threePanelForm.isVertical())
+				int[] weights = twoPanelForm.getSubSashWeights();
+				if (twoPanelForm.isVertical())
 					SettingsConf.IntArray.RightSashVertical.set(weights);
 				else
 					SettingsConf.IntArray.RightSashHorizontal.set(weights);
@@ -1364,7 +1254,7 @@ public final class Application {
 		previewPanel.addControlListener(rightControlListener);
 
 		// Store visibility of preview panel
-		threePanelForm.evtSecondSubControlShown.add(new Event.Listener<Boolean>() {
+		twoPanelForm.evtSecondSubControlShown.add(new Event.Listener<Boolean>() {
 			public void update(Boolean eventData) {
 				SettingsConf.Bool.ShowPreviewPanel.set(eventData);
 			}
@@ -1375,17 +1265,17 @@ public final class Application {
 		 * orientation changes. Without this, we'd set the same sash weights for
 		 * both orientations.
 		 */
-		threePanelForm.evtSubOrientationChanging.add(new Event.Listener<Boolean>() {
+		twoPanelForm.evtSubOrientationChanging.add(new Event.Listener<Boolean>() {
 			public void update(Boolean isVertical) {
 				ignoreControlResize[0] = true;
 			}
 		});
 
 		// Store orientation of right sash; update weights
-		threePanelForm.evtSubOrientationChanged.add(new Event.Listener<Boolean>() {
+		twoPanelForm.evtSubOrientationChanged.add(new Event.Listener<Boolean>() {
 			public void update(Boolean isVertical) {
 				SettingsConf.Bool.ShowPreviewPanelAtBottom.set(isVertical);
-				threePanelForm.setSubSashWeights(getRightSashWeights(isVertical));
+				twoPanelForm.setSubSashWeights(getRightSashWeights(isVertical));
 				ignoreControlResize[0] = false;
 			}
 		});
@@ -1397,11 +1287,11 @@ public final class Application {
 		 */
 		SettingsConf.Bool.ShowPreviewPanelAtBottom.evtChanged.add(new Event.Listener<Boolean>() {
 			public void update(Boolean isVertical) {
-				if (threePanelForm.isVertical() == isVertical)
+				if (twoPanelForm.isVertical() == isVertical)
 					return;
-				threePanelForm.setVertical(isVertical);
-				if (!threePanelForm.isSecondSubControlVisible())
-					threePanelForm.setSecondSubControlVisible(true);
+				twoPanelForm.setVertical(isVertical);
+				if (!twoPanelForm.isSecondSubControlVisible())
+					twoPanelForm.setSecondSubControlVisible(true);
 			}
 		});
 	}
@@ -1741,7 +1631,7 @@ public final class Application {
 		File file = ManualLocator.getManualFile();
 		if (file != null) {
 			if (previewPanel.setHtmlFile(file))
-				threePanelForm.setSecondSubControlVisible(true);
+				twoPanelForm.setSecondSubControlVisible(true);
 			else
 				UtilGui.launch(file);
 		}

@@ -79,11 +79,9 @@ public final class SettingsConf {
 		HotkeyEnabled (true),
 		ShowDocFetcherProTip (true),
 
-		ShowFilterPanel (true),
 		ShowPreviewPanel (true),
 		ShowPreviewPanelAtBottom (false),
 
-		FilesizeFilterMaximized (true),
 		TypesFilterMaximized (false),
 		LocationFilterMaximized (false),
 
@@ -129,7 +127,6 @@ public final class SettingsConf {
 
 	@Description("# Integer entries.")
 	public enum Int implements Storable {
-		FilterPanelWidth (250),
 		LuceneAnalyzer (getDefaultAnalyzer()),
 		;
 
@@ -294,6 +291,7 @@ public final class SettingsConf {
 		IndexingDialog (-1, -1, 600, 750),
 		FileExtensionChooser (-1, -1, 300, 450),
 		PreferencesDialog (-1, -1, 750, 600),
+		SearchSettingsDialog (-1, -1, 400, 600),
 		;
 
 		public final int[] defaultValue;
