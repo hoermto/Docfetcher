@@ -14,3 +14,7 @@
   - 'Start DocFetcher with Windows' checkbox (General tab, Windows only): creates/removes a per-user startup entry (HKCU Run key) for DocFetcher.exe; the program starts as a normal window.
   - 'When closing the program window' dropdown: Exit / Minimize to taskbar / Hide in system tray (replaces the tray checkbox; old setting migrated).
   - Exit: new toolbar button (power icon) and Ctrl+Q; both exit regardless of the close setting. The system tray menu keeps its Exit entry.
+- for result table, move date to 2nd column, remove author, remove size, remove "treffer (%)", add pages as col if known after date
+  - Result table columns are now Title, Last Modified, Pages, Filename, Type, Path. The page count is recorded while indexing for PDF (page count), Word/OpenDocument text (page count from document metadata) and PowerPoint (slide count); other formats and indexes created before this change show an empty cell until the index is rebuilt.
+- at least provide complete german translation
+  - All 38 previously untranslated UI strings translated in Resource_de.properties; the German manual (main page and preferences page) updated for the new preferences dialog, search settings dialog and index management.
