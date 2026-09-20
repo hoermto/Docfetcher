@@ -19,6 +19,10 @@ import java.io.InputStream;
 import java.io.StringReader;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.net.URL;
+import java.nio.file.FileVisitResult;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -142,6 +146,13 @@ public final class Application {
 	
 	private static boolean indexRegistryLoaded = false; // should only be accessed from SWT thread
 	private static Runnable clearIndexLoadingMsg; // should only be accessed from SWT thread
+	
+	/*
+	 * The index folder that is used if the user hasn't set a custom index
+	 * folder in the preferences, i.e. either the folder from paths.txt or the
+	 * built-in default.
+	 */
+	private static File defaultIndexParentDir;
 
 	private Application() {
 		throw new UnsupportedOperationException();
@@ -241,9 +252,22 @@ public final class Application {
 		programConfFile = loadProgramConf(confPathOverride);
 		settingsConfFile = loadSettingsConf(confPathOverride);
 		
+		/*
+		 * Determine the index folder. A custom index folder set in the
+		 * preferences dialog takes precedence over the one in paths.txt. If the
+		 * user changed the index folder and asked for the existing indexes to
+		 * be moved, this is done now, before any index files are opened.
+		 */
+		defaultIndexParentDir = getIndexParentDir(IndexRegistry.indexPathOverride);
+		String customIndexFolder = SettingsConf.Str.IndexFolder.get().trim();
+		if (!customIndexFolder.isEmpty())
+			IndexRegistry.indexPathOverride = Util.getCanonicalFile(customIndexFolder);
+		File indexParentDir = getIndexParentDir(IndexRegistry.indexPathOverride);
+		performPendingIndexMove(indexParentDir);
+		
 		// Update indexes in headless mode
 		if (args.length >= 1 && args[0].equals("--update-indexes")) {
-			loadIndexRegistryHeadless(getIndexParentDir(IndexRegistry.indexPathOverride));
+			loadIndexRegistryHeadless(indexParentDir);
 			return;
 		}
 
@@ -265,7 +289,7 @@ public final class Application {
 		Display display = new Display();
 		AppUtil.setDisplay(display);
 		shell = new Shell(display);
-		loadIndexRegistry(shell, getIndexParentDir(IndexRegistry.indexPathOverride));
+		loadIndexRegistry(shell, indexParentDir);
 
 		// Load images
 		LazyImageCache lazyImageCache = new LazyImageCache(
@@ -295,6 +319,7 @@ public final class Application {
 		shell.setLayout(new FormLayout());
 		shell.setText(shellTitle);
 
+		configureWebView2DataDir();
 		initCocoaMenu(display);
 		initSystemTrayHider();
 		initThreePanelForm();
@@ -533,12 +558,12 @@ public final class Application {
 	@NotNull
 	private static File getIndexParentDir(@Nullable File pathOverride) {
 		File indexParentDir;
-		if (SystemConf.Bool.IsDevelopmentVersion.get()) {
-			indexParentDir = new File("bin/indexes");
-		}
-		else if (pathOverride != null && !pathOverride.isFile()) {
+		if (pathOverride != null && !pathOverride.isFile()) {
 			pathOverride.mkdirs();
 			indexParentDir = pathOverride;
+		}
+		else if (SystemConf.Bool.IsDevelopmentVersion.get()) {
+			indexParentDir = new File("bin/indexes");
 		}
 		else {
 			File appDataDir = AppUtil.getAppDataDir();
@@ -549,6 +574,95 @@ public final class Application {
 		}
 		indexParentDir.mkdirs();
 		return indexParentDir;
+	}
+
+	/**
+	 * If the user changed the index folder in the preferences dialog and opted
+	 * to move the existing indexes, this moves all index folders from the old
+	 * index folder into the given new one. Must be called before the index
+	 * registry is loaded and before the display is created, since the moving
+	 * will fail on Windows if any index files are open.
+	 */
+	private static void performPendingIndexMove(@NotNull File newIndexParentDir) {
+		String from = SettingsConf.Str.PendingIndexMoveFrom.get().trim();
+		if (from.isEmpty())
+			return;
+		SettingsConf.Str.PendingIndexMoveFrom.set(""); // Only try once
+		
+		File oldIndexParentDir = new File(from);
+		if (!oldIndexParentDir.isDirectory())
+			return;
+		if (Util.isCanonicallyEqual(oldIndexParentDir, newIndexParentDir))
+			return;
+		newIndexParentDir.mkdirs();
+		
+		List<File> toMove = new ArrayList<File>();
+		for (File file : Util.listFiles(oldIndexParentDir)) {
+			if (file.isDirectory()) {
+				// Index folders are recognized by their serialized index tree
+				if (new File(file, IndexRegistry.SER_FILENAME).isFile())
+					toMove.add(file);
+			}
+			else if (file.getName().equals(Daemon.INDEXES_FILENAME)) {
+				toMove.add(file);
+			}
+		}
+		
+		List<String> failed = new ArrayList<String>();
+		for (File source : toMove) {
+			File target = new File(newIndexParentDir, source.getName());
+			try {
+				if (target.exists())
+					throw new IOException("Target already exists: " + target);
+				moveFileOrDir(source, target);
+			}
+			catch (IOException e) {
+				Util.printErr(e);
+				failed.add(source.getPath());
+			}
+		}
+		
+		if (!failed.isEmpty()) {
+			String msg = Msg.index_move_failed.format(Util.join("\n", failed));
+			AppUtil.showErrorOnStart(msg, false);
+		}
+	}
+	
+	/**
+	 * Moves the given file or directory to the given target. If a simple
+	 * rename is not possible (e.g. because source and target are on different
+	 * drives), the source is copied recursively and then deleted.
+	 */
+	private static void moveFileOrDir(@NotNull File source, @NotNull File target)
+			throws IOException {
+		java.nio.file.Path srcPath = source.toPath();
+		final java.nio.file.Path dstPath = target.toPath();
+		try {
+			java.nio.file.Files.move(srcPath, dstPath, StandardCopyOption.ATOMIC_MOVE);
+			return;
+		}
+		catch (IOException e) {
+			// Fall through to copy + delete
+		}
+		if (source.isFile()) {
+			java.nio.file.Files.copy(srcPath, dstPath);
+		}
+		else {
+			final java.nio.file.Path srcRoot = srcPath;
+			java.nio.file.Files.walkFileTree(srcRoot, new SimpleFileVisitor<java.nio.file.Path>() {
+				public FileVisitResult preVisitDirectory(java.nio.file.Path dir, BasicFileAttributes attrs)
+						throws IOException {
+					java.nio.file.Files.createDirectories(dstPath.resolve(srcRoot.relativize(dir)));
+					return FileVisitResult.CONTINUE;
+				}
+				public FileVisitResult visitFile(java.nio.file.Path file, BasicFileAttributes attrs)
+						throws IOException {
+					java.nio.file.Files.copy(file, dstPath.resolve(srcRoot.relativize(file)));
+					return FileVisitResult.CONTINUE;
+				}
+			});
+		}
+		Util.deleteRecursively(source);
 	}
 
 	private static void loadIndexRegistry(@NotNull final Shell mainShell, @NotNull File indexParentDir) {
@@ -984,6 +1098,11 @@ public final class Application {
 						moveIndexingDialogToStatusBar(eventData);
 					}
 				});
+				indexPanel.evtManageIndexes.add(new Event.Listener<Void>() {
+					public void update(Void eventData) {
+						openPrefDialog(true);
+					}
+				});
 				return indexPanel.getControl();
 			}
 			protected void onMaximizationChanged() {
@@ -1042,10 +1161,10 @@ public final class Application {
 
 	private static Control createRightTopPanel(Composite parent) {
 		Composite comp = new Composite(parent, SWT.NONE);
-		searchBar = new SearchBar(comp, programConfFile);
-		searchBar.evtOKClicked.add(new Event.Listener<Void> () {
+		searchBar = new SearchBar(comp);
+		searchBar.evtOpenPreferences.add(new Event.Listener<Void> () {
 		    public void update(Void eventData) {
-		    	saveSettingsConfFile();
+		    	openPrefDialog(false);
 		    }
 		});
 		resultPanel = new ResultPanel(comp);
@@ -1149,15 +1268,24 @@ public final class Application {
 			}
 		}, new Runnable() {
 			public void run() {
-				PrefDialog prefDialog = new PrefDialog(shell, programConfFile);
-				prefDialog.evtOKClicked.add(new Event.Listener<Void> () {
-				    public void update(Void eventData) {
-				    	saveSettingsConfFile();
-				    }
-				});
-				prefDialog.open();
+				openPrefDialog(false);
 			}
 		});
+	}
+	
+	/**
+	 * Opens the preferences dialog. If {@code showIndexesTab} is true, the
+	 * 'Indexes' tab is selected initially.
+	 */
+	private static void openPrefDialog(boolean showIndexesTab) {
+		PrefDialog prefDialog = new PrefDialog(
+			shell, programConfFile, indexPanel, defaultIndexParentDir);
+		prefDialog.evtOKClicked.add(new Event.Listener<Void> () {
+		    public void update(Void eventData) {
+		    	saveSettingsConfFile();
+		    }
+		});
+		prefDialog.open(showIndexesTab);
 	}
 
 	@NotNull
@@ -1259,6 +1387,21 @@ public final class Application {
 				SettingsConf.Bool.ShowPreviewPanelAtBottom.set(isVertical);
 				threePanelForm.setSubSashWeights(getRightSashWeights(isVertical));
 				ignoreControlResize[0] = false;
+			}
+		});
+		
+		/*
+		 * Apply preview position changes made on the preferences dialog. The
+		 * listener above sets the same value, in which case the setter doesn't
+		 * fire, so there's no feedback loop.
+		 */
+		SettingsConf.Bool.ShowPreviewPanelAtBottom.evtChanged.add(new Event.Listener<Boolean>() {
+			public void update(Boolean isVertical) {
+				if (threePanelForm.isVertical() == isVertical)
+					return;
+				threePanelForm.setVertical(isVertical);
+				if (!threePanelForm.isSecondSubControlVisible())
+					threePanelForm.setSecondSubControlVisible(true);
 			}
 		});
 	}
@@ -1573,13 +1716,7 @@ public final class Application {
 		 * at startup.
 		 */
 		if (shell.isVisible()) {
-			PrefDialog prefDialog = new PrefDialog(shell, programConfFile);
-			prefDialog.evtOKClicked.add(new Event.Listener<Void> () {
-			    public void update(Void eventData) {
-			    	saveSettingsConfFile();
-			    }
-			});
-			prefDialog.open();
+			openPrefDialog(false);
 		}
 	}
 
@@ -1612,6 +1749,25 @@ public final class Application {
 			String msg = Msg.file_not_found.get() + "\n" + SystemConf.Str.ProgramName.get() + "_Manual.html";
 			AppUtil.showError(msg, true, true);
 		}
+	}
+
+	/**
+	 * For the portable version on Windows, keeps the user data folder of the
+	 * embedded Edge (WebView2) browser inside the application folder, next to
+	 * the unpacked SWT libraries, instead of the default location under
+	 * %LOCALAPPDATA%. Must be called before the first browser widget is
+	 * created.
+	 */
+	private static void configureWebView2DataDir() {
+		if (!Util.IS_WINDOWS || !AppUtil.isPortable())
+			return;
+		String prop = "org.eclipse.swt.browser.EdgeDataDir";
+		if (System.getProperty(prop) != null)
+			return;
+		File dataDir = new File(AppUtil.getAppDataDir(), "lib/webview2");
+		dataDir.mkdirs();
+		if (dataDir.isDirectory() && AppUtil.canWriteToDirectory(dataDir))
+			System.setProperty(prop, dataDir.getAbsolutePath());
 	}
 
 	/**

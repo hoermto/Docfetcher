@@ -1,5 +1,9 @@
 Preferences
 ===========
+The preferences dialog has two tabs: `General` and `Indexes`.
+
+General tab
+-----------
 Option  |  Comment
 --------|---------
 Show manual on startup  |  Whether to open the manual when DocFetcher starts up.
@@ -8,8 +12,23 @@ Automatically scroll to first match in preview pane  |  If checked, DocFetcher w
 Hide program in System Tray after opening files  |  If checked, DocFetcher will automatically hide in the System Tray whenever you double-click a file on the result pane, or open a folder from the `Search Scope` area.
 When closing program window, hide in System Tray instead of exiting  |  If checked, DocFetcher will be minimized into the System Tray instead of being closed if you click on the close button of the main program window.
 Clear search history on exit  |  If checked, DocFetcher will wipe out its history of entered queries on exit.
+Preview position  |  Whether the preview pane is shown to the right of or below the result table.
 Word segmentation  |  The word segmentation algorithm to use during indexing. The standard algorithm works well with Western languages like English and German. The source code and Chinese algorithm are intended for indexing source code and Chinese text, respectively. Changing the word segmentation algorithm requires rebuilding all existing indexes.
-Highlight color  |  The color to use for higlighting matches in the text preview.
+Highlight color  |  The color to use for highlighting matches in the preview pane.
 Preview font (normal)  |  The font to use in the text preview; applies to all document formats except plain text files.
 Preview font (fixed width)  |  The font to use for the text preview; applies only to plain text files. You are not required to pick a fixed-width font here, although it's usually a sensible choice.
 Global hotkey  |  The keyboard shortcut specified here can be used to move the DocFetcher window to the top after it has lost focus.
+
+Indexes tab
+-----------
+The `Indexes` tab lists all existing indexes and provides buttons for managing them:
+
+Button  |  Comment
+--------|---------
+Create Index...  |  Creates a new index from a folder, an archive, an Outlook PST file or a folder path in the clipboard.
+Update  |  Updates the selected indexes so that they reflect changes made to the indexed documents.
+Rebuild  |  Rebuilds the selected indexes from scratch. This is necessary after changing the indexing options of an index or the word segmentation algorithm.
+Rename...  |  Changes the display name of the selected index.
+Remove  |  Removes the selected indexes.
+Remove Orphaned  |  Removes all indexes whose document folders no longer exist.
+Index folder  |  The folder where DocFetcher stores its index files. Leave it empty to use the default location. Changing the folder takes effect after DocFetcher is restarted; you will be asked whether the existing indexes should be moved to the new folder on the next start.

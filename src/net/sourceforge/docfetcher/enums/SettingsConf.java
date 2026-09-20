@@ -169,6 +169,21 @@ public final class SettingsConf {
 			"\r\n# escaped by a preceding \\.")
 	public enum Str implements Storable {
 		LastIndexedFolder (Util.USER_HOME_PATH),
+		
+		/*
+		 * Custom index folder, set via the preferences dialog. Empty means
+		 * "use the default location" (or the location from paths.txt, if
+		 * specified there). Takes effect on the next program start.
+		 */
+		IndexFolder (""),
+		
+		/*
+		 * If non-empty, this is the previous index folder whose index
+		 * subfolders should be moved into the current index folder on the next
+		 * program start. Set by the preferences dialog after the index folder
+		 * has been changed and the user opted to move the existing indexes.
+		 */
+		PendingIndexMoveFrom (""),
 		;
 
 		public final Event<String> evtChanged = new Event<String> ();

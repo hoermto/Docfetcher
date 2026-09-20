@@ -62,7 +62,6 @@ import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilGui;
-import net.sourceforge.docfetcher.util.annotations.MutableCopy;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 import net.sourceforge.docfetcher.util.annotations.RecursiveMethod;
@@ -85,16 +84,13 @@ public final class IndexPanel {
 	public final Event<Set<String>> evtListDocuments = new Event<Set<String>>();
 	public final Event<Rectangle> evtIndexingDialogMinimized = new Event<Rectangle>();
 	public final Event<Void> evtIndexingDialogOpened = new Event<Void>();
+	public final Event<Void> evtManageIndexes = new Event<Void>();
 
 	private final SimpleTreeViewer<ViewNode> viewer;
 	private final Tree tree;
 	private final IndexRegistry indexRegistry;
 	private final DialogFactory dialogFactory;
 	private final Set<ViewNode> nodesToBeAdded = new HashSet<ViewNode>();
-	
-	@Nullable private MenuAction updateIndexAction;
-	@Nullable private MenuAction removeIndexAction;
-	@Nullable private MenuAction renameIndexAction;
 	
 	public IndexPanel(	@NotNull final Composite parent,
 						@NotNull final IndexRegistry indexRegistry) {
@@ -271,173 +267,19 @@ public final class IndexPanel {
 	private void initContextMenu() {
 		ContextMenuManager menuManager = new ContextMenuManager(tree);
 		
-		if (ProgramConf.Bool.AllowIndexCreation.get()) {
-			Menu indexSubMenu = menuManager.addSubmenu(new MenuAction(
-				Msg.create_index_from.get()));
-
-			menuManager.add(indexSubMenu, new MenuAction(
-				Img.FOLDER.get(), Msg.folder.get()) {
-				public void run() {
-					createFileTaskFromDialog(
-						tree.getShell(), indexRegistry, dialogFactory, true);
-				}
-			});
-
-			menuManager.addSeparator(indexSubMenu);
-
-			menuManager.add(indexSubMenu, new MenuAction(
-				Img.PACKAGE.get(), Msg.archive.get()) {
-				public void run() {
-					createFileTaskFromDialog(
-						tree.getShell(), indexRegistry, dialogFactory, false);
-				}
-			});
-
-			menuManager.add(indexSubMenu, new MenuAction(
-				Img.EMAIL.get(), Msg.outlook_pst.get()) {
-				public void run() {
-					createOutlookTaskFromDialog(
-						tree.getShell(), indexRegistry, dialogFactory);
-				}
-			});
-
-			String clipboardLabel = Util.IS_MAC_OS_X
-			? Msg.clipboard_macosx.get()
-				: Msg.clipboard.get();
-			menuManager.add(indexSubMenu, new MenuAction(
-				Img.CLIPBOARD.get(), clipboardLabel) {
-				public void run() {
-					createTaskFromClipboard(
-						tree.getShell(), indexRegistry, dialogFactory);
-				}
-			});
-		}
-		
-		class RenameIndexAction extends MenuAction {
-			public RenameIndexAction(String label) {
-				super(label);
-			}
-			
-			public boolean isEnabled() {
-				return viewer.getSelection().size() == 1 && isOnlyIndexesSelected();
-			}
-			
+		/*
+		 * Index management (creating, updating, rebuilding, renaming and
+		 * removing indexes) has been moved to the 'Indexes' tab of the
+		 * preferences dialog. The context menu of the search scope tree only
+		 * offers a shortcut to that tab.
+		 */
+		menuManager.add(new MenuAction(Msg.manage_indexes.get()) {
 			public void run() {
-				List<LuceneIndex> sel = getSelectedIndexes();
-				LuceneIndex index = sel.get(0);
-				TextInputDialog dlg = new TextInputDialog(tree.getShell(),
-												  Msg.rename_index_title.get(),
-												  Msg.rename_index_msg.get(),
-												  index.getRootFolder().getDisplayName());
-				
-				String indexName = dlg.open();
-				
-				if (indexName != null) {
-					if (indexName.trim().isEmpty()) {
-						String msg = Msg.empty_name.get();
-						AppUtil.showError(msg,  true, true);
-						renameIndexAction.run();
-					} else {
-						index.getRootFolder().setDisplayName(indexName);
-						indexRegistry.save(index);
-						viewer.update();
-					}
-				}
+				evtManageIndexes.fire(null);
 			}
-		}
+		});
 		
-		class UpdateOrRebuildAction extends MenuAction {
-			private final boolean isUpdate;
-			public UpdateOrRebuildAction(String label, boolean isUpdate) {
-				super(label);
-				this.isUpdate = isUpdate;
-			}
-			public boolean isEnabled() {
-				return isOnlyIndexesSelected();
-			}
-			public void run() {
-				IndexingQueue queue = indexRegistry.getQueue();
-				IndexAction action = isUpdate
-					? IndexAction.UPDATE
-					: IndexAction.REBUILD;
-				List<LuceneIndex> sel = getSelectedIndexes();
-				
-				/*
-				 * The indexing dialog must be opened *before* adding the tasks
-				 * to the queue. Otherwise, it may happen that the tasks are
-				 * completed before the dialog is opened, in which case the
-				 * dialog will be empty and won't close automatically.
-				 */
-				dialogFactory.open();
-
-				for (LuceneIndex index : sel) {
-					queue.addTask(index, action);
-					
-					/*
-					 * The following assertion is sometimes false, although it's
-					 * not exactly clear why. See for example:
-					 * http://sourceforge.net/p/docfetcher/bugs/988/
-					 */
-//					Rejection rejection = queue.addTask(index, action);
-//					if (action == IndexAction.REBUILD)
-//						assert rejection == null;
-				}
-			}
-		}
-
-		if (ProgramConf.Bool.AllowIndexUpdate.get() || ProgramConf.Bool.AllowIndexRebuild.get()) {
-			menuManager.addSeparatorIfNonEmpty();
-			
-			updateIndexAction = new UpdateOrRebuildAction(Msg.update_index.get(), true);
-			if (ProgramConf.Bool.AllowIndexUpdate.get())
-				menuManager.add(updateIndexAction);
-			if (ProgramConf.Bool.AllowIndexRebuild.get())
-				menuManager.add(new UpdateOrRebuildAction(Msg.rebuild_index.get(), false));
-		}
-		
-		renameIndexAction = new RenameIndexAction(Msg.rename_index_context.get());
-		if (ProgramConf.Bool.AllowIndexRenaming.get()) {
-			menuManager.addSeparatorIfNonEmpty();
-			menuManager.add(renameIndexAction);
-		}
-		
-		if (ProgramConf.Bool.AllowIndexDeletion.get()) {
-			menuManager.addSeparatorIfNonEmpty();
-
-			removeIndexAction = new MenuAction(Msg.remove_index.get()) {
-				public boolean isEnabled() {
-					return isOnlyIndexesSelected();
-				}
-				public void run() {
-					List<LuceneIndex> selectedIndexes = getSelectedIndexes();
-					assert !selectedIndexes.isEmpty();
-					if (AppUtil.showConfirmation(Msg.remove_sel_indexes.get(), false))
-						indexRegistry.removeIndexes(selectedIndexes, true);
-				}
-			};
-			menuManager.add(removeIndexAction);
-
-			menuManager.add(new MenuAction(Msg.remove_orphaned_indexes.get()) {
-				public boolean isEnabled() {
-					return tree.getItemCount() > 0;
-				}
-				public void run() {
-					List<LuceneIndex> indexes = indexRegistry.getIndexes();
-					List<LuceneIndex> toRemove = new ArrayList<LuceneIndex>(indexes.size());
-					for (LuceneIndex index : indexes)
-						if (!index.getCanonicalRootFile().exists())
-							toRemove.add(index);
-					if (toRemove.isEmpty())
-						return;
-					// TODO post-release-1.1: Also display the indexes to be removed?
-					String msg = Msg.remove_orphaned_indexes_msg.get();
-					if (AppUtil.showConfirmation(msg, false))
-						indexRegistry.removeIndexes(toRemove, true);
-				}
-			});
-		}
-		
-		menuManager.addSeparatorIfNonEmpty();
+		menuManager.addSeparator();
 		
 		class CheckAllAction extends MenuAction {
 			private final boolean checkAll;
@@ -561,50 +403,13 @@ public final class IndexPanel {
 	private void initAccelerators() {
 		tree.addKeyListener(new KeyAdapter() {
 			public void keyPressed(KeyEvent e) {
-				if (e.keyCode == SWT.F5) {
-					if (updateIndexAction != null && updateIndexAction.isEnabled()
-							&& ProgramConf.Bool.AllowIndexUpdate.get())
-						updateIndexAction.run();
-				}
-				else if (e.keyCode == SWT.F2) {
-					if (renameIndexAction != null && renameIndexAction.isEnabled()
-							&& ProgramConf.Bool.AllowIndexUpdate.get())
-						renameIndexAction.run();
-				}
-				else if (e.stateMask == SWT.MOD1 && e.keyCode == 'v') {
+				if (e.stateMask == SWT.MOD1 && e.keyCode == 'v') {
 					if (ProgramConf.Bool.AllowIndexCreation.get())
 						createTaskFromClipboard(
 							tree.getShell(), indexRegistry, dialogFactory);
 				}
-				else if (e.keyCode == SWT.DEL) {
-					if (removeIndexAction != null && removeIndexAction.isEnabled()
-							&& ProgramConf.Bool.AllowIndexDeletion.get())
-						removeIndexAction.run();
-				}
 			}
 		});
-	}
-	
-	private boolean isOnlyIndexesSelected() {
-		List<ViewNode> selection = viewer.getSelection();
-		if (selection.isEmpty())
-			return false;
-		
-		for (ViewNode viewNode : selection)
-			if (!viewNode.isIndex())
-				return false;
-		return true;
-	}
-	
-	@MutableCopy
-	@NotNull
-	private List<LuceneIndex> getSelectedIndexes() {
-		List<ViewNode> selection = viewer.getSelection();
-		List<LuceneIndex> rootSelection = new ArrayList<LuceneIndex>(selection.size());
-		for (ViewNode viewNode : selection)
-			if (viewNode.isIndex())
-				rootSelection.add((LuceneIndex) viewNode);
-		return rootSelection;
 	}
 	
 	@RecursiveMethod
@@ -815,6 +620,116 @@ public final class IndexPanel {
 	
 	public void openIndexingDialog() {
 		dialogFactory.open();
+	}
+	
+	/*
+	 * Index management API, used by the 'Indexes' tab of the preferences
+	 * dialog. The given shell is used as parent for any dialogs that need to
+	 * be opened (e.g. folder choosers).
+	 */
+	
+	public boolean createIndexFromFolder(@NotNull Shell shell) {
+		return createFileTaskFromDialog(shell, indexRegistry, dialogFactory, true);
+	}
+	
+	public boolean createIndexFromArchive(@NotNull Shell shell) {
+		return createFileTaskFromDialog(shell, indexRegistry, dialogFactory, false);
+	}
+	
+	public boolean createIndexFromOutlook(@NotNull Shell shell) {
+		return createOutlookTaskFromDialog(shell, indexRegistry, dialogFactory);
+	}
+	
+	public void createIndexFromClipboard(@NotNull Shell shell) {
+		createTaskFromClipboard(shell, indexRegistry, dialogFactory);
+	}
+	
+	public void updateIndexes(@NotNull List<LuceneIndex> indexes) {
+		enqueue(indexes, IndexAction.UPDATE);
+	}
+	
+	public void rebuildIndexes(@NotNull List<LuceneIndex> indexes) {
+		enqueue(indexes, IndexAction.REBUILD);
+	}
+	
+	private void enqueue(	@NotNull List<LuceneIndex> indexes,
+							@NotNull IndexAction action) {
+		Util.checkNotNull(indexes, action);
+		if (indexes.isEmpty())
+			return;
+		IndexingQueue queue = indexRegistry.getQueue();
+		
+		/*
+		 * The indexing dialog must be opened *before* adding the tasks to the
+		 * queue. Otherwise, it may happen that the tasks are completed before
+		 * the dialog is opened, in which case the dialog will be empty and
+		 * won't close automatically.
+		 */
+		dialogFactory.open();
+		
+		for (LuceneIndex index : indexes) {
+			queue.addTask(index, action);
+			
+			/*
+			 * The following assertion is sometimes false, although it's not
+			 * exactly clear why. See for example:
+			 * http://sourceforge.net/p/docfetcher/bugs/988/
+			 */
+//			Rejection rejection = queue.addTask(index, action);
+//			if (action == IndexAction.REBUILD)
+//				assert rejection == null;
+		}
+	}
+	
+	// Returns true if the index was renamed
+	public boolean renameIndex(@NotNull Shell shell, @NotNull LuceneIndex index) {
+		Util.checkNotNull(shell, index);
+		TextInputDialog dlg = new TextInputDialog(shell,
+										  Msg.rename_index_title.get(),
+										  Msg.rename_index_msg.get(),
+										  index.getRootFolder().getDisplayName());
+		
+		while (true) {
+			String indexName = dlg.open();
+			if (indexName == null)
+				return false;
+			if (indexName.trim().isEmpty()) {
+				AppUtil.showError(Msg.empty_name.get(), true, true);
+				continue;
+			}
+			index.getRootFolder().setDisplayName(indexName);
+			indexRegistry.save(index);
+			viewer.update();
+			return true;
+		}
+	}
+	
+	// Asks for confirmation; returns true if the indexes were removed
+	public boolean removeIndexes(@NotNull List<LuceneIndex> indexes) {
+		Util.checkNotNull(indexes);
+		if (indexes.isEmpty())
+			return false;
+		if (!AppUtil.showConfirmation(Msg.remove_sel_indexes.get(), false))
+			return false;
+		indexRegistry.removeIndexes(indexes, true);
+		return true;
+	}
+	
+	// Asks for confirmation; returns true if any indexes were removed
+	public boolean removeOrphanedIndexes() {
+		List<LuceneIndex> indexes = indexRegistry.getIndexes();
+		List<LuceneIndex> toRemove = new ArrayList<LuceneIndex>(indexes.size());
+		for (LuceneIndex index : indexes)
+			if (!index.getCanonicalRootFile().exists())
+				toRemove.add(index);
+		if (toRemove.isEmpty())
+			return false;
+		// TODO post-release-1.1: Also display the indexes to be removed?
+		String msg = Msg.remove_orphaned_indexes_msg.get();
+		if (!AppUtil.showConfirmation(msg, false))
+			return false;
+		indexRegistry.removeIndexes(toRemove, true);
+		return true;
 	}
 	
 	@NotNull

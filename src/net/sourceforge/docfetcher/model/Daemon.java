@@ -33,6 +33,9 @@ import com.google.common.io.LineProcessor;
  */
 public final class Daemon {
 	
+	/** Name of the file in the index folder that lists the indexes for the daemon. */
+	public static final String INDEXES_FILENAME = ".indexes.txt";
+	
 	private final IndexRegistry indexRegistry;
 	private final File indexesFile;
 
@@ -41,7 +44,7 @@ public final class Daemon {
 		this.indexRegistry = indexRegistry;
 		
 		File indexParentDir = indexRegistry.getIndexParentDir();
-		indexesFile = new File(indexParentDir, ".indexes.txt");
+		indexesFile = new File(indexParentDir, INDEXES_FILENAME);
 		
 		/*
 		 * Open a FileOutputStream for writing. This lets the daemon know that

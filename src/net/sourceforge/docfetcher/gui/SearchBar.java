@@ -11,8 +11,6 @@
 
 package net.sourceforge.docfetcher.gui;
 
-import java.io.File;
-
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.ControlAdapter;
 import org.eclipse.swt.events.ControlEvent;
@@ -34,7 +32,6 @@ import net.sourceforge.docfetcher.enums.Img;
 import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.enums.SettingsConf;
-import net.sourceforge.docfetcher.gui.pref.PrefDialog;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilGui;
@@ -54,7 +51,7 @@ public final class SearchBar {
 	public final Event<String> evtSearchTypeAhead = new Event<String>();
 	public final Event<Void> evtHideInSystemTray = new Event<Void>();
 	public final Event<Void> evtOpenManual = new Event<Void>();
-	public final Event<Void> evtOKClicked = new Event<Void> ();
+	public final Event<Void> evtOpenPreferences = new Event<Void>();
 
 	private final Composite comp;
 	private final Combo searchBox;
@@ -62,7 +59,7 @@ public final class SearchBar {
 	private final ToolBar toolBar;
 	private final MemoryList<String> searchHistory;
 
-	public SearchBar(@NotNull Composite parent, @NotNull final File programConfFile) {
+	public SearchBar(@NotNull Composite parent) {
 		comp = new CustomBorderComposite(parent) {
 			public Point computeSize(int wHint, int hHint, boolean changed) {
 				return SearchBar.this.computeSize(wHint, hHint);
@@ -124,13 +121,7 @@ public final class SearchBar {
 		tif.image(Img.PREFERENCES.get()).toolTip(Msg.preferences.get())
 				.listener(new SelectionAdapter() {
 					public void widgetSelected(SelectionEvent e) {
-						PrefDialog prefDialog = new PrefDialog(comp.getShell(), programConfFile);
-						prefDialog.evtOKClicked.add(new Event.Listener<Void> () {
-						    public void update(Void eventData) {
-						    	evtOKClicked.fire(null);
-						    }
-						});
-						prefDialog.open();
+						evtOpenPreferences.fire(null);
 					}
 				}).create();
 

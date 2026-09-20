@@ -31,8 +31,11 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Link;
 import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.TabFolder;
+import org.eclipse.swt.widgets.TabItem;
 
 import net.sourceforge.docfetcher.gui.ManualLocator;
+import net.sourceforge.docfetcher.gui.filter.IndexPanel;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.Event;
@@ -56,13 +59,28 @@ public final class PrefDialog {
 	private final List<PrefOption> checkOptions = new LinkedList<PrefOption>();
 	private final List<PrefOption> fieldOptions = new LinkedList<PrefOption>();
 	private final File programConfFile;
+	private final IndexPanel indexPanel;
+	private final File defaultIndexDir;
 	private final DropdownOption analyzerOption;
 	private final int oldAnalyzer;
+	@NotNull private TabFolder tabFolder;
+	@NotNull private IndexManagementPanel indexManagementPanel;
 
+	/**
+	 * @param indexPanel
+	 *            The search scope panel of the main window, which provides
+	 *            the index management operations for the 'Indexes' tab.
+	 * @param defaultIndexDir
+	 *            The index folder used when no custom index folder is set.
+	 */
 	public PrefDialog(	@NotNull Shell parent,
-						@NotNull File programConfFile) {
-		Util.checkNotNull(parent);
+						@NotNull File programConfFile,
+						@NotNull IndexPanel indexPanel,
+						@NotNull File defaultIndexDir) {
+		Util.checkNotNull(parent, indexPanel, defaultIndexDir);
 		this.programConfFile = programConfFile;
+		this.indexPanel = indexPanel;
+		this.defaultIndexDir = defaultIndexDir;
 		
 		shell = new Shell(parent, SWT.PRIMARY_MODAL | SWT.SHELL_TRIM);
 		shell.setLayout(UtilGui.createFillLayout(10));
@@ -129,6 +147,12 @@ public final class PrefDialog {
 			choices, choiceIndices);
 		
 		fieldOptions.addAll(Arrays.asList(
+			new BoolDropdownOption(
+				Msg.pref_preview_position.get(),
+				SettingsConf.Bool.ShowPreviewPanelAtBottom,
+				Msg.pref_preview_bottom.get(),
+				Msg.pref_preview_right.get()),
+			
 			analyzerOption,
 
 			new ColorOption(
@@ -167,8 +191,25 @@ public final class PrefDialog {
 
 	@NotNull
 	private Control createContents(@NotNull Composite parent) {
+		tabFolder = new TabFolder(parent, SWT.TOP);
+		
+		TabItem generalTab = new TabItem(tabFolder, SWT.NONE);
+		generalTab.setText(Msg.pref_tab_general.get());
+		generalTab.setControl(createGeneralTab(tabFolder));
+		
+		TabItem indexesTab = new TabItem(tabFolder, SWT.NONE);
+		indexesTab.setText(Msg.pref_tab_indexes.get());
+		indexManagementPanel = new IndexManagementPanel(
+			tabFolder, indexPanel, defaultIndexDir);
+		indexesTab.setControl(indexManagementPanel.getControl());
+		
+		return tabFolder;
+	}
+	
+	@NotNull
+	private Control createGeneralTab(@NotNull Composite parent) {
 		Composite comp = new Composite(parent, SWT.NONE);
-		comp.setLayout(UtilGui.createGridLayout(2, false, 0, 5));
+		comp.setLayout(UtilGui.createGridLayout(2, false, 5, 5));
 
 		for (PrefOption checkOption : checkOptions)
 			checkOption.createControls(comp);
@@ -219,6 +260,7 @@ public final class PrefDialog {
 					checkOption.restoreDefault();
 				for (PrefOption fieldOption : fieldOptions)
 					fieldOption.restoreDefault();
+				indexManagementPanel.restoreDefaultFolder();
 			}
 		});
 		
@@ -244,6 +286,10 @@ public final class PrefDialog {
 
 		okBt = UtilGui.createPushButton(comp, Msg.ok.get(), new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
+				if (!indexManagementPanel.validateFolder()) {
+					tabFolder.setSelection(1);
+					return;
+				}
 				for (PrefOption checkOption : checkOptions)
 					checkOption.save();
 				for (PrefOption fieldOption : fieldOptions) {
@@ -257,6 +303,7 @@ public final class PrefDialog {
 						}
 					}
 				}
+				indexManagementPanel.saveFolder();
 				evtOKClicked.fire(null);
 				shell.close();
 			}
@@ -330,7 +377,16 @@ public final class PrefDialog {
 		}
 	}
 
-	public void open( ) {
+	public void open() {
+		open(false);
+	}
+	
+	/**
+	 * Opens the dialog. If {@code showIndexesTab} is true, the 'Indexes' tab is
+	 * selected initially, otherwise the 'General' tab.
+	 */
+	public void open(boolean showIndexesTab) {
+		tabFolder.setSelection(showIndexesTab ? 1 : 0);
 		okBt.setFocus();
 		shell.open();
 		while (!shell.isDisposed()) {
