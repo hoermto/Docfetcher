@@ -121,7 +121,11 @@ public final class PrefDialog {
 		checkOptions.addAll(Arrays.<PrefOption> asList(
 			new CheckOption(
 				Msg.pref_clear_search_history_on_exit.get(),
-				SettingsConf.Bool.ClearSearchHistoryOnExit)
+				SettingsConf.Bool.ClearSearchHistoryOnExit),
+
+			new CheckOption(
+				Msg.pref_update_indexes_on_startup.get(),
+				SettingsConf.Bool.UpdateIndexesOnStartup)
 
 			// TODO post-release-1.1: Implement this; requires saving and restoring the tree expansion state
 			//	new CheckOption(

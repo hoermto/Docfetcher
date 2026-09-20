@@ -12,6 +12,7 @@ Automatically scroll to first match in preview pane  |  If checked, DocFetcher w
 Hide program in System Tray after opening files  |  If checked, DocFetcher will automatically hide in the System Tray whenever you double-click a file on the result pane, or open a folder from the `Search Scope` area.
 When closing program window, hide in System Tray instead of exiting  |  If checked, DocFetcher will be minimized into the System Tray instead of being closed if you click on the close button of the main program window.
 Clear search history on exit  |  If checked, DocFetcher will wipe out its history of entered queries on exit.
+Update indexes on startup  |  If checked, all indexes whose folders are watched for changes (see the `Watch folders for file changes` indexing option) are updated in the background when DocFetcher starts. This picks up files that were added, changed, renamed or removed while DocFetcher was not running, even if the DocFetcher daemon is not installed.
 Preview position  |  Whether the preview pane is shown to the right of or below the result table.
 Word segmentation  |  The word segmentation algorithm to use during indexing. The standard algorithm works well with Western languages like English and German. The source code and Chinese algorithm are intended for indexing source code and Chinese text, respectively. Changing the word segmentation algorithm requires rebuilding all existing indexes.
 Highlight color  |  The color to use for highlighting matches in the preview pane.

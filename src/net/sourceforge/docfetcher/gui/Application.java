@@ -589,14 +589,9 @@ public final class Application {
 		
 		List<File> toMove = new ArrayList<File>();
 		for (File file : Util.listFiles(oldIndexParentDir)) {
-			if (file.isDirectory()) {
-				// Index folders are recognized by their serialized index tree
-				if (new File(file, IndexRegistry.SER_FILENAME).isFile())
-					toMove.add(file);
-			}
-			else if (file.getName().equals(Daemon.INDEXES_FILENAME)) {
+			// Index folders are recognized by their serialized index tree
+			if (file.isDirectory() && new File(file, IndexRegistry.SER_FILENAME).isFile())
 				toMove.add(file);
-			}
 		}
 		
 		List<String> failed = new ArrayList<String>();
@@ -664,7 +659,7 @@ public final class Application {
 		int reporterCapacity = ProgramConf.Int.MaxLinesInProgressPanel.get();
 		indexRegistry = new IndexRegistry(
 			indexParentDir, cacheCapacity, reporterCapacity);
-		final Daemon daemon = new Daemon(indexRegistry);
+		final Daemon daemon = new Daemon(indexRegistry, getDaemonDir());
 		IndexingQueue queue = indexRegistry.getQueue();
 
 		queue.evtWorkerThreadTerminated.add(new Event.Listener<Void>() {
@@ -741,6 +736,14 @@ public final class Application {
 					// Must be called *after* the indexes have been loaded
 					daemon.enqueueUpdateTasks();
 					
+					/*
+					 * Pick up changes made while the program was closed, even
+					 * if the daemon isn't running. The updates run in the
+					 * background via the indexing queue.
+					 */
+					if (SettingsConf.Bool.UpdateIndexesOnStartup.get())
+						enqueueStartupUpdates(mainShell);
+					
 					// Confirm deletion of obsolete files inside the index
 					// folder
 					if (ProgramConf.Bool.ReportObsoleteIndexFiles.get()
@@ -795,6 +798,52 @@ public final class Application {
 				}
 			}
 		}.start();
+	}
+	
+	/**
+	 * Returns the folder in which the DocFetcher daemon looks for the file
+	 * listing the indexed folders. The daemon ignores any custom index folder,
+	 * so this is always the default location.
+	 */
+	@NotNull
+	private static File getDaemonDir() {
+		if (SystemConf.Bool.IsDevelopmentVersion.get())
+			return new File("bin/indexes");
+		File appDataDir = AppUtil.getAppDataDir();
+		if (SystemConf.Bool.IsPortable.get())
+			return new File(appDataDir, "indexes");
+		return appDataDir;
+	}
+	
+	/**
+	 * Enqueues update tasks for all indexes whose folders are watched for
+	 * changes. Must be called after the indexes have been loaded, from a
+	 * non-GUI thread.
+	 */
+	private static void enqueueStartupUpdates(@NotNull Shell mainShell) {
+		List<LuceneIndex> toUpdate = new ArrayList<LuceneIndex>();
+		for (LuceneIndex index : indexRegistry.getIndexes()) {
+			if (index.isWatchFolders() && index.getCanonicalRootFile().exists())
+				toUpdate.add(index);
+		}
+		if (toUpdate.isEmpty())
+			return;
+		
+		/*
+		 * Show the indexing indicator in the status bar; it is hidden again
+		 * when the queue is empty. This must be posted *before* the tasks are
+		 * added, so that it is processed before the queue-empty event.
+		 */
+		UtilGui.runAsyncExec(mainShell, new Runnable() {
+			public void run() {
+				if (indexingStatus != null)
+					indexingStatus.setVisible(true);
+			}
+		});
+		
+		IndexingQueue queue = indexRegistry.getQueue();
+		for (LuceneIndex index : toUpdate)
+			queue.addTask(index, IndexAction.UPDATE); // Rejected if already queued
 	}
 	
 	private static void loadIndexRegistryHeadless(@NotNull File indexParentDir) {

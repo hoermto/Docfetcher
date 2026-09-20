@@ -6,4 +6,3 @@
 - no git push allowed
 
 # changes
-- add in settings per folder flag to autorefresh (if not generally available): for these folders check for changes and refresh index. File might have been renamed, added, removed or changes (e.g. office docs). Update index accordingly

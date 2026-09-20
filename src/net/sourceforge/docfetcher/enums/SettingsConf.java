@@ -78,6 +78,7 @@ public final class SettingsConf {
 		ResetLocationFilterOnExit (true),
 		HotkeyEnabled (true),
 		ShowDocFetcherProTip (true),
+		UpdateIndexesOnStartup (true),
 
 		ShowPreviewPanel (true),
 		ShowPreviewPanelAtBottom (false),

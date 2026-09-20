@@ -794,6 +794,12 @@ public enum Msg {
 		"Button on the preferences dialog for removing all indexes whose " +
 		"document folders have been deleted."),
 	
+	pref_update_indexes_on_startup (
+		"Update indexes on startup (picks up changes made while the program was closed)",
+		Comments.prefOption + "If checked, all indexes whose folders are " +
+		"watched for changes are updated in the background when the program " +
+		"starts."),
+	
 	// Search settings dialog (document types and search scope filters)
 	search_settings_title ("Search Settings",
 		"Window title of the dialog containing the search filters, i.e. the " +
