@@ -45,6 +45,7 @@ public abstract class VirtualTableViewer<E> {
 		private final int orientation;
 		private final Event<String> evtLabelChanged = new Event<String> ();
 		private int lastSortDirection = 1;
+		@Nullable private TableColumn tableColumn;
 		
 		public Column(@NotNull String label) {
 			this(label, SWT.LEFT);
@@ -114,6 +115,7 @@ public abstract class VirtualTableViewer<E> {
 		columns.add(column);
 		
 		final TableColumn tableColumn = new TableColumn(table, column.orientation);
+		column.tableColumn = tableColumn;
 		tableColumn.setText(column.label);
 		tableColumn.setToolTipText(column.getToolTipText());
 		
@@ -136,20 +138,16 @@ public abstract class VirtualTableViewer<E> {
 		final int direction = lastSortColumn != column
 			? 1
 			: column.lastSortDirection * -1;
-		Collections.sort(elements, new Comparator<E>() {
-			public int compare(E e1, E e2) {
-				return column.compare(e1, e2) * direction;
-			};
-		});
-		table.clearAll();
-		lastSortColumn = column;
-		column.lastSortDirection = direction;
+		sort(column, direction);
 	}
 	
 	public final void sortByColumn(@NotNull final Column<E> column, boolean up) {
 		if (elements == null || !sortingEnabled)
 			return;
-		final int direction = up ? 1 : -1;
+		sort(column, up ? 1 : -1);
+	}
+	
+	private void sort(@NotNull final Column<E> column, final int direction) {
 		Collections.sort(elements, new Comparator<E>() {
 			public int compare(E e1, E e2) {
 				return column.compare(e1, e2) * direction;
@@ -158,6 +156,10 @@ public abstract class VirtualTableViewer<E> {
 		table.clearAll();
 		lastSortColumn = column;
 		column.lastSortDirection = direction;
+		
+		// Show sort indicator in the column header
+		table.setSortColumn(column.tableColumn);
+		table.setSortDirection(direction > 0 ? SWT.UP : SWT.DOWN);
 	}
 	
 	@Immutable
@@ -183,6 +185,7 @@ public abstract class VirtualTableViewer<E> {
 		table.setItemCount(elements.size()); // Must be called *before* calling clearAll()
 		table.clearAll();
 		lastSortColumn = null;
+		table.setSortColumn(null);
 	}
 	
 	@MutableCopy

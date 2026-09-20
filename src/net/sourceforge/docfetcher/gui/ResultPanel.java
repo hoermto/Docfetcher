@@ -24,6 +24,7 @@ import java.util.Set;
 
 import net.sourceforge.docfetcher.enums.Img;
 import net.sourceforge.docfetcher.enums.Msg;
+import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.model.FileResource;
 import net.sourceforge.docfetcher.model.Path;
@@ -100,6 +101,7 @@ public final class ResultPanel {
 	private final FileIconCache iconCache;
 	private HeaderMode presetHeaderMode = HeaderMode.FILES; // externally suggested header mode
 	private HeaderMode actualHeaderMode = HeaderMode.FILES; // header mode after examining each visible element
+	private final Column<ResultDocument> dateColumn;
 
 	public ResultPanel(@NotNull Composite parent) {
 		iconCache = new FileIconCache(parent);
@@ -210,7 +212,7 @@ public final class ResultPanel {
 			}
 		});
 		
-		viewer.addColumn(new VariableHeaderColumn<ResultDocument>(Msg.last_modified.get(), Msg.send_date.get()) {
+		dateColumn = new VariableHeaderColumn<ResultDocument>(Msg.last_modified.get(), Msg.send_date.get()) {
 			protected String getLabel(ResultDocument element) {
 				Date date = getDate(element);
 				return date == null ? "" : dateFormat.format(date);
@@ -230,7 +232,8 @@ public final class ResultPanel {
 					return element.getDate();
 				return element.getLastModified();
 			}
-		});
+		};
+		viewer.addColumn(dateColumn);
 		
 		SettingsConf.ColumnWidths.ResultPanel.bind(table);
 		SettingsConf.ColumnOrder.ResultPanelColumnOrder.bind(table);
@@ -396,6 +399,19 @@ public final class ResultPanel {
 		}
 	}
 
+	/**
+	 * Applies the initial sorting to the results: By default, the results are
+	 * sorted by last-modified date (or send date for emails), newest first.
+	 * This can be overridden via {@link ProgramConf.Int#InitialSorting}.
+	 */
+	public void applyDefaultSorting() {
+		int initialSorting = ProgramConf.Int.InitialSorting.get();
+		if (initialSorting == 0)
+			viewer.sortByColumn(dateColumn, false);
+		else
+			sortByColumn(initialSorting);
+	}
+	
 	// sign of given index specifies direction of sorting
 	// zero and out-of-range values will be ignored
 	// column numbering starts at 1
