@@ -46,6 +46,8 @@ import net.sourceforge.docfetcher.util.gui.viewer.VirtualTableViewer;
 import net.sourceforge.docfetcher.util.gui.viewer.VirtualTableViewer.Column;
 
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.ControlAdapter;
+import org.eclipse.swt.events.ControlEvent;
 import org.eclipse.swt.events.KeyAdapter;
 import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.events.MouseAdapter;
@@ -55,6 +57,7 @@ import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
 
 import com.google.common.primitives.Longs;
 
@@ -93,6 +96,9 @@ public final class ResultPanel {
 	}
 	
 	private static final DateFormat dateFormat = new SimpleDateFormat();
+	
+	/** Columns are never made narrower than this when fitting them to the table width. */
+	private static final int MIN_COLUMN_WIDTH = 30;
 	
 	public final Event<List<ResultDocument>> evtSelection = new Event<List<ResultDocument>> ();
 	public final Event<Void> evtHideInSystemTray = new Event<Void>();
@@ -237,6 +243,105 @@ public final class ResultPanel {
 		
 		SettingsConf.ColumnWidths.ResultPanel.bind(table);
 		SettingsConf.ColumnOrder.ResultPanelColumnOrder.bind(table);
+		
+		initColumnFitting(table);
+	}
+	
+	/*
+	 * The columns are scaled to fill the visible width of the table whenever
+	 * the table is resized. The proportions are taken from the column
+	 * weights, which are initialized from the stored column widths and
+	 * updated when the user drags a column border. Reading the proportions
+	 * back from the live column widths wouldn't work, because some platforms
+	 * (GTK) automatically expand the last column to fill the table.
+	 */
+	private double[] columnWeights;
+	private boolean fittingColumns = false; // true while the fit sets widths
+	private boolean tableResizing = false; // true from table resize until fit
+	private boolean columnFitPending = false;
+	
+	private void initColumnFitting(@NotNull final Table table) {
+		final TableColumn[] columns = table.getColumns();
+		columnWeights = new double[columns.length];
+		for (int i = 0; i < columns.length; i++) {
+			columnWeights[i] = Math.max(columns[i].getWidth(), MIN_COLUMN_WIDTH);
+			final int index = i;
+			columns[i].addControlListener(new ControlAdapter() {
+				public void controlResized(ControlEvent e) {
+					// Only record widths set by the user, not by the fit or
+					// by the platform's automatic expansion during a resize
+					if (fittingColumns || tableResizing)
+						return;
+					columnWeights[index] = Math.max(columns[index].getWidth(), MIN_COLUMN_WIDTH);
+				}
+			});
+		}
+		table.addControlListener(new ControlAdapter() {
+			public void controlResized(ControlEvent e) {
+				tableResizing = true;
+				scheduleColumnFit();
+			}
+		});
+	}
+	
+	/**
+	 * Fits the columns to the table width asynchronously. The deferral is
+	 * necessary because on some platforms (GTK) the client area reported
+	 * during a resize event is still the old one; it also coalesces bursts
+	 * of resize events.
+	 */
+	private void scheduleColumnFit() {
+		if (columnFitPending)
+			return;
+		columnFitPending = true;
+		UtilGui.runAsyncExec(viewer.getControl(), new Runnable() {
+			public void run() {
+				columnFitPending = false;
+				fitColumnsToWidth();
+			}
+		});
+	}
+	
+	/**
+	 * Sets the column widths so that they exactly fill the visible width of
+	 * the table, distributed according to the column weights.
+	 */
+	private void fitColumnsToWidth() {
+		Table table = viewer.getControl();
+		if (table.isDisposed())
+			return;
+		try {
+			int available = table.getClientArea().width;
+			if (available <= 0)
+				return;
+			TableColumn[] columns = table.getColumns();
+			double totalWeight = 0;
+			for (double weight : columnWeights)
+				totalWeight += weight;
+			if (totalWeight <= 0)
+				return;
+			fittingColumns = true;
+			try {
+				int assigned = 0;
+				for (int i = 0; i < columns.length; i++) {
+					int width;
+					if (i == columns.length - 1)
+						width = available - assigned; // Absorb rounding errors
+					else
+						width = (int) Math.round(columnWeights[i] * available / totalWeight);
+					width = Math.max(width, MIN_COLUMN_WIDTH);
+					if (columns[i].getWidth() != width)
+						columns[i].setWidth(width);
+					assigned += width;
+				}
+			}
+			finally {
+				fittingColumns = false;
+			}
+		}
+		finally {
+			tableResizing = false;
+		}
 	}
 	
 	private void launchSelection() {
@@ -373,6 +478,13 @@ public final class ResultPanel {
 		
 		viewer.setRoot(results);
 		viewer.scrollToTop();
+		
+		/*
+		 * Setting the results may show or hide the vertical scrollbar, which
+		 * changes the available width without a resize event; refit once the
+		 * table has been updated.
+		 */
+		scheduleColumnFit();
 	}
 	
 	private void setActualHeaderMode(List<ResultDocument> elements) {
