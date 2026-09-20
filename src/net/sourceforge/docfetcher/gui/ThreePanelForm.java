@@ -148,21 +148,37 @@ public abstract class ThreePanelForm extends FixedSashForm {
 	}
 	
 	private void updateRightButtons() {
-		boolean isBottomVisible = isSecondSubControlVisible() && isVertical();
-		boolean isRightVisible = isSecondSubControlVisible() && ! isVertical();
+		boolean isVisible = isSecondSubControlVisible();
+		boolean isVertical = isVertical();
+		boolean isBottomVisible = isVisible && isVertical;
+		boolean isRightVisible = isVisible && ! isVertical;
 		
 		outerRightBt.setOrientation(isRightVisible ? SWT.RIGHT : SWT.LEFT);
 		innerRightBt.setOrientation(isRightVisible ? SWT.RIGHT : SWT.LEFT);
 		bottomBt.setOrientation(isBottomVisible ? SWT.DOWN : SWT.UP);
 		
-		outerRightBt.setVisible(isBottomVisible);
-		((GridData) outerRightBt.getLayoutData()).exclude = ! isBottomVisible;
-		((GridLayout) secondControl.getLayout()).numColumns = isBottomVisible ? 3 : 2;
-
-		innerRightBt.setVisible(! isBottomVisible);
-		((GridData) innerRightBt.getLayoutData()).exclude = isBottomVisible;
-		((GridLayout) firstSubControlWrapper.getLayout()).numColumns = isBottomVisible ? 1 : 2;
+		/*
+		 * While the second subcontrol is visible, the buttons allow hiding it
+		 * and moving it to the other position. While it is hidden, only the
+		 * button that restores it to its last position is shown, so that it
+		 * always reappears where it was.
+		 */
+		boolean showOuterRight = isBottomVisible;
+		boolean showInnerRight = isRightVisible || (! isVisible && ! isVertical);
+		boolean showBottom = isVisible || isVertical;
 		
+		outerRightBt.setVisible(showOuterRight);
+		((GridData) outerRightBt.getLayoutData()).exclude = ! showOuterRight;
+		((GridLayout) secondControl.getLayout()).numColumns = showOuterRight ? 3 : 2;
+
+		innerRightBt.setVisible(showInnerRight);
+		((GridData) innerRightBt.getLayoutData()).exclude = ! showInnerRight;
+		((GridLayout) firstSubControlWrapper.getLayout()).numColumns = showInnerRight ? 2 : 1;
+		
+		bottomBt.setVisible(showBottom);
+		((GridData) bottomBt.getLayoutData()).exclude = ! showBottom;
+		
+		firstSubControlWrapper.layout();
 		secondControl.layout();
 	}
 	

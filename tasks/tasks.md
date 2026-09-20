@@ -6,6 +6,5 @@
 - no git push allowed
 
 # changes
-- right pane is default, also apply after pane was hidden (when done, it reappears bottom). 
 - document types and search area as modal, reachable via search setting option (right from search button)
 - add in settings per folder flag to autorefresh (if not generally available): for these folders check for changes and refresh index. File might have been renamed, added, removed or changes (e.g. office docs). Update index accordingly

@@ -81,7 +81,7 @@ public final class SettingsConf {
 
 		ShowFilterPanel (true),
 		ShowPreviewPanel (true),
-		ShowPreviewPanelAtBottom (true),
+		ShowPreviewPanelAtBottom (false),
 
 		FilesizeFilterMaximized (true),
 		TypesFilterMaximized (false),
