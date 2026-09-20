@@ -23,11 +23,13 @@ import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
+import net.sourceforge.docfetcher.util.annotations.Nullable;
 import net.sourceforge.docfetcher.util.gui.BrowserPopupBlocker;
 import net.sourceforge.docfetcher.util.gui.Col;
 import net.sourceforge.docfetcher.util.gui.ToolItemFactory;
 
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.SWTError;
 import org.eclipse.swt.SWTException;
 import org.eclipse.swt.browser.Browser;
 import org.eclipse.swt.browser.LocationAdapter;
@@ -56,6 +58,15 @@ abstract class HtmlPreview extends ToolBarForm {
 	@NotNull private Text locationBar;
 	@NotNull private ToolItem htmlBt;
 	@NotNull private Browser browser;
+	
+	/*
+	 * When a rendered document (e.g. a temporary HTML file created from a Word
+	 * document) is displayed, the location bar shows the path of the original
+	 * document rather than the browser URL, and the 'launch external' button
+	 * opens the original document.
+	 */
+	@Nullable private String displayPathOverride;
+	@Nullable private File externalLaunchFile;
 	
 	// This will throw an SWTError if no embedded browser is available
 	public HtmlPreview(@NotNull Composite parent) {
@@ -109,10 +120,15 @@ abstract class HtmlPreview extends ToolBarForm {
 		tif.image(Img.WINDOW.get()).toolTip(Msg.browser_launch_external.get())
 				.listener(new SelectionAdapter() {
 					public void widgetSelected(SelectionEvent e) {
-						String url = browser.getUrl();
-						if (url.equals(""))
-							return;
-						UtilGui.launch(url);
+						if (externalLaunchFile != null) {
+							UtilGui.launch(externalLaunchFile);
+						}
+						else {
+							String url = browser.getUrl();
+							if (url.equals(""))
+								return;
+							UtilGui.launch(url);
+						}
 						if (SettingsConf.Bool.HideOnOpen.get())
 							evtHideInSystemTray.fire(null);
 					}
@@ -155,7 +171,7 @@ abstract class HtmlPreview extends ToolBarForm {
 		saveSettings();
 		
 		try {
-			browser = new Browser(parent, SWT.BORDER);
+			browser = createBrowser(parent);
 		}
 		finally {
 			/*
@@ -191,6 +207,8 @@ abstract class HtmlPreview extends ToolBarForm {
 						 */
 					}
 				}
+				if (displayPathOverride != null)
+					path = displayPathOverride;
 				locationBar.setText(path);
 				
 				/*
@@ -207,11 +225,85 @@ abstract class HtmlPreview extends ToolBarForm {
 		return browser;
 	}
 	
+	/**
+	 * Creates the browser widget. On Windows, the Edge (WebView2) backend is
+	 * preferred since it renders modern HTML and has a built-in PDF viewer; if
+	 * it isn't available (e.g. WebView2 runtime not installed), SWT falls back
+	 * to the platform default (Internet Explorer). On other platforms, the
+	 * SWT.EDGE flag is ignored. Throws an SWTError if no browser is available
+	 * at all.
+	 */
+	@NotNull
+	private static Browser createBrowser(@NotNull Composite parent) {
+		Control[] childrenBefore = parent.getChildren();
+		try {
+			return new Browser(parent, SWT.BORDER | SWT.EDGE);
+		}
+		catch (SWTError e) {
+			if (!Util.IS_WINDOWS)
+				throw e;
+			/*
+			 * If the Edge backend fails during initialization, SWT may leave
+			 * a half-constructed Browser widget behind. Remove it before
+			 * creating the fallback browser.
+			 */
+			for (Control child : parent.getChildren()) {
+				boolean isNew = true;
+				for (Control old : childrenBefore)
+					if (old == child)
+						isNew = false;
+				if (isNew)
+					child.dispose();
+			}
+			return new Browser(parent, SWT.BORDER);
+		}
+	}
+	
+	/**
+	 * Returns true if the embedded browser is the Edge (WebView2) backend,
+	 * which has a built-in PDF viewer.
+	 */
+	public boolean isEdge() {
+		try {
+			return "edge".equalsIgnoreCase(browser.getBrowserType());
+		}
+		catch (RuntimeException e) {
+			return false;
+		}
+	}
+	
+	/**
+	 * Displays a rendered document: The given file (e.g. a PDF file or a
+	 * temporary HTML file generated from a Word document) is loaded into the
+	 * browser, while the location bar shows the given display path and the
+	 * 'launch external' button opens the given original document.
+	 */
+	public void setDocument(@NotNull File fileToLoad,
+							@NotNull File originalDocument,
+							@NotNull String displayPath) {
+		Util.checkNotNull(fileToLoad, originalDocument, displayPath);
+		displayPathOverride = displayPath;
+		externalLaunchFile = originalDocument;
+		try {
+			// Path.toUri() yields "file:///C:/..." on Windows, which all
+			// browser backends accept, whereas File.toURI() yields "file:/C:/..."
+			browser.setUrl(fileToLoad.toPath().toUri().toString());
+		}
+		catch (SWTException e) {
+			// Bug #2428: Ignore SWTException when setting URL
+		}
+		locationBar.setText(displayPath);
+		htmlBt.setEnabled(false);
+		htmlBt.setSelection(true);
+	}
+	
 	// TODO post-release-1.1: maybe add HTML highlighting
 	/**
 	 * Sets the file to be displayed.
 	 */
 	public void setFile(@NotNull File file, boolean allowSwitchingToTextPreview) {
+		displayPathOverride = null;
+		externalLaunchFile = null;
 		String path = Util.getSystemAbsPath(file);
 		try {
 			String url;
@@ -246,6 +338,8 @@ abstract class HtmlPreview extends ToolBarForm {
 	}
 
 	public void clear() {
+		displayPathOverride = null;
+		externalLaunchFile = null;
 		try {
 			browser.setText("");
 		} catch (SWTException e) {

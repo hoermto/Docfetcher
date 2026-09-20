@@ -13,7 +13,11 @@ package net.sourceforge.docfetcher.model.search;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 import net.sourceforge.docfetcher.model.DocumentType;
 import net.sourceforge.docfetcher.model.Fields;
@@ -23,6 +27,9 @@ import net.sourceforge.docfetcher.model.Path;
 import net.sourceforge.docfetcher.model.index.IndexingConfig;
 import net.sourceforge.docfetcher.model.index.file.FileFactory;
 import net.sourceforge.docfetcher.model.index.outlook.OutlookMailFactory;
+import org.apache.lucene.search.highlight.QueryTermExtractor;
+import org.apache.lucene.search.highlight.WeightedTerm;
+
 import net.sourceforge.docfetcher.model.parse.ChmParser;
 import net.sourceforge.docfetcher.model.parse.HtmlParser;
 import net.sourceforge.docfetcher.model.parse.PageHandler;
@@ -247,9 +254,62 @@ public final class ResultDocument {
 		return wasParsedBy(TextParser.class);
 	}
 	
+	/** Returns true if this is a Word 2007+ document (docx, docm, dotx, dotm). */
+	public boolean isWordFile() {
+		return wasParsedBy("MSWord2007Parser");
+	}
+	
+	/** Returns true if this is an Excel workbook (xlsx, xlsm, xltx, xltm, xls). */
+	public boolean isExcelFile() {
+		return wasParsedBy("MSExcel2007Parser") || wasParsedBy("MSExcelParser");
+	}
+	
+	public boolean isRtfFile() {
+		return wasParsedBy("RtfParser");
+	}
+	
+	/**
+	 * Returns true if this document can be shown in the rich document viewer
+	 * of the preview pane (PDF, Word, Excel, RTF), rather than as plain text.
+	 */
+	public boolean isRichPreviewFile() {
+		return !isEmail && (isPdfFile() || isWordFile() || isExcelFile() || isRtfFile());
+	}
+	
 	private boolean wasParsedBy(Class<? extends Parser> parserClass) {
+		return wasParsedBy(parserClass.getSimpleName());
+	}
+	
+	private boolean wasParsedBy(@NotNull String parserSimpleName) {
 		String parserName = luceneDoc.get(Fields.PARSER.key());
-		return parserName.equals(parserClass.getSimpleName());
+		return parserName != null && parserName.equals(parserSimpleName);
+	}
+	
+	/**
+	 * Returns the search terms of the query that produced this result, in
+	 * lowercase and without duplicates. Used for highlighting matches in the
+	 * rich document preview. Wildcard and fuzzy queries may yield no terms.
+	 */
+	@NotNull
+	public List<String> getQueryTerms() {
+		Set<String> terms = new LinkedHashSet<String>();
+		try {
+			for (WeightedTerm term : QueryTermExtractor.getTerms(query, false, Fields.CONTENT.key())) {
+				String t = term.getTerm();
+				if (t != null && !t.trim().isEmpty())
+					terms.add(t.trim());
+			}
+			// Also include terms targeted at other fields (e.g. title)
+			for (WeightedTerm term : QueryTermExtractor.getTerms(query)) {
+				String t = term.getTerm();
+				if (t != null && !t.trim().isEmpty())
+					terms.add(t.trim());
+			}
+		}
+		catch (RuntimeException e) {
+			// Best effort only
+		}
+		return new ArrayList<String>(terms);
 	}
 	
 	// Should be run in a thread

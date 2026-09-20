@@ -464,7 +464,7 @@ public final class ParseService {
 		}
 	}
 	
-	static org.apache.tika.parser.ParseContext tikaContext() {
+	public static org.apache.tika.parser.ParseContext tikaContext() {
 		return new org.apache.tika.parser.ParseContext();
 	}
 

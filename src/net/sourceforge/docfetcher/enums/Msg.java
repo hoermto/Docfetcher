@@ -727,6 +727,87 @@ public enum Msg {
 	open ("Open"),
 	open_parent ("Open Parent Folder"),
 	open_limit ("The number of entries that can be opened simultaneously is limited to {0}."),
+	
+	// Settings dialog: tabs, preview position, index management
+	pref_tab_general ("General",
+		"Label of the 'General' tab on the preferences dialog."),
+	pref_tab_indexes ("Indexes",
+		"Label of the 'Indexes' tab on the preferences dialog, which contains " +
+		"the index management controls and the index folder setting."),
+	pref_preview_position ("Preview position:",
+		Comments.prefOption + "Where the preview pane is placed relative to " +
+		"the result table."),
+	pref_preview_right ("Right of results",
+		"Choice for the 'Preview position' option: The preview pane is shown " +
+		"to the right of the result table."),
+	pref_preview_bottom ("Below results",
+		"Choice for the 'Preview position' option: The preview pane is shown " +
+		"below the result table."),
+	pref_index_folder ("Index folder:",
+		Comments.prefOption + "The folder where the program stores its index files."),
+	pref_index_folder_hint (
+		"Leave empty to use the default location. Changes take effect after " +
+		"the program is restarted.",
+		"Explanatory text below the 'Index folder' option on the preferences " +
+		"dialog."),
+	browse ("Browse...",
+		"Label of a button that opens a folder chooser."),
+	index_folder_changed_restart (
+		"The new index folder will be used after {0} is restarted.",
+		"Message shown after the user changed the index folder in the " +
+		"preferences dialog. The program name will be inserted in the {0} slot."),
+	move_indexes_to_new_folder (
+		"Move the existing indexes to the new index folder?\n\n" +
+		"The indexes will be moved the next time {0} is started.",
+		"Confirmation message shown after the user changed the index folder. " +
+		"The program name will be inserted in the {0} slot."),
+	index_move_failed (
+		"The following index folders could not be moved to the new index " +
+		"folder:\n\n{0}",
+		"Error message shown on startup when moving the index folders failed. " +
+		"The list of index folders will be inserted in the {0} slot."),
+	invalid_index_folder (
+		"The index folder could not be created or is not writable:\n{0}",
+		"Error message shown when the user entered an invalid index folder in " +
+		"the preferences dialog. The folder path is inserted in the {0} slot."),
+	manage_indexes ("Manage Indexes...",
+		Comments.searchScopeEntry + " It opens the 'Indexes' tab of the " +
+		"preferences dialog."),
+	index_col_name ("Name",
+		"Header of the column showing the index names in the index table on " +
+		"the preferences dialog."),
+	index_col_location ("Location",
+		"Header of the column showing the indexed folder or file in the index " +
+		"table on the preferences dialog."),
+	create_index_bt ("Create Index...",
+		"Button on the preferences dialog that opens a menu for creating a " +
+		"new index from a folder, archive, Outlook PST file or the clipboard."),
+	update_index_bt ("Update",
+		"Button on the preferences dialog for updating the selected indexes."),
+	rebuild_index_bt ("Rebuild",
+		"Button on the preferences dialog for rebuilding the selected indexes."),
+	rename_index_bt ("Rename...",
+		"Button on the preferences dialog for renaming the selected index."),
+	remove_index_bt ("Remove",
+		"Button on the preferences dialog for removing the selected indexes."),
+	remove_orphaned_indexes_bt ("Remove Orphaned",
+		"Button on the preferences dialog for removing all indexes whose " +
+		"document folders have been deleted."),
+	
+	// Rich document preview
+	preview_render_failed (
+		"The document could not be rendered for preview: {0}",
+		"Error message shown in the preview pane when converting a document " +
+		"(e.g. PDF, Word, Excel) into a viewable form failed. The reason will " +
+		"be inserted in the {0} slot."),
+	zoom_in ("Zoom In",
+		"Tooltip of the button that enlarges the page in the PDF preview."),
+	zoom_out ("Zoom Out",
+		"Tooltip of the button that shrinks the page in the PDF preview."),
+	page_of ("Page {0} of {1}",
+		"Label showing the current page number and the total number of pages " +
+		"in the PDF preview."),
+
 	;
 	
 	private static boolean checkEnabled = true;
