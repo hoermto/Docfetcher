@@ -326,7 +326,7 @@ def slashes_to_dots(path):
 	return re.sub(r"\\|/", ".", path).strip(".")
 
 # string -> (string, string, string)
-def get_jre_dirs(jre_file):
+def get_jre_dirs(jre_file, windows_only=False):
 	import os.path as osp
 	jre_comment = """
 # Paths to the Java runtimes to be bundled with the builds. For Windows and
@@ -355,8 +355,10 @@ jre_macos=
 	jre_windows = get_jre_dir("jre_windows")
 	jre_linux = get_jre_dir("jre_linux")
 	jre_macos = get_jre_dir("jre_macos")
-	if is_windows and jre_windows == "":
+	if (is_windows or windows_only) and jre_windows == "":
 		fail("Missing 'jre_windows' definition in %s." % jre_file)
+	if windows_only:
+		return jre_windows, jre_linux, jre_macos
 	if is_linux and jre_linux == "":
 		fail("Missing 'jre_linux' definition in %s." % jre_file)
 	if (is_linux or is_macos) and jre_macos == "":

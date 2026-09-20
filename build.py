@@ -46,6 +46,13 @@ skip_recompilation = False
 compile_only = False
 skip_notarization = False
 
+# With a 'windows' argument, only the Windows builds are created. This allows
+# cross-building the Windows packages on Linux/macOS: All Windows-specific
+# binaries (launcher, daemon, native libraries) are prebuilt under 'dist' and
+# 'lib', so no compilation on Windows is needed. Creating the installer still
+# requires running the NSIS script separately.
+windows_only = "windows" in sys.argv[1:]
+
 if "skip" in sys.argv[1:]:
 	skip_recompilation = True
 elif "compile" in sys.argv[1:]:
@@ -72,7 +79,7 @@ elif is_linux and osp.isfile(macos_signing_config_path):
 if osp.isfile(build_dir):
 	fail("Can't create build directory, a file with that name already exists.")
 
-jre_windows, jre_linux, jre_macos = get_jre_dirs("build-jre.txt")
+jre_windows, jre_linux, jre_macos = get_jre_dirs("build-jre.txt", windows_only)
 convert_line_endings_in_dir("dist")
 
 print("Cleaning build directory...")
@@ -179,20 +186,26 @@ if compile_only:
 	exit(0)
 
 # Compile macOS launcher subproject when building for macOS
-if is_linux or is_macos:
+if (is_linux or is_macos) and not windows_only:
 	compile_subproject("macos-launcher")
 
 licenses_file = deploy_licenses(build_dir)
 
 print("Building documentation...")
-subprocess.run(["uv", "run", "python", "build.py"], cwd="doc", check=True)
+if shutil.which("uv") is not None:
+	subprocess.run(["uv", "run", "python", "build.py"], cwd="doc", check=True)
+else:
+	# Fall back to the current Python interpreter; this works if the 'Markdown'
+	# package is installed system-wide.
+	print("NOTE: 'uv' not found on PATH, building documentation with %s." % sys.executable)
+	subprocess.run([sys.executable, "build.py"], cwd="doc", check=True)
 
 #===============================================================================
 # Build utilities
 #===============================================================================
 
-# string, boolean, boolean -> None
-def create_base_build(dst, is_portable, force_macos=False):
+# string, boolean, boolean, boolean -> None
+def create_base_build(dst, is_portable, force_macos=False, force_windows=False):
 	if is_portable:
 		os.makedirs(join(dst, "conf"), exist_ok=True)
 		shutil.copyfile(
@@ -266,7 +279,7 @@ def create_base_build(dst, is_portable, force_macos=False):
 	target_platform = None
 	if force_macos or is_macos:
 		target_platform = "macos"
-	elif is_windows:
+	elif force_windows or is_windows:
 		target_platform = "windows"
 	elif is_linux:
 		target_platform = "linux"
@@ -297,7 +310,14 @@ def copy_compiled_executables(dst_dir, path_templ):
 # Build: Windows Portable
 #===============================================================================
 
-if is_windows:
+if is_windows or windows_only:
+	if not is_windows:
+		print("Cross-building Windows packages on %s." % platform_name)
+		if jre_windows == "":
+			fail(
+				"Cross-building for Windows requires 'jre_windows' in "
+				"build-jre.txt to point to an unpacked Windows JRE."
+			)
 	# Track JRE paths for exclusion from code signing
 	jre_paths = []
 
@@ -308,7 +328,7 @@ if is_windows:
 			app_name, version, portable_str.replace("-", "")
 		)
 		app_dir = join(build_dir, app_dirname)
-		create_base_build(app_dir, is_portable)
+		create_base_build(app_dir, is_portable, force_windows=True)
 		
 		shutil.copyfile(
 			join("dist/launchers", "DocFetcher-4096.exe"),
@@ -353,7 +373,9 @@ if is_windows:
 		else:
 			print("NOTE: Run the NSIS script to create the Windows installer.")
 	
-	if shutil.which("signtool.exe") is None:
+	if not is_windows:
+		print("NOTE: Code signing is only available on Windows, skipping.")
+	elif shutil.which("signtool.exe") is None:
 		print(
 			"NOTE: signtool.exe not found on PATH. "
 			"Code signing will be skipped. "
@@ -385,7 +407,7 @@ if is_windows:
 # Build: Linux (Portable + Non-Portable)
 #===============================================================================
 
-if is_linux:
+if is_linux and not windows_only:
 	for is_portable in [True, False]:
 		portable_str = "Portable" if is_portable else "Non-Portable"
 		print("Creating Linux %s build..." % portable_str)
@@ -458,7 +480,7 @@ def copy_info_plist(dst_path: str) -> None:
 	}
 	substitute_in_file(dst_path, subst)
 
-if is_linux or is_macos:
+if (is_linux or is_macos) and not windows_only:
 	# Check for code signing config when cross-compiling from Linux to macOS.
 	macos_signing_config = None
 	if is_linux:
