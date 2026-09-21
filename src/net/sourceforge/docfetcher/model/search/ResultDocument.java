@@ -255,6 +255,22 @@ public final class ResultDocument {
 	}
 	
 	/**
+	 * Returns true if the file of this document (or the archive containing
+	 * it) still exists. Always true for e-mails.
+	 */
+	public boolean existsOnDisk() {
+		if (isEmail)
+			return true;
+		try {
+			getPath().splitAtExistingFile();
+			return true;
+		}
+		catch (FileNotFoundException e) {
+			return false;
+		}
+	}
+	
+	/**
 	 * Returns true if this document is a plain file on disk, i.e. not an
 	 * email and not an entry inside an archive. Only such documents can be
 	 * renamed or moved.

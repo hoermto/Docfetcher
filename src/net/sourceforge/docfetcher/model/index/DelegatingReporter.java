@@ -31,6 +31,9 @@ public final class DelegatingReporter extends IndexingReporter {
 	}
 
 	@Nullable private IndexingReporter delegate;
+	private int progressVisited = 0;
+	private int progressTotal = -1;
+	@Nullable private ProgressListener progressListener;
 	private final BoundedList<IndexingInfo> infos;
 	private final List<IndexingError> errors;
 	@Nullable private Long start;
@@ -52,6 +55,9 @@ public final class DelegatingReporter extends IndexingReporter {
 			delegate.setStartTime(start);
 		if (end != null)
 			delegate.setEndTime(end);
+		
+		if (progressVisited > 0 || progressTotal >= 0)
+			delegate.progress(progressVisited, progressTotal);
 		
 		List<IndexingInfo> infoCopy = new ArrayList<IndexingInfo>(infos);
 		List<IndexingError> errorCopy = new ArrayList<IndexingError>(errors);
@@ -80,6 +86,34 @@ public final class DelegatingReporter extends IndexingReporter {
 		infos.add(info);
 		if (delegate != null)
 			delegate.info(info);
+	}
+	
+	public synchronized void progress(int visited, int total) {
+		progressVisited = visited;
+		progressTotal = total;
+		if (delegate != null)
+			delegate.progress(visited, total);
+		if (progressListener != null)
+			progressListener.progressChanged(visited, total);
+	}
+	
+	/** Receives all progress reports, whether a delegate is attached or not. */
+	public interface ProgressListener {
+		public void progressChanged(int visited, int total);
+	}
+	
+	public synchronized void setProgressListener(@Nullable ProgressListener listener) {
+		progressListener = listener;
+	}
+	
+	/** Number of files visited so far by the indexing task. */
+	public synchronized int getProgressVisited() {
+		return progressVisited;
+	}
+	
+	/** Total number of files of the indexing task, or -1 if unknown. */
+	public synchronized int getProgressTotal() {
+		return progressTotal;
 	}
 	
 	public synchronized void subInfo(int current, int total) {

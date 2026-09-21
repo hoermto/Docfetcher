@@ -269,6 +269,30 @@ public enum Msg {
 	indexing ("Indexing...",
 		"Message shown in the status bar to indicate that an indexing " +
 		"process is running in the background."),
+	indexing_progress ("Indexing... {0} %",
+		"Message shown in the status bar next to the progress bar while " +
+		"indexing runs in the background. The overall percentage is " +
+		"inserted in the {0} slot."),
+	index_col_status ("Status",
+		"Column header of the index table on the preferences dialog: the " +
+		"state of the index (queued, indexing, last update)."),
+	index_status_waiting ("Waiting for configuration",
+		"Status of an index whose creation has been started but whose " +
+		"settings haven't been confirmed yet."),
+	index_status_queued ("Queued",
+		"Status of an index that waits for its indexing task to start."),
+	index_status_creating ("Creating {0}",
+		"Status of an index that is being created. The progress in percent " +
+		"is inserted in the {0} slot (may be empty)."),
+	index_status_updating ("Updating {0}",
+		"Status of an index that is being updated. The progress in percent " +
+		"is inserted in the {0} slot (may be empty)."),
+	index_status_rebuilding ("Rebuilding {0}",
+		"Status of an index that is being rebuilt. The progress in percent " +
+		"is inserted in the {0} slot (may be empty)."),
+	index_status_updated ("Updated {0}",
+		"Status of an idle index: the date and time of the last update are " +
+		"inserted in the {0} slot."),
 	web_interface ("Web Interface",
 		"Window title for the web interface dialog and the tooltip text for " +
 		"the button to open the web interface dialog."),
@@ -786,9 +810,6 @@ public enum Msg {
 		"The index folder could not be created or is not writable:\n{0}",
 		"Error message shown when the user entered an invalid index folder in " +
 		"the preferences dialog. The folder path is inserted in the {0} slot."),
-	manage_indexes ("Manage Indexes...",
-		Comments.searchScopeEntry + " It opens the 'Indexes' tab of the " +
-		"preferences dialog."),
 	index_col_name ("Name",
 		"Header of the column showing the index names in the index table on " +
 		"the preferences dialog."),
@@ -815,6 +836,11 @@ public enum Msg {
 		Comments.prefOption + "If checked, all indexes whose folders are " +
 		"watched for changes are updated in the background when the program " +
 		"starts."),
+	pref_daily_index_update (
+		"Update all indexes once a day in the background",
+		Comments.prefOption + "If checked, all indexes are updated once a " +
+		"day while the program runs, so that deleted or changed files are " +
+		"picked up even in folders that aren't watched."),
 	pref_ocr (
 		"Recognize text in images and scanned PDFs (OCR, German and English)",
 		Comments.prefOption + "If checked, the text of image files and " +

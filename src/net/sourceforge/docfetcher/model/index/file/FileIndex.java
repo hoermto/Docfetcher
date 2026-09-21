@@ -13,6 +13,10 @@ package net.sourceforge.docfetcher.model.index.file;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -120,6 +124,42 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 		return DocumentType.FILE;
 	}
 
+	/**
+	 * Counts the regular files below the given folder for progress
+	 * reporting. Archives count as one file; the index folder is skipped.
+	 * Returns -1 if the folder can't be walked or counting was cancelled.
+	 */
+	private int countFiles(@NotNull File root, @NotNull final Cancelable cancelable) {
+		final File indexDir = getIndexParentDir();
+		final int[] count = {0};
+		try {
+			Files.walkFileTree(root.toPath(), new SimpleFileVisitor<java.nio.file.Path>() {
+				public FileVisitResult preVisitDirectory(java.nio.file.Path dir, BasicFileAttributes attrs) {
+					if (cancelable.isCanceled())
+						return FileVisitResult.TERMINATE;
+					if (indexDir != null && Util.isCanonicallyEqual(indexDir, dir.toFile()))
+						return FileVisitResult.SKIP_SUBTREE;
+					return FileVisitResult.CONTINUE;
+				}
+				public FileVisitResult visitFile(java.nio.file.Path file, BasicFileAttributes attrs) {
+					if (attrs.isRegularFile())
+						count[0]++;
+					return FileVisitResult.CONTINUE;
+				}
+				public FileVisitResult visitFileFailed(java.nio.file.Path file, IOException e) {
+					return FileVisitResult.CONTINUE; // e.g. no permission
+				}
+			});
+		}
+		catch (IOException e) {
+			return -1;
+		}
+		catch (RuntimeException e) {
+			return -1;
+		}
+		return cancelable.isCanceled() ? -1 : count[0];
+	}
+	
 	public IndexingResult doUpdate(	@NotNull IndexingReporter reporter,
 									@NotNull Cancelable cancelable) {
 		reporter.setStartTime(System.currentTimeMillis());
@@ -159,6 +199,10 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 				FileContext context = new FileContext(
 					config, zipDetector, writer, reporter, null, cancelable,
 					new MutableInt(0), getIndexParentDir());
+				
+				// Count the files first so that progress can be shown
+				context.setProgressTotal(countFiles(getCanonicalRootFile(), cancelable));
+				
 				visitDirOrZip(context, rootFolder, rootFile);
 			}
 			else {
@@ -287,6 +331,7 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 			dirOrZip, context.getConfig(), context.getReporter()) {
 			protected void handleFile(@NotNull File file) {
 				if (context.isStopped()) stop();
+				context.fileVisited();
 				try {
 					if (switchDirZipToSolid(context, folder, file)) {
 						unseenSubFolders.remove(file.getName());
@@ -345,6 +390,7 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 			protected void handleHtmlPair(	@NotNull File htmlFile,
 											@Nullable File htmlDir) {
 				if (context.isStopped()) stop();
+				context.fileVisited();
 				try {
 					FileDocument doc = unseenDocs.remove(htmlFile.getName());
 					// HTML pair added

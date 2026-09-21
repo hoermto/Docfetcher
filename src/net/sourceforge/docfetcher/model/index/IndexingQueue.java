@@ -61,6 +61,8 @@ public final class IndexingQueue {
 	
 	// may be called from a different thread
 	public final Event<Void> evtQueueEmpty = new Event<Void>();
+	/** Fired (from the indexing thread) when the progress of a task changes. */
+	public final Event<Task> evtProgress = new Event<Task>();
 	public final Event<Void> evtWorkerThreadTerminated = new Event<Void>();
 
 	private final Event<Task> evtAdded = new Event<Task>();

@@ -28,6 +28,13 @@ public class IndexingReporter {
 	
 	public void subInfo(int current, int total) {}
 	
+	/**
+	 * Reports the overall progress of the indexing task: the number of files
+	 * visited so far and the total number of files, or -1 if the total is
+	 * unknown.
+	 */
+	public void progress(int visited, int total) {}
+	
 	public void fail(@NotNull IndexingError error) {}
 	
 }

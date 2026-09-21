@@ -9,10 +9,16 @@
 package net.sourceforge.docfetcher.gui.pref;
 
 import java.io.File;
+import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.DisposeEvent;
@@ -40,11 +46,14 @@ import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.enums.SystemConf;
+import net.sourceforge.docfetcher.gui.Application;
 import net.sourceforge.docfetcher.gui.InboxFolders;
 import net.sourceforge.docfetcher.gui.filter.IndexPanel;
-import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.IndexRegistry.ExistingIndexesHandler;
+import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.LuceneIndex;
+import net.sourceforge.docfetcher.model.index.IndexingQueue;
+import net.sourceforge.docfetcher.model.index.Task;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.Util;
@@ -86,6 +95,44 @@ final class IndexManagementPanel {
 		}
 	};
 
+	// Indexing tasks by index, for the status column
+	private final Map<LuceneIndex, Task> tasksByIndex = new HashMap<LuceneIndex, Task>();
+	// Indexes listed in the table that aren't registered yet (being created)
+	private final Set<LuceneIndex> pendingIndexes = new HashSet<LuceneIndex>();
+	
+	private final Event.Listener<Task> taskAddedListener = new Event.Listener<Task>() {
+		public void update(Task task) {
+			synchronized (tasksByIndex) {
+				tasksByIndex.put(task.getLuceneIndex(), task);
+			}
+			scheduleTableRefresh(); // Indexes being created get a row
+		}
+	};
+	
+	private final Event.Listener<Task> taskRemovedListener = new Event.Listener<Task>() {
+		public void update(Task task) {
+			synchronized (tasksByIndex) {
+				if (tasksByIndex.get(task.getLuceneIndex()) == task)
+					tasksByIndex.remove(task.getLuceneIndex());
+			}
+			scheduleTableRefresh();
+		}
+	};
+	
+	private void scheduleTableRefresh() {
+		UtilGui.runAsyncExec(table, new Runnable() {
+			public void run() {
+				refreshTable();
+			}
+		});
+	}
+	
+	private final Event.Listener<Task> taskProgressListener = new Event.Listener<Task>() {
+		public void update(Task task) {
+			scheduleStatusRefresh();
+		}
+	};
+	
 	private final Event.Listener<List<LuceneIndex>> removedListener = new Event.Listener<List<LuceneIndex>>() {
 		public void update(List<LuceneIndex> eventData) {
 			UtilGui.runAsyncExec(table, new Runnable() {
@@ -125,7 +172,10 @@ final class IndexManagementPanel {
 		nameCol.setWidth(180);
 		TableColumn locationCol = new TableColumn(table, SWT.LEFT);
 		locationCol.setText(Msg.index_col_location.get());
-		locationCol.setWidth(350);
+		locationCol.setWidth(300);
+		TableColumn statusCol = new TableColumn(table, SWT.LEFT);
+		statusCol.setText(Msg.index_col_status.get());
+		statusCol.setWidth(150);
 
 		table.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
@@ -247,10 +297,24 @@ final class IndexManagementPanel {
 				fillTable(indexes);
 			}
 		}, addedListener, removedListener);
+		
+		// Keep the status column in sync with the indexing queue
+		final IndexingQueue queue = indexRegistry.getQueue();
+		queue.addListeners(new IndexingQueue.ExistingTasksHandler() {
+			public void handleExistingTasks(List<Task> tasks) {
+				synchronized (tasksByIndex) {
+					for (Task task : tasks)
+						tasksByIndex.put(task.getLuceneIndex(), task);
+				}
+			}
+		}, taskAddedListener, taskRemovedListener);
+		queue.evtProgress.add(taskProgressListener);
 
 		comp.addDisposeListener(new DisposeListener() {
 			public void widgetDisposed(DisposeEvent e) {
 				indexRegistry.removeListeners(addedListener, removedListener);
+				queue.removeListeners(taskAddedListener, taskRemovedListener);
+				queue.evtProgress.remove(taskProgressListener);
 			}
 		});
 
@@ -388,15 +452,56 @@ final class IndexManagementPanel {
 					o2.getRootFolder().getDisplayName());
 			}
 		});
+		// Indexes that are being created aren't registered yet; list them too
+		List<LuceneIndex> pending = new ArrayList<LuceneIndex>();
+		synchronized (tasksByIndex) {
+			for (LuceneIndex index : tasksByIndex.keySet())
+				if (!indexes.contains(index))
+					pending.add(index);
+		}
+		pendingIndexes.clear();
+		pendingIndexes.addAll(pending);
+		indexes.addAll(pending);
+		
 		table.removeAll();
 		for (LuceneIndex index : indexes) {
 			TableItem item = new TableItem(table, SWT.NONE);
 			item.setText(0, index.getRootFolder().getDisplayName());
 			item.setText(1, index.getRootFolder().getPath().getPath());
+			item.setText(2, getStatusText(index));
 			item.setImage(0, (index.isEmailIndex() ? Img.EMAIL : Img.FOLDER).get());
 			item.setData(index);
 		}
 		updateButtonStates();
+	}
+	
+	/** Refreshes the status column from the GUI thread. */
+	private void scheduleStatusRefresh() {
+		UtilGui.runAsyncExec(table, new Runnable() {
+			public void run() {
+				for (TableItem item : table.getItems())
+					item.setText(2, getStatusText((LuceneIndex) item.getData()));
+			}
+		});
+	}
+	
+	/**
+	 * Returns the status of the index: the state of its indexing task, or
+	 * the time of its last update.
+	 */
+	@NotNull
+	private String getStatusText(@NotNull LuceneIndex index) {
+		Task task;
+		synchronized (tasksByIndex) {
+			task = tasksByIndex.get(index);
+		}
+		if (task != null)
+			return Application.getTaskStatusText(task);
+		long lastUpdated = index.getLastUpdated();
+		if (lastUpdated <= 0)
+			return "";
+		return Msg.index_status_updated.format(
+			DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(new Date(lastUpdated)));
 	}
 
 	private void refreshTable() {
@@ -406,19 +511,23 @@ final class IndexManagementPanel {
 	}
 
 	private void updateButtonStates() {
-		int selCount = table.getSelectionCount();
+		int selCount = getSelectedIndexes().size();
 		for (Button bt : selectionButtons)
 			bt.setEnabled(selCount > 0);
 		if (renameBt != null)
 			renameBt.setEnabled(selCount == 1);
 	}
 
+	/** Returns the selected registered indexes (not the ones being created). */
 	@NotNull
 	private List<LuceneIndex> getSelectedIndexes() {
 		TableItem[] items = table.getSelection();
 		List<LuceneIndex> indexes = new ArrayList<LuceneIndex>(items.length);
-		for (TableItem item : items)
-			indexes.add((LuceneIndex) item.getData());
+		for (TableItem item : items) {
+			LuceneIndex index = (LuceneIndex) item.getData();
+			if (!pendingIndexes.contains(index))
+				indexes.add(index);
+		}
 		return indexes;
 	}
 

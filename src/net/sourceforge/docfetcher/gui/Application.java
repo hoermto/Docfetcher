@@ -90,9 +90,11 @@ import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.LuceneIndex;
 import net.sourceforge.docfetcher.model.TreeIndex;
 import net.sourceforge.docfetcher.model.index.IndexingQueue;
+import net.sourceforge.docfetcher.model.index.Task;
 import net.sourceforge.docfetcher.model.index.Task.CancelAction;
 import net.sourceforge.docfetcher.model.index.Task.CancelHandler;
 import net.sourceforge.docfetcher.model.index.Task.IndexAction;
+import net.sourceforge.docfetcher.model.index.Task.TaskState;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.CharsetDetectorHelper;
@@ -136,6 +138,10 @@ public final class Application {
 	private static final Set<File> inboxIndexRequests = new HashSet<File>();
 	private static PreviewPanel previewPanel;
 	private static volatile StatusBarPart indexingStatus;
+	// Tasks of the current batch of indexing jobs, for the overall progress
+	private static final List<Task> queuedTasks = new ArrayList<Task>();
+	private static int batchTaskCount = 0;
+	private static int batchFinishedCount = 0;
 	private static SystemTrayHider systemTrayHider;
 	private static StatusBar statusBar;
 	private static boolean systemTrayShutdown = false;
@@ -150,7 +156,6 @@ public final class Application {
 	 * indexing indicator in the status bar is only shown if the queue hasn't
 	 * already been emptied in the meantime.
 	 */
-	private static volatile boolean backgroundIndexingPending = false;
 	
 	/*
 	 * The index folder that is used if the user hasn't set a custom index
@@ -708,29 +713,48 @@ public final class Application {
 		});
 
 		/*
-		 * Remove indexing hint from the status bar when the task
-		 * queue has been emptied. This covers those situations
-		 * where the indexing dialog has been minimized to the
-		 * status bar and the last task in the queue has just been
-		 * completed.
+		 * The indexing progress in the status bar follows the task queue:
+		 * visible while tasks exist, with the overall progress of the current
+		 * batch of tasks.
 		 */
+		queue.addListeners(new IndexingQueue.ExistingTasksHandler() {
+			public void handleExistingTasks(List<Task> tasks) {
+				synchronized (queuedTasks) {
+					queuedTasks.addAll(tasks);
+					batchTaskCount += tasks.size();
+				}
+			}
+		}, new Event.Listener<Task>() {
+			public void update(Task task) {
+				synchronized (queuedTasks) {
+					queuedTasks.add(task);
+					batchTaskCount++;
+				}
+				scheduleIndexingStatusUpdate();
+			}
+		}, new Event.Listener<Task>() {
+			public void update(Task task) {
+				synchronized (queuedTasks) {
+					if (queuedTasks.remove(task))
+						batchFinishedCount++;
+				}
+				scheduleIndexingStatusUpdate();
+			}
+		});
+		queue.evtProgress.add(new Event.Listener<Task>() {
+			public void update(Task task) {
+				scheduleIndexingStatusUpdate();
+			}
+		});
 		queue.evtQueueEmpty.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
-				backgroundIndexingPending = false;
+				synchronized (queuedTasks) {
+					queuedTasks.clear();
+					batchTaskCount = 0;
+					batchFinishedCount = 0;
+				}
 				refreshInboxTabs();
-				/*
-				 * Bug #3485598: The indexing status widget can be null at this
-				 * point. Possible explanation: An indexing update was issued by
-				 * the DocFetcher daemon and finished before the GUI was fully
-				 * initialized.
-				 */
-				if (indexingStatus == null)
-					return;
-				UtilGui.runAsyncExec(indexingStatus.getControl(), new Runnable() {
-					public void run() {
-						indexingStatus.setVisible(false);
-					}
-				});
+				scheduleIndexingStatusUpdate();
 			}
 		});
 
@@ -787,7 +811,8 @@ public final class Application {
 					 * background via the indexing queue.
 					 */
 					if (SettingsConf.Bool.UpdateIndexesOnStartup.get())
-						enqueueStartupUpdates(mainShell);
+						enqueueIndexUpdates(true);
+					startDailyIndexUpdates();
 					
 					// Confirm deletion of obsolete files inside the index
 					// folder
@@ -903,51 +928,125 @@ public final class Application {
 		if (!rebuild[0])
 			return;
 		IndexingQueue queue = indexRegistry.getQueue();
-		int accepted = 0;
 		for (LuceneIndex index : outdated)
-			if (queue.addTask(index, IndexAction.REBUILD, true) == null)
-				accepted++;
-		if (accepted > 0)
-			showIndexingStatus(mainShell);
+			queue.addTask(index, IndexAction.REBUILD, true);
 	}
 	
-	/**
-	 * Shows the indexing indicator in the status bar for background tasks
-	 * that were just enqueued. The indicator is hidden again by the
-	 * queue-empty event; if that event has already fired by the time the
-	 * GUI thread gets around to showing the indicator, it stays hidden.
-	 */
-	private static void showIndexingStatus(@NotNull Shell mainShell) {
-		backgroundIndexingPending = true;
-		UtilGui.runAsyncExec(mainShell, new Runnable() {
+	/** Updates the indexing progress in the status bar from the GUI thread. */
+	private static void scheduleIndexingStatusUpdate() {
+		/*
+		 * Bug #3485598: The indexing status widget can be null at this point,
+		 * e.g. when an indexing update issued by the daemon finishes before
+		 * the GUI is fully initialized.
+		 */
+		if (indexingStatus == null)
+			return;
+		UtilGui.runAsyncExec(indexingStatus.getControl(), new Runnable() {
 			public void run() {
-				if (backgroundIndexingPending && indexingStatus != null)
-					indexingStatus.setVisible(true);
+				updateIndexingStatus();
 			}
 		});
 	}
 	
 	/**
-	 * Enqueues update tasks for all indexes whose folders are watched for
-	 * changes. Must be called after the indexes have been loaded, from a
+	 * Shows the overall progress of the queued indexing tasks in the status
+	 * bar: finished tasks of the current batch count fully, running tasks
+	 * with their percentage. Hides the indicator when the queue is empty.
+	 */
+	private static void updateIndexingStatus() {
+		List<Task> tasks;
+		int total;
+		double done;
+		synchronized (queuedTasks) {
+			tasks = new ArrayList<Task>(queuedTasks);
+			total = batchTaskCount;
+			done = batchFinishedCount;
+		}
+		if (tasks.isEmpty()) {
+			indexingStatus.setVisible(false);
+			return;
+		}
+		StringBuilder tooltip = new StringBuilder();
+		for (Task task : tasks) {
+			int percent = task.getProgressPercent();
+			if (percent > 0)
+				done += percent / 100.0;
+			if (tooltip.length() > 0)
+				tooltip.append('\n');
+			tooltip.append(task.getLuceneIndex().getRootFolder().getDisplayName());
+			tooltip.append(": ").append(getTaskStatusText(task));
+		}
+		int percent = total > 0 ? (int) Math.min(99, done * 100 / total) : -1;
+		String text = percent >= 0
+			? Msg.indexing_progress.format(percent)
+			: Msg.indexing.get();
+		indexingStatus.setContents(Img.INDEXING.get(), text);
+		indexingStatus.setProgress(percent);
+		indexingStatus.setToolTipText(tooltip.toString());
+		indexingStatus.setVisible(true);
+	}
+	
+	/** Returns a short description of the state of an indexing task. */
+	@NotNull
+	public static String getTaskStatusText(@NotNull Task task) {
+		if (task.is(TaskState.NOT_READY))
+			return Msg.index_status_waiting.get();
+		if (task.is(TaskState.READY))
+			return Msg.index_status_queued.get();
+		int percent = task.getProgressPercent();
+		String percentStr = percent >= 0 ? percent + " %" : "";
+		if (task.is(IndexAction.REBUILD))
+			return Msg.index_status_rebuilding.format(percentStr).trim();
+		if (task.is(IndexAction.CREATE))
+			return Msg.index_status_creating.format(percentStr).trim();
+		return Msg.index_status_updating.format(percentStr).trim();
+	}
+	
+	/**
+	 * Enqueues update tasks for all indexes whose root folder is available;
+	 * with {@code watchedOnly}, only for indexes whose folders are watched
+	 * for changes. Must be called after the indexes have been loaded, from a
 	 * non-GUI thread.
 	 */
-	private static void enqueueStartupUpdates(@NotNull Shell mainShell) {
-		List<LuceneIndex> toUpdate = new ArrayList<LuceneIndex>();
-		for (LuceneIndex index : indexRegistry.getIndexes()) {
-			if (index.isWatchFolders() && index.getCanonicalRootFile().exists())
-				toUpdate.add(index);
-		}
-		if (toUpdate.isEmpty())
-			return;
-		
+	private static void enqueueIndexUpdates(boolean watchedOnly) {
 		IndexingQueue queue = indexRegistry.getQueue();
-		int accepted = 0;
-		for (LuceneIndex index : toUpdate)
-			if (queue.addTask(index, IndexAction.UPDATE) == null) // Rejected if already queued
-				accepted++;
-		if (accepted > 0)
-			showIndexingStatus(mainShell);
+		for (LuceneIndex index : indexRegistry.getIndexes()) {
+			if (watchedOnly && !index.isWatchFolders())
+				continue;
+			if (!index.getCanonicalRootFile().exists())
+				continue;
+			queue.addTask(index, IndexAction.UPDATE); // Rejected if already queued
+		}
+	}
+	
+	/**
+	 * Updates all indexes once a day while the program is running, so that
+	 * files deleted or changed outside the watched folders don't linger in
+	 * the indexes. The startup update counts as the first run.
+	 */
+	private static void startDailyIndexUpdates() {
+		Thread thread = new Thread(Application.class.getName() + " (daily index updates)") {
+			public void run() {
+				long lastUpdate = System.currentTimeMillis();
+				while (true) {
+					try {
+						Thread.sleep(60 * 60 * 1000); // Check hourly
+					}
+					catch (InterruptedException e) {
+						return;
+					}
+					if (!SettingsConf.Bool.DailyIndexUpdate.get())
+						continue;
+					long now = System.currentTimeMillis();
+					if (now - lastUpdate < 24L * 60 * 60 * 1000)
+						continue;
+					lastUpdate = now;
+					enqueueIndexUpdates(false);
+				}
+			}
+		};
+		thread.setDaemon(true);
+		thread.start();
 	}
 	
 	private static void loadIndexRegistryHeadless(@NotNull File indexParentDir) {
@@ -1205,13 +1304,6 @@ public final class Application {
 				moveIndexingDialogToStatusBar(eventData);
 			}
 		});
-		indexPanel.evtManageIndexes.add(new Event.Listener<Void>() {
-			public void update(Void eventData) {
-				// The preferences dialog replaces the modal search settings dialog
-				searchSettingsDialog.close();
-				openPrefDialog(true);
-			}
-		});
 		indexPanel.evtListDocuments.add(new Event.Listener<Set<String>>() {
 			public void update(Set<String> eventData) {
 				// Close the dialog so that the listed documents are visible
@@ -1352,10 +1444,8 @@ public final class Application {
 		}
 		if (!folder.isDirectory() || inboxIndexRequests.contains(folder))
 			return;
-		if (indexPanel.createIndexForFolder(folder)) {
+		if (indexPanel.createIndexForFolder(folder))
 			inboxIndexRequests.add(folder);
-			showIndexingStatus(shell);
-		}
 	}
 	
 	private static Control createSearchPanel(Composite parent) {
@@ -1670,21 +1760,9 @@ public final class Application {
 	private static void initStatusBar() {
 		statusBar = new StatusBar(shell) {
 			public List<StatusBarPart> createRightParts(StatusBar statusBar) {
-				indexingStatus = new StatusBarPart(statusBar, true);
+				indexingStatus = new StatusBarPart(statusBar, false);
 				indexingStatus.setContents(Img.INDEXING.get(), Msg.indexing.get());
 				indexingStatus.setVisible(false);
-
-				indexPanel.evtIndexingDialogOpened.add(new Event.Listener<Void>() {
-					public void update(Void eventData) {
-						indexingStatus.setVisible(false);
-					}
-				});
-
-				indexingStatus.evtClicked.add(new Event.Listener<Void>() {
-					public void update(Void eventData) {
-						indexPanel.openIndexingDialog();
-					}
-				});
 				
 				List<StatusBarPart> parts = new ArrayList<StatusBarPart>(1);
 				parts.add(indexingStatus);

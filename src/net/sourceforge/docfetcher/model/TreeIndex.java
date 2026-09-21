@@ -60,6 +60,8 @@ public abstract class TreeIndex <
 	private final F rootFolder;
 	private final long created;
 	private int formatVersion = CURRENT_FORMAT_VERSION;
+	/** Time of the last successful update or creation, 0 if unknown (older indexes). */
+	private long lastUpdated = 0;
 	@Nullable private final Path fileIndexDirPath;
 	@Nullable private transient RAMDirectory ramIndexDir;
 	@Nullable private transient File indexParentDir;
@@ -159,7 +161,18 @@ public abstract class TreeIndex <
 			cancelable = Cancelable.nullCancelable;
 		if (cancelable.isCanceled())
 			return IndexingResult.SUCCESS_UNCHANGED;
-		return doUpdate(reporter, cancelable);
+		IndexingResult result = doUpdate(reporter, cancelable);
+		if (result != IndexingResult.FAILURE && !cancelable.isCanceled())
+			lastUpdated = System.currentTimeMillis();
+		return result;
+	}
+	
+	/**
+	 * Returns the time of the last completed update or creation of this
+	 * index, or 0 if unknown.
+	 */
+	public final long getLastUpdated() {
+		return lastUpdated;
 	}
 	
 	@NotNull

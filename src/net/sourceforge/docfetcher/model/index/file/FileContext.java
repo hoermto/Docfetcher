@@ -49,6 +49,7 @@ class FileContext {
 	@Nullable private final Path originalPath;
 	private final Cancelable cancelable;
 	private final MutableInt fileCount;
+	private Progress progress = new Progress(); // shared with sub-contexts
 	@Nullable private final File indexParentDir; // null if index only exists in RAM
 
 	protected FileContext(	@NotNull IndexingConfig config,
@@ -82,6 +83,25 @@ class FileContext {
 				superContext.fileCount,
 				superContext.indexParentDir
 		);
+		progress = superContext.progress;
+	}
+	
+	/** Progress of the whole indexing task: files visited so far and total. */
+	private static final class Progress {
+		int visited = 0;
+		int total = -1; // -1 = unknown
+	}
+	
+	/** Sets the total number of files of the task (-1 if unknown) and reports it. */
+	public final void setProgressTotal(int total) {
+		progress.total = total;
+		reporter.progress(progress.visited, total);
+	}
+	
+	/** Reports one more visited file. */
+	public final void fileVisited() {
+		progress.visited++;
+		reporter.progress(progress.visited, progress.total);
 	}
 	
 	@NotNull

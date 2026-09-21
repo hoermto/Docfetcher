@@ -14,6 +14,7 @@ DocFetcher zusammen mit Windows starten  |  (Nur Windows) Stellt ein, ob DocFetc
 Beim Schließen des Programm-Fensters  |  Legt fest, was beim Klick auf den Schließen-Button des Haupt-Programmfensters geschieht: `Beenden` beendet das Programm, `In die Taskleiste minimieren` lässt es als minimiertes Fenster weiterlaufen, und `Im System Tray verbergen` versteckt es im System Tray. In den beiden letzten Fällen beenden Sie das Programm über den Button `DocFetcher beenden` in der Werkzeugleiste (oder `Strg+Q`, oder das System-Tray-Menü).
 Suchanfragen beim Beenden nicht speichern  |  Stellt ein, ob DocFetcher eingegebene Suchanfragen bei Programmende speichern soll oder nicht.
 Indizes beim Programmstart aktualisieren  |  Stellt ein, ob alle Indizes, deren Ordner auf Änderungen überwacht werden (siehe die Indizierungs-Option `Automatische Detektion von Datei-Änderungen`), beim Programmstart im Hintergrund aktualisiert werden. Dadurch werden Dateien erfasst, die hinzugefügt, geändert, umbenannt oder gelöscht wurden, während DocFetcher nicht lief – auch ohne den DocFetcher-Daemon.
+Alle Indizes einmal täglich im Hintergrund aktualisieren  |  Stellt ein, ob alle Indizes einmal täglich aktualisiert werden, solange DocFetcher läuft, damit gelöschte oder geänderte Dateien auch in nicht überwachten Ordnern erfasst werden. Unabhängig davon werden Suchergebnisse, deren Dateien nicht mehr existieren, ausgeblendet und der betroffene Index aktualisiert.
 Text in Bildern und gescannten PDFs erkennen (OCR)  |  Stellt ein, ob beim Indizieren der Text von Bilddateien und PDF-Dateien ohne Text erkannt und in den Dateien gespeichert wird (siehe den Abschnitt zur Texterkennung im Handbuch). Deaktivieren, wenn Dateien nicht verändert werden dürfen oder die Erkennung zu lange dauert.
 Position der Vorschau  |  Legt fest, ob das Vorschau-Fenster rechts neben oder unterhalb der Ergebnis-Tabelle angezeigt wird.
 Angezeigte Pfadbestandteile für vorgeschlagene Ordner  |  Wie viele der letzten Bestandteile eines Ordnerpfads in der Spalte `Ordner` des Dialogs `In Ordner verschieben` angezeigt werden, z.&nbsp;B. zeigt 2 `Projekte/Berichte`; der vordere Teil des Pfads steht in der Spalte `Speicherort`.
@@ -25,7 +26,7 @@ Schnellzugriffstaste  |  Mit dieser Tastenkombination können Sie das DocFetcher
 
 Reiter „Indizes“
 ----------------
-Der Reiter `Indizes` listet alle vorhandenen Indizes auf und bietet Buttons zu deren Verwaltung:
+Der Reiter `Indizes` listet alle vorhandenen Indizes mit ihrem Status auf (`In Warteschlange`, `Wird erstellt`/`Wird aktualisiert`/`Wird neu erstellt` mit dem Fortschritt in Prozent oder der Zeitpunkt der letzten Aktualisierung) und bietet Buttons zu deren Verwaltung. Während der Indizierung zeigt das Hauptfenster unten rechts einen Fortschrittsbalken für alle anstehenden Aufgaben.
 
 Button  |  Anmerkungen
 --------|-------------

@@ -59,3 +59,9 @@
   - Cause: accented characters stored in decomposed Unicode form (NFD) on disk while the index stores composed names; Path now resolves to the equivalent name on disk (recursively for folders), and the inbox listing matches files by normalized paths.
 - bugfix: docx preview failed with XmlValueOutOfRangeException ('start' is not a valid value for ST_Jc)
   - POI 3.17 doesn't know the 'start'/'end' alignments of newer Word files; the renderer now reads them from the raw XML, tolerates unknown underline/vertical-alignment values, and falls back to plain text for a paragraph POI can't handle.
+- bug: the scan settings modal can be opened from menu, from search tab and bottom right -> only via menu bar
+  - Removed 'Manage Indexes...' from the search-scope context menu and the click on the status bar indicator; index management/settings only via File > Preferences... / Indexes....
+- show index status (in %) per folder in index settings; general progress bar bottom right
+  - Indexing tasks report visited/total files (files are counted before the walk); Task.getProgressPercent() and IndexingQueue.evtProgress. Status bar shows a progress bar with the overall percentage of the current batch (finished tasks + running fractions) and a per-index tooltip. Preferences > Indexes has a Status column (Waiting/Queued/Creating|Updating|Rebuilding n %/Updated <time>); indexes being created are listed while their task runs. TreeIndex stores lastUpdated.
+- garbage collection of vanished documents
+  - After each search, results whose files no longer exist (and whose index root is available) are dropped and an update of the affected index is queued (first 2000 results checked). New option 'Update all indexes once a day in the background' (default on). Also fixed Path's file predicate accepting folders.

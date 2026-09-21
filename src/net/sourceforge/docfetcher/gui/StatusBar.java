@@ -28,6 +28,7 @@ import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Link;
+import org.eclipse.swt.widgets.ProgressBar;
 import org.eclipse.swt.widgets.Shell;
 
 import com.google.common.collect.Lists;
@@ -66,6 +67,7 @@ public class StatusBar extends Composite {
 		private final Composite comp;
 		private final CLabel imgLabel;
 		private final Link textLabel;
+		@Nullable private ProgressBar progressBar;
 		private boolean isVisible = true;
 		
 		public StatusBarPart(@NotNull StatusBar statusBar, boolean clickable) {
@@ -76,7 +78,7 @@ public class StatusBar extends Composite {
 			imgLabel = new CLabel(comp, SWT.NONE);
 			textLabel = new Link(comp, SWT.NONE);
 			
-			GridLayout layout = new GridLayout(2, false);
+			GridLayout layout = new GridLayout(3, false);
 			layout.marginWidth = layout.marginHeight = 0;
 			comp.setLayout(layout);
 			imgLabel.setLayoutData(new GridData(SWT.FILL, SWT.FILL, false, true));
@@ -139,12 +141,46 @@ public class StatusBar extends Composite {
 			Util.checkNotNull(text);
 			imgLabel.setImage(image);
 			textLabel.setText(text);
+			comp.layout();
 			statusBar.updateLayout();
 		}
 		
 		/**
 		 * Returns the image displayed on this part, which may be null.
 		 */
+		/**
+		 * Shows a progress bar with the given percentage (0-100) next to the
+		 * text, or hides the bar if the value is negative.
+		 */
+		public void setProgress(int percent) {
+			if (percent < 0) {
+				if (progressBar != null) {
+					progressBar.dispose();
+					progressBar = null;
+					statusBar.updateLayout();
+				}
+				return;
+			}
+			if (progressBar == null) {
+				progressBar = new ProgressBar(comp, SWT.HORIZONTAL | SWT.SMOOTH);
+				progressBar.setMinimum(0);
+				progressBar.setMaximum(100);
+				GridData data = new GridData(SWT.FILL, SWT.CENTER, false, false);
+				data.widthHint = 120;
+				progressBar.setLayoutData(data);
+				comp.layout();
+				statusBar.updateLayout();
+			}
+			progressBar.setSelection(Math.min(100, percent));
+		}
+		
+		public void setToolTipText(@Nullable String text) {
+			textLabel.setToolTipText(text);
+			imgLabel.setToolTipText(text);
+			if (progressBar != null)
+				progressBar.setToolTipText(text);
+		}
+		
 		@Nullable
 		public Image getImage() {
 			return imgLabel.getImage();
@@ -244,6 +280,10 @@ public class StatusBar extends Composite {
 		fdf.left().applyTo(lastControl);
 		
 		layout();
+		// The preferred height may have changed, e.g. when the progress bar
+		// appears while the left part is empty
+		if (getParent() != null)
+			getParent().layout(new Control[] {this});
 	}
 
 }

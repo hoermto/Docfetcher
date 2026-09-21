@@ -85,6 +85,9 @@ public interface LuceneIndex extends ViewNode, Serializable {
 	
 	public long getCreated();
 	
+	/** Time of the last completed update or creation, or 0 if unknown. */
+	public long getLastUpdated();
+	
 	/**
 	 * Returns the format version of the index, see
 	 * {@link TreeIndex#CURRENT_FORMAT_VERSION}. Indexes created by older

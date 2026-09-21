@@ -14,6 +14,7 @@ Start DocFetcher with Windows  |  (Windows only) If checked, DocFetcher is start
 When closing the program window  |  What happens when you click on the close button of the main program window: `Exit` closes the program, `Minimize to taskbar` keeps it running as a minimized window, and `Hide in system tray` hides it in the System Tray. In the latter two cases, use the `Exit DocFetcher` toolbar button (or `Ctrl+Q`, or the System Tray menu) to actually exit.
 Clear search history on exit  |  If checked, DocFetcher will wipe out its history of entered queries on exit.
 Update indexes on startup  |  If checked, all indexes whose folders are watched for changes (see the `Watch folders for file changes` indexing option) are updated in the background when DocFetcher starts. This picks up files that were added, changed, renamed or removed while DocFetcher was not running, even if the DocFetcher daemon is not installed.
+Update all indexes once a day in the background  |  If checked, all indexes are updated once a day while DocFetcher runs, so that deleted or changed files are picked up even in folders that aren't watched. Independently of this option, search results whose files no longer exist are dropped and the affected index is updated.
 Recognize text in images and scanned PDFs (OCR)  |  If checked, the text of image files and of PDF files without text is recognized while indexing and stored in the files (see the manual's section on text recognition). Uncheck it if files must not be modified or recognition takes too long.
 Preview position  |  Whether the preview pane is shown to the right of or below the result table.
 Path segments shown for suggested folders  |  How many trailing parts of a folder path are shown in the `Folder` column of the `Move to Folder` dialog, e.g. 2 shows `Projects/Reports`; the leading part of the path is shown in the `Location` column.
@@ -25,7 +26,7 @@ Global hotkey  |  The keyboard shortcut specified here can be used to move the D
 
 Indexes tab
 -----------
-The `Indexes` tab lists all existing indexes and provides buttons for managing them:
+The `Indexes` tab lists all existing indexes with their status (`Queued`, `Creating`/`Updating`/`Rebuilding` with the progress in percent, or the time of the last update) and provides buttons for managing them. While indexing runs, the bottom right of the main window shows a progress bar for all queued tasks.
 
 Button  |  Comment
 --------|---------

@@ -51,8 +51,10 @@ public final class Path implements Serializable {
 		private static final FilePredicate instance = new FilePredicate();
 		
 		public boolean apply(Path path) {
-			return path.getCanonicalFile().isFile()
-				|| path.resolveEquivalentFile() != null;
+			if (path.getCanonicalFile().isFile())
+				return true;
+			File resolved = path.resolveEquivalentFile();
+			return resolved != null && resolved.isFile();
 		}
 	}
 	

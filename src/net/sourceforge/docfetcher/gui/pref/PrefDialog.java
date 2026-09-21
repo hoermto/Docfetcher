@@ -132,6 +132,10 @@ public final class PrefDialog {
 				SettingsConf.Bool.UpdateIndexesOnStartup),
 
 			new CheckOption(
+				Msg.pref_daily_index_update.get(),
+				SettingsConf.Bool.DailyIndexUpdate),
+
+			new CheckOption(
 				Msg.pref_ocr.get(),
 				SettingsConf.Bool.OcrEnabled)
 

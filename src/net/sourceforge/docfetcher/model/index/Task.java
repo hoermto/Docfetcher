@@ -72,6 +72,32 @@ public final class Task {
 		this.indexAction = indexAction;
 		state = is(IndexAction.UPDATE) ? TaskState.READY : TaskState.NOT_READY;
 		reporter = new DelegatingReporter(queue.reporterCapacity);
+		reporter.setProgressListener(new DelegatingReporter.ProgressListener() {
+			public void progressChanged(int visited, int total) {
+				// Notify listeners only when the displayed value changes
+				int percent = computePercent(visited, total);
+				if (percent != lastPercent) {
+					lastPercent = percent;
+					queue.evtProgress.fire(Task.this);
+				}
+			}
+		});
+	}
+	
+	private volatile int lastPercent = -1;
+	
+	/**
+	 * Returns the progress of this task in percent (0-99 while running), or
+	 * -1 if unknown, e.g. because the task hasn't started yet.
+	 */
+	public int getProgressPercent() {
+		return computePercent(reporter.getProgressVisited(), reporter.getProgressTotal());
+	}
+	
+	private static int computePercent(int visited, int total) {
+		if (total <= 0)
+			return -1;
+		return Math.min(99, (int) (visited * 100L / total));
 	}
 
 	// If the task is not in indexing state, the task is simply removed.

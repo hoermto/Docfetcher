@@ -11,8 +11,10 @@
 
 package net.sourceforge.docfetcher.gui;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.locks.Condition;
@@ -27,6 +29,7 @@ import net.sourceforge.docfetcher.gui.filter.IndexPanel;
 import net.sourceforge.docfetcher.model.Fields;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.LuceneIndex;
+import net.sourceforge.docfetcher.model.index.Task.IndexAction;
 import net.sourceforge.docfetcher.model.TreeCheckState;
 import net.sourceforge.docfetcher.model.parse.Parser;
 import net.sourceforge.docfetcher.model.search.PhraseDetectingQueryParser;
@@ -76,6 +79,9 @@ public final class SearchQueue {
 	@Nullable private volatile Set<String> listDocIds;
 	@Nullable private volatile String lastSearchQuery; // last query that was run
 	@Nullable private List<ResultDocument> results;
+	
+	/** Upper bound for the file existence checks per search, see removeMissingFiles. */
+	private static final int MAX_EXISTENCE_CHECKS = 2000;
 	@Nullable private Set<String> checkedParsers;
 	@Nullable private TreeCheckState treeCheckState;
 	private boolean allParsersChecked;
@@ -278,7 +284,7 @@ public final class SearchQueue {
 					return false;
 				
 				if (query != null)
-					results = searcher.search(query);
+					results = removeMissingFiles(searcher.search(query));
 				else if (listDocIds != null)
 					results = searcher.list(listDocIds);
 				else
@@ -391,6 +397,49 @@ public final class SearchQueue {
 		if (selCount > 1)
 			msg += spaces + Msg.num_sel_results.format(selCount);
 		statusBar.getLeftPart().setContents(Img.INFO.get(), msg);
+	}
+
+	/**
+	 * Drops results whose files no longer exist, e.g. because they were
+	 * deleted or moved while the index wasn't updated, and enqueues an
+	 * update of the affected indexes, which removes the entries for good.
+	 * Results of indexes whose root folder is currently unavailable (e.g.
+	 * an unplugged drive) are kept. To bound the cost on slow drives, only
+	 * the first results are checked.
+	 */
+	@NotNull
+	private List<ResultDocument> removeMissingFiles(@NotNull List<ResultDocument> results) {
+		List<ResultDocument> existing = new ArrayList<ResultDocument>(results.size());
+		Set<LuceneIndex> affected = new HashSet<LuceneIndex>();
+		IndexRegistry indexRegistry = indexPanel.getIndexRegistry();
+		List<LuceneIndex> indexes = indexRegistry.getIndexes();
+		int checked = 0;
+		for (ResultDocument doc : results) {
+			if (doc.isEmail() || checked >= MAX_EXISTENCE_CHECKS || doc.existsOnDisk()) {
+				existing.add(doc);
+				continue;
+			}
+			checked++;
+			LuceneIndex index = findIndexFor(indexes, doc.getPath().getCanonicalFile());
+			if (index == null || !index.getCanonicalRootFile().exists()) {
+				existing.add(doc); // Unavailable drive: keep the result
+				continue;
+			}
+			affected.add(index);
+		}
+		for (LuceneIndex index : affected)
+			indexRegistry.getQueue().addTask(index, IndexAction.UPDATE); // Rejected if queued
+		return existing;
+	}
+	
+	@Nullable
+	private static LuceneIndex findIndexFor(@NotNull List<LuceneIndex> indexes, @NotNull File file) {
+		for (LuceneIndex index : indexes) {
+			File root = index.getCanonicalRootFile();
+			if (Util.contains(root, file) || Util.isCanonicallyEqual(root, file))
+				return index;
+		}
+		return null;
 	}
 
 }

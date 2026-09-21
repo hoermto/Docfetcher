@@ -84,7 +84,6 @@ public final class IndexPanel {
 	public final Event<Set<String>> evtListDocuments = new Event<Set<String>>();
 	public final Event<Rectangle> evtIndexingDialogMinimized = new Event<Rectangle>();
 	public final Event<Void> evtIndexingDialogOpened = new Event<Void>();
-	public final Event<Void> evtManageIndexes = new Event<Void>();
 
 	private final SimpleTreeViewer<ViewNode> viewer;
 	private final Tree tree;
@@ -276,18 +275,9 @@ public final class IndexPanel {
 		
 		/*
 		 * Index management (creating, updating, rebuilding, renaming and
-		 * removing indexes) has been moved to the 'Indexes' tab of the
-		 * preferences dialog. The context menu of the search scope tree only
-		 * offers a shortcut to that tab.
+		 * removing indexes) lives on the 'Indexes' tab of the preferences
+		 * dialog, reachable from the menu bar.
 		 */
-		menuManager.add(new MenuAction(Msg.manage_indexes.get()) {
-			public void run() {
-				evtManageIndexes.fire(null);
-			}
-		});
-		
-		menuManager.addSeparator();
-		
 		class CheckAllAction extends MenuAction {
 			private final boolean checkAll;
 			public CheckAllAction(boolean checkAll) {
