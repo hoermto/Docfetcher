@@ -61,14 +61,21 @@ final class RenameDialog {
 		label.setText(Msg.rename_document_msg.get());
 		label.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-		nameField = new Text(shell, SWT.BORDER | SWT.SINGLE);
+		// The extension is shown next to the field and can't be changed
+		Composite nameComp = new Composite(shell, SWT.NONE);
+		nameComp.setLayout(UtilGui.createGridLayout(2, false, 0, 3));
+		nameComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		nameField = new Text(nameComp, SWT.BORDER | SWT.SINGLE);
 		GridData nameData = new GridData(SWT.FILL, SWT.CENTER, true, false);
-		nameData.widthHint = 450;
+		nameData.widthHint = 430;
 		nameField.setLayoutData(nameData);
+		Label extLabel = new Label(nameComp, SWT.NONE);
+		extLabel.setText(extension.isEmpty() ? "" : "." + extension);
+		extLabel.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
 
 		String initial = suggestion != null && !suggestion.getWords().isEmpty()
-			? suggestion.buildName(NameSuggester.DEFAULT_WORDS, extension)
-			: currentName;
+			? suggestion.buildName(NameSuggester.DEFAULT_WORDS, "")
+			: baseName(currentName);
 		setName(initial);
 
 		// Links for switching between the current and the suggested name
@@ -79,7 +86,7 @@ final class RenameDialog {
 		currentLink.setText("<a>" + Msg.use_current_name.get() + "</a>");
 		currentLink.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				setName(RenameDialog.this.currentName);
+				setName(baseName(RenameDialog.this.currentName));
 			}
 		});
 		if (suggestion != null && !suggestion.getWords().isEmpty()) {
@@ -88,7 +95,7 @@ final class RenameDialog {
 			suggestedLink.addSelectionListener(new SelectionAdapter() {
 				public void widgetSelected(SelectionEvent e) {
 					setName(RenameDialog.this.suggestion.buildName(
-						NameSuggester.DEFAULT_WORDS, extension));
+						NameSuggester.DEFAULT_WORDS, ""));
 				}
 			});
 
@@ -118,7 +125,10 @@ final class RenameDialog {
 		buttonComp.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
 		Button okBt = UtilGui.createPushButton(buttonComp, Msg.ok.get(), new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				answer = nameField.getText().trim();
+				String base = NameSuggester.sanitize(nameField.getText().trim());
+				if (base.isEmpty())
+					return;
+				answer = extension.isEmpty() ? base : base + "." + extension;
 				shell.close();
 			}
 		});
@@ -140,28 +150,25 @@ final class RenameDialog {
 		UtilGui.setCenteredBounds(shell, shell.getSize().x, shell.getSize().y);
 	}
 
-	/** Sets the name and selects the part before the extension. */
-	private void setName(@NotNull String name) {
-		nameField.setText(name);
-		int dot = name.lastIndexOf('.');
-		int end = dot > 0 ? dot : name.length();
-		nameField.setSelection(0, end);
+	/** Returns the file name without its extension. */
+	@NotNull
+	private static String baseName(@NotNull String fileName) {
+		return Util.splitFilename(fileName)[0];
+	}
+
+	/** Sets the base name (without extension) and selects it. */
+	private void setName(@NotNull String base) {
+		nameField.setText(base);
+		nameField.setSelection(0, base.length());
 		nameField.setFocus();
 	}
 
-	/** Appends a keyword to the name, before the extension. */
+	/** Appends a keyword to the base name. */
 	private void appendWord(@NotNull String word) {
-		String name = nameField.getText().trim();
-		String base = name;
-		String ext = "";
-		int dot = name.lastIndexOf('.');
-		if (dot > 0) {
-			base = name.substring(0, dot);
-			ext = name.substring(dot);
-		}
+		String base = nameField.getText().trim();
 		if (!base.isEmpty() && !base.endsWith("_") && !base.endsWith("-"))
 			base += base.contains("_") ? "-" : "_";
-		nameField.setText(NameSuggester.sanitize(base + word) + ext);
+		nameField.setText(NameSuggester.sanitize(base + word));
 		nameField.setSelection(nameField.getText().length());
 		nameField.setFocus();
 	}

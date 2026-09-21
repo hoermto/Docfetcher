@@ -39,3 +39,5 @@
   - Name suggestions: 'Rename To' submenu with names of the form <ISO date>_<Word-Word-...> using 2 to 5 keywords; 'Rename...' dialog prefilled with the 3-word suggestion plus clickable keywords. Date = labelled ('Datum'/'Date') or first date in the text (dd.mm.yyyy, yyyy-mm-dd, d. Monat yyyy, Month d, yyyy), else file date. Keywords = TF-IDF terms (Lucene MoreLikeThis) against all indexes, stopwords/boilerplate removed, strong preference for the first lines (sender/subject), original casing, capitalized. Suggestions are precomputed in the background on selection.
 - postbox: add as initial 2 columns an icon for rename (pen) and one for move (arrow)
   - Inbox table starts with two fixed-width icon columns; clicking the pen opens the rename dialog (suggestion computed on demand if not cached yet), clicking the folder/arrow icon opens the Move to Folder dialog.
+- remove the type icon (doc type is seen in extension); rename must not change the extension
+  - Title column shows no file-type/email icon anymore. The rename dialog edits only the base name and shows the extension as a fixed label; all rename paths keep the original extension.

@@ -50,7 +50,6 @@ import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 import net.sourceforge.docfetcher.util.collect.AlphanumComparator;
 import net.sourceforge.docfetcher.util.gui.ContextMenuManager;
-import net.sourceforge.docfetcher.util.gui.FileIconCache;
 import net.sourceforge.docfetcher.util.gui.MenuAction;
 import net.sourceforge.docfetcher.util.gui.dialog.MultipleChoiceDialog;
 import net.sourceforge.docfetcher.util.gui.viewer.VirtualTableViewer;
@@ -132,7 +131,6 @@ public final class ResultPanel {
 	public final Event<Void> evtDocumentsChanged = new Event<Void>();
 	
 	private final VirtualTableViewer<ResultDocument> viewer;
-	private final FileIconCache iconCache;
 	private final IndexRegistry indexRegistry;
 	@Nullable private DragSource dragSource;
 	private int dragOperations = 0;
@@ -173,7 +171,6 @@ public final class ResultPanel {
 		Util.checkNotNull(indexRegistry);
 		this.indexRegistry = indexRegistry;
 		this.actionColumnCount = actionColumns ? 2 : 0;
-		iconCache = new FileIconCache(parent);
 		
 		int treeStyle = SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL | SWT.FULL_SELECTION | SWT.BORDER;
 		viewer = new VirtualTableViewer<ResultDocument> (parent, treeStyle) {
@@ -247,11 +244,6 @@ public final class ResultPanel {
 		viewer.addColumn(new VariableHeaderColumn<ResultDocument>(Msg.title.get(), Msg.subject.get()) {
 			protected String getLabel(ResultDocument element) {
 				return element.getTitle();
-			}
-			protected Image getImage(ResultDocument element) {
-				if (element.isEmail())
-					return Img.EMAIL.get();
-				return iconCache.getIcon(element.getFilename(), Img.FILE.get());
 			}
 			protected int compare(ResultDocument e1, ResultDocument e2) {
 				return compareAlphanum(e1.getTitle(), e2.getTitle());
@@ -634,6 +626,11 @@ public final class ResultPanel {
 	private void renameTo(@NotNull ResultDocument doc, @NotNull String newName) {
 		File file = doc.getPath().getCanonicalFile();
 		newName = newName.trim();
+		// Renaming must never change the file extension
+		String extension = Util.splitFilename(file.getName())[1];
+		if (!extension.isEmpty()
+				&& !Util.splitFilename(newName)[1].equalsIgnoreCase(extension))
+			newName += "." + extension;
 		if (newName.isEmpty() || newName.equals(file.getName()))
 			return;
 		if (newName.contains("/") || newName.contains("\\")) {
