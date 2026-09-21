@@ -138,8 +138,18 @@ public final class NameSuggester {
 										@NotNull Searcher searcher)
 			throws ParseException, FileNotFoundException, SearchException,
 			CheckedOutOfMemoryError {
-		String text = doc.getText();
-
+		return suggest(doc, searcher, doc.getText());
+	}
+	
+	/**
+	 * Like {@link #suggest(ResultDocument, Searcher)}, but uses the given,
+	 * already extracted document text.
+	 */
+	@NotNull
+	public static Suggestion suggest(	@NotNull ResultDocument doc,
+										@NotNull Searcher searcher,
+										@NotNull String text)
+			throws SearchException, CheckedOutOfMemoryError {
 		String date = findDate(text);
 		if (date == null) {
 			Date lastModified = doc.getLastModified();
@@ -147,7 +157,7 @@ public final class NameSuggester {
 		}
 
 		List<String> candidates = searcher.extractKeywords(text, 40);
-		
+
 		/*
 		 * Rank the usable candidates by their TF-IDF rank, with a strong bonus
 		 * for words in the first few lines (letterhead, subject line - these
@@ -208,7 +218,7 @@ public final class NameSuggester {
 		}
 		return pos;
 	}
-	
+
 	private static boolean isUsableWord(@NotNull String term) {
 		if (term.length() < 3 || term.length() > 30)
 			return false;
@@ -263,10 +273,10 @@ public final class NameSuggester {
 		String firstLabeled = null;
 		String first = null;
 		int firstPos = Integer.MAX_VALUE;
-		
+
 		List<int[]> found = new ArrayList<int[]>(); // {position, index into isoDates}
 		List<String> isoDates = new ArrayList<String>();
-		
+
 		Matcher m = DATE_ISO.matcher(head);
 		while (m.find())
 			collect(found, isoDates, m.start(), toIso(m.group(1), m.group(2), m.group(3)));
@@ -285,7 +295,7 @@ public final class NameSuggester {
 			if (month > 0)
 				collect(found, isoDates, m.start(), toIso(m.group(3), String.valueOf(month), m.group(2)));
 		}
-		
+
 		int firstLabeledPos = Integer.MAX_VALUE;
 		for (int[] entry : found) {
 			int pos = entry[0];
@@ -302,7 +312,7 @@ public final class NameSuggester {
 		}
 		return firstLabeled != null ? firstLabeled : first;
 	}
-	
+
 	private static void collect(@NotNull List<int[]> found,
 								@NotNull List<String> isoDates,
 								int pos,
@@ -312,7 +322,7 @@ public final class NameSuggester {
 		isoDates.add(iso);
 		found.add(new int[] { pos, isoDates.size() - 1 });
 	}
-	
+
 	private static int monthOf(@NotNull String name) {
 		String lower = name.toLowerCase(Locale.ROOT);
 		for (int i = 0; i < 12; i++) {

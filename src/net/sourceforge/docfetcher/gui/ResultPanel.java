@@ -38,9 +38,11 @@ import net.sourceforge.docfetcher.model.index.Task.IndexAction;
 import net.sourceforge.docfetcher.model.Path;
 import net.sourceforge.docfetcher.model.Path.PathParts;
 import net.sourceforge.docfetcher.model.parse.ParseException;
+import net.sourceforge.docfetcher.model.search.FolderSuggestion;
 import net.sourceforge.docfetcher.model.search.NameSuggester;
 import net.sourceforge.docfetcher.model.search.NameSuggester.Suggestion;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
+import net.sourceforge.docfetcher.model.search.Searcher;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.Util;
@@ -141,8 +143,20 @@ public final class ResultPanel {
 	 * selected, so that they're usually ready when the context menu or the
 	 * rename dialog is opened. Both maps are accessed under their own lock.
 	 */
-	private final Map<ResultDocument, Suggestion> suggestionCache = new LinkedHashMap<ResultDocument, Suggestion>(16, 0.75f, true) {
-		protected boolean removeEldestEntry(Map.Entry<ResultDocument, Suggestion> eldest) {
+	/** Name and folder suggestions for one document. */
+	private static final class Suggestions {
+		@Nullable final Suggestion name;
+		final List<FolderSuggestion> folders;
+		Suggestions(@Nullable Suggestion name, @NotNull List<FolderSuggestion> folders) {
+			this.name = name;
+			this.folders = folders;
+		}
+	}
+	
+	private static final int MAX_FOLDER_SUGGESTIONS = 5;
+	
+	private final Map<ResultDocument, Suggestions> suggestionCache = new LinkedHashMap<ResultDocument, Suggestions>(16, 0.75f, true) {
+		protected boolean removeEldestEntry(Map.Entry<ResultDocument, Suggestions> eldest) {
 			return size() > 50;
 		}
 	};
@@ -540,7 +554,7 @@ public final class ResultPanel {
 			}
 		});
 		
-		menuManager.add(new MenuAction(Msg.move_to_folder.get()) {
+		final Menu moveToMenu = menuManager.addSubmenu(new MenuAction(Msg.move_to_submenu.get()) {
 			public boolean isEnabled() {
 				List<ResultDocument> sel = viewer.getSelection();
 				if (sel.isEmpty())
@@ -550,8 +564,10 @@ public final class ResultPanel {
 						return false;
 				return true;
 			}
-			public void run() {
-				moveSelection();
+		});
+		moveToMenu.addMenuListener(new MenuAdapter() {
+			public void menuShown(MenuEvent e) {
+				fillMoveToMenu(moveToMenu);
 			}
 		});
 		
@@ -640,10 +656,10 @@ public final class ResultPanel {
 		File target = new File(file.getParentFile(), newName);
 		if (moveFile(file, target)) {
 			synchronized (suggestionCache) {
-				Suggestion suggestion = suggestionCache.remove(doc);
+				Suggestions suggestions = suggestionCache.remove(doc);
 				doc.setPathAfterFileOperation(target);
-				if (suggestion != null)
-					suggestionCache.put(doc, suggestion);
+				if (suggestions != null)
+					suggestionCache.put(doc, suggestions);
 			}
 			viewer.refresh();
 			updateIndexesFor(Arrays.asList(file, target));
@@ -656,10 +672,16 @@ public final class ResultPanel {
 	 */
 	
 	@Nullable
-	private Suggestion getSuggestion(@NotNull ResultDocument doc) {
+	private Suggestions getSuggestions(@NotNull ResultDocument doc) {
 		synchronized (suggestionCache) {
 			return suggestionCache.get(doc);
 		}
+	}
+	
+	@Nullable
+	private Suggestion getSuggestion(@NotNull ResultDocument doc) {
+		Suggestions suggestions = getSuggestions(doc);
+		return suggestions == null ? null : suggestions.name;
 	}
 	
 	/**
@@ -669,9 +691,8 @@ public final class ResultPanel {
 	 */
 	@Nullable
 	private Suggestion waitForSuggestion(@NotNull ResultDocument doc) {
-		Suggestion suggestion = getSuggestion(doc);
-		if (suggestion != null)
-			return suggestion;
+		if (getSuggestions(doc) != null)
+			return getSuggestion(doc);
 		synchronized (suggestionCache) {
 			if (suggestionsFailed.contains(doc))
 				return null;
@@ -713,22 +734,34 @@ public final class ResultPanel {
 				return;
 			suggestionsInProgress.add(doc);
 		}
-		Thread thread = new Thread(ResultPanel.class.getName() + " (name suggestion)") {
+		Thread thread = new Thread(ResultPanel.class.getName() + " (suggestions)") {
 			public void run() {
-				Suggestion suggestion = null;
+				Suggestions suggestions = null;
 				try {
-					suggestion = NameSuggester.suggest(doc, indexRegistry.getSearcher());
+					Searcher searcher = indexRegistry.getSearcher();
+					String text = doc.getText();
+					Suggestion name = null;
+					try {
+						name = NameSuggester.suggest(doc, searcher, text);
+					}
+					catch (Exception e) {
+						// No name suggestion, folders may still work
+					}
+					File parent = Util.getParentFile(doc.getPath().getCanonicalFile());
+					List<FolderSuggestion> folders = searcher.suggestFolders(
+						text + "\n" + doc.getFilename(), parent, MAX_FOLDER_SUGGESTIONS);
+					suggestions = new Suggestions(name, folders);
 				}
 				catch (Exception e) {
-					// Unparsable document etc.: no suggestion
+					// Unparsable document etc.: no suggestions
 				}
 				catch (OutOfMemoryError e) {
 					// Ditto
 				}
 				synchronized (suggestionCache) {
 					suggestionsInProgress.remove(doc);
-					if (suggestion != null)
-						suggestionCache.put(doc, suggestion);
+					if (suggestions != null)
+						suggestionCache.put(doc, suggestions);
 					else
 						suggestionsFailed.add(doc);
 				}
@@ -813,6 +846,20 @@ public final class ResultPanel {
 		File targetDir = dialog.open();
 		if (targetDir == null)
 			return;
+		moveTo(sel, targetDir);
+	}
+	
+	/**
+	 * Moves the given documents' files into the target folder, updating the
+	 * result rows and the affected indexes.
+	 */
+	private void moveTo(@NotNull List<ResultDocument> sel, @NotNull File targetDir) {
+		for (ResultDocument doc : sel) {
+			if (!doc.isPlainFileOnDisk()) {
+				AppUtil.showError(Msg.only_plain_files.get(), true, true);
+				return;
+			}
+		}
 		if (!targetDir.isDirectory() && !targetDir.mkdirs()) {
 			AppUtil.showError(Msg.file_operation_failed.format(targetDir.getPath()), true, true);
 			return;
@@ -1012,6 +1059,81 @@ public final class ResultPanel {
 		}
 		if (!failed.isEmpty())
 			AppUtil.showError(Msg.remove_original_failed.format(Util.join("\n", failed)), true, true);
+	}
+	
+	/**
+	 * Fills the 'Move To' submenu with the suggested target folders for the
+	 * first selected document, plus an entry for choosing any other folder.
+	 */
+	private void fillMoveToMenu(@NotNull Menu menu) {
+		for (MenuItem item : menu.getItems())
+			item.dispose();
+		List<ResultDocument> sel = viewer.getSelection();
+		if (sel.isEmpty())
+			return;
+		final ResultDocument doc = sel.get(0);
+		Suggestions suggestions = getSuggestions(doc);
+		
+		if (suggestions == null) {
+			boolean failed;
+			synchronized (suggestionCache) {
+				failed = suggestionsFailed.contains(doc);
+			}
+			if (!failed)
+				requestSuggestion(doc);
+			String infoText = failed
+				? Msg.suggestions_unavailable.get()
+				: Msg.suggestions_computing.get();
+			MenuItem item = new MenuItem(menu, SWT.PUSH);
+			item.setText(infoText);
+			item.setEnabled(false);
+			item.setData(new MenuAction(infoText));
+		}
+		else if (suggestions.folders.isEmpty()) {
+			String infoText = Msg.suggestions_unavailable.get();
+			MenuItem item = new MenuItem(menu, SWT.PUSH);
+			item.setText(infoText);
+			item.setEnabled(false);
+			item.setData(new MenuAction(infoText));
+		}
+		else {
+			for (FolderSuggestion suggestion : suggestions.folders) {
+				final File folder = suggestion.getFolder();
+				String[] parts = MoveToFolderDialog.splitFolder(folder);
+				String label = parts[1].isEmpty()
+					? parts[0]
+					: parts[0] + "  (" + parts[1] + ")";
+				final MenuAction action = new MenuAction(Img.FOLDER.get(), label.replace("&", "&&")) {
+					public void run() {
+						moveTo(viewer.getSelection(), folder);
+					}
+				};
+				MenuItem item = new MenuItem(menu, SWT.PUSH);
+				item.setText(action.getLabel());
+				item.setImage(action.getImage());
+				item.setData(action);
+				item.addSelectionListener(new SelectionAdapter() {
+					public void widgetSelected(SelectionEvent e) {
+						action.run();
+					}
+				});
+			}
+		}
+		
+		new MenuItem(menu, SWT.SEPARATOR);
+		final MenuAction otherAction = new MenuAction(Msg.move_to_other_folder.get()) {
+			public void run() {
+				moveSelection();
+			}
+		};
+		MenuItem otherItem = new MenuItem(menu, SWT.PUSH);
+		otherItem.setText(otherAction.getLabel());
+		otherItem.setData(otherAction);
+		otherItem.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				otherAction.run();
+			}
+		});
 	}
 	
 	private void copyToClipboard() {

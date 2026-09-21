@@ -41,3 +41,5 @@
   - Inbox table starts with two fixed-width icon columns; clicking the pen opens the rename dialog (suggestion computed on demand if not cached yet), clicking the folder/arrow icon opens the Move to Folder dialog.
 - remove the type icon (doc type is seen in extension); rename must not change the extension
   - Title column shows no file-type/email icon anymore. The rename dialog edits only the base name and shows the extension as a fixed label; all rename paths keep the original extension.
+- similar to "Rename To": add a "Move To" submenu with the top 5 target folders and an entry that opens the manual folder selection, in search and inbox
+  - 'Move To' submenu in the result table context menu (both tabs): up to five suggested folders (same keyword similarity as the dialog, computed in the background together with the name suggestions) that move the selected files with one click, plus 'Other Folder...' opening the dialog.

@@ -3,6 +3,7 @@
 === Features ===
   * New 'Inbox' tab: set an inbox folder in the preferences (e.g. where your scanner saves documents) and DocFetcher lists its files with preview, rename and move, like search results. The folder is indexed automatically.
   * The Inbox table has icon columns for renaming (pen) and moving (folder) a file with one click.
+  * The 'Move To' context menu lists the five best matching folders for one-click moving.
   * File name suggestions of the form <date>_<keywords> (e.g. 2026-03-12_Deutsche-Telekom-Rechnung.pdf): the 'Rename To' context menu offers variants with 2 to 5 keywords, and the rename dialog lets you combine the suggested keywords freely. The date is taken from the document, the keywords are the words that best characterize it.
 
 === Bugfixes ===

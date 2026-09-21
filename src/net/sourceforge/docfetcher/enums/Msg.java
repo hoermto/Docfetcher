@@ -969,6 +969,13 @@ public enum Msg {
 		"Link in the rename dialog that fills the name field with the " +
 		"suggested name."),
 	
+	move_to_submenu ("Move To",
+		"Context menu entry of the result table containing suggested target " +
+		"folders; selecting one moves the selected files there."),
+	move_to_other_folder ("Other Folder...",
+		"Entry in the 'Move To' submenu that opens the dialog for choosing " +
+		"any folder."),
+	
 	// Search settings dialog (document types and search scope filters)
 	search_settings_title ("Search Settings",
 		"Window title of the dialog containing the search filters, i.e. the " +
