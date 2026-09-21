@@ -13,7 +13,6 @@
 
 
 ## features
-[] ocr for png/jpg and add text to metadata (done in 2.4: PNG iTXt / JPEG COM; open question: also EXIF/XMP for Windows Explorer?)
 
 ## collection, wait until confirmd
 [] v2.4 UI style follow W11 on Windows (keep open)

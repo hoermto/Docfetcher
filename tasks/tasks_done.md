@@ -65,3 +65,5 @@
   - Indexing tasks report visited/total files (files are counted before the walk); Task.getProgressPercent() and IndexingQueue.evtProgress. Status bar shows a progress bar with the overall percentage of the current batch (finished tasks + running fractions) and a per-index tooltip. Preferences > Indexes has a Status column (Waiting/Queued/Creating|Updating|Rebuilding n %/Updated <time>); indexes being created are listed while their task runs. TreeIndex stores lastUpdated.
 - garbage collection of vanished documents
   - After each search, results whose files no longer exist (and whose index root is available) are dropped and an update of the affected index is queued (first 2000 results checked). New option 'Update all indexes once a day in the background' (default on). Also fixed Path's file predicate accepting folders.
+- ocr for png/jpg and add text to metadata
+  - Covered by the 2.4 OCR feature: PNG iTXt chunk / JPEG COM segment keyed DocFetcherOCR. Confirmed: no need to expose the text in Windows Explorer (EXIF/XMP), so nothing more to do.
