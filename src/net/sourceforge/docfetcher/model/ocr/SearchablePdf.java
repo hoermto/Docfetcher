@@ -125,16 +125,21 @@ public final class SearchablePdf {
 		}
 	}
 
+	/** Extension appended to a converted TIFF file that is kept. */
+	public static final String CONVERTED_SUFFIX = ".ocr";
+	
 	/**
 	 * Converts the given TIFF file into a PDF with a text layer, next to the
 	 * TIFF file and with its modification time. Returns the PDF file, or null
-	 * if the target file exists already or the conversion was cancelled. The
-	 * TIFF file is deleted after a successful conversion.
+	 * if the target file exists already or the conversion was cancelled.
+	 * After a successful conversion the TIFF file is deleted, or, with
+	 * {@code keepOriginal}, renamed by appending {@link #CONVERTED_SUFFIX}.
 	 */
 	@Nullable
 	public static File convertTiff(	@NotNull File tiffFile,
 									@NotNull OcrEngine engine,
-									@NotNull Cancelable cancelable) throws IOException {
+									@NotNull Cancelable cancelable,
+									boolean keepOriginal) throws IOException {
 		Util.checkNotNull(tiffFile, engine, cancelable);
 		File pdfFile = new File(tiffFile.getParentFile(),
 			Util.splitFilename(tiffFile.getName())[0] + ".pdf");
@@ -181,8 +186,18 @@ public final class SearchablePdf {
 		Files.move(temp.toPath(), pdfFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 		if (lastModified > 0)
 			Files.setLastModifiedTime(pdfFile.toPath(), FileTime.fromMillis(lastModified));
-		if (!tiffFile.delete())
+		if (keepOriginal) {
+			File renamed = new File(tiffFile.getParentFile(), tiffFile.getName() + CONVERTED_SUFFIX);
+			try {
+				Files.move(tiffFile.toPath(), renamed.toPath(), StandardCopyOption.REPLACE_EXISTING);
+			}
+			catch (IOException e) {
+				Util.printErr("Could not rename " + tiffFile + " after converting it to PDF: " + e);
+			}
+		}
+		else if (!tiffFile.delete()) {
 			Util.printErr("Could not delete " + tiffFile + " after converting it to PDF.");
+		}
 		return pdfFile;
 	}
 

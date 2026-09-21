@@ -850,6 +850,15 @@ public enum Msg {
 		Comments.prefOption + "If checked, the text of image files and " +
 		"PDF files without text is recognized with the bundled Tesseract " +
 		"engine and stored in the files."),
+	pref_convert_tiff (
+		"Convert TIFF files to PDF files with a text layer (requires OCR)",
+		Comments.prefOption + "If checked, TIFF files are replaced by PDF " +
+		"files containing the scanned pages and the recognized text while " +
+		"indexing."),
+	pref_keep_tiff (
+		"Keep the original TIFF file, renamed to '.tif.ocr'",
+		Comments.prefOption + "If checked, a converted TIFF file is not " +
+		"deleted but renamed, so that it can be checked later."),
 	ocr_unavailable (
 		"Text recognition is not available: {0}",
 		"Message shown in the preferences dialog when the OCR engine could " +

@@ -86,6 +86,8 @@ public final class SettingsConf {
 		AskRebuildOutdatedIndexes (true),
 		MatchFilenames (true), // Search terms also match file names as substrings
 		OcrEnabled (true), // Recognize text in images and scanned PDFs while indexing
+		ConvertTiffToPdf (false), // Turn TIFF files into PDFs with a text layer while indexing
+		KeepTiffAfterConversion (true), // Keep the TIFF renamed to .ocr instead of deleting it
 		DailyIndexUpdate (true), // Update all indexes once a day while running
 
 		ShowPreviewPanel (true),

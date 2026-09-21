@@ -69,3 +69,5 @@
   - Covered by the 2.4 OCR feature: PNG iTXt chunk / JPEG COM segment keyed DocFetcherOCR. Confirmed: no need to expose the text in Windows Explorer (EXIF/XMP), so nothing more to do.
 - bug: new index shows "waiting for config" and the indexing window can't be reached anymore from bottom right
   - The state means the 'Run' button of the indexing window hasn't been pressed (window was minimized). Status text now says so; the status-bar progress indicator is clickable again and shows the indexing window (queue/config/errors, not settings), and double-clicking an index with a task on the Indexes tab does the same.
+- add an option to enable the TIFF to PDF conversion (disabled by default); when enabled, option to rename the TIFF to .tif.ocr instead of deleting it
+  - Settings ConvertTiffToPdf (off) and KeepTiffAfterConversion (on) with two General-tab checkboxes; without conversion, TIFFs are OCR-read at parse time like other images.

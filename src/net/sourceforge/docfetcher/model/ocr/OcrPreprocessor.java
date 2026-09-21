@@ -23,8 +23,8 @@ import net.sourceforge.docfetcher.util.annotations.Nullable;
  * result in the files so that it doesn't have to be repeated:
  * <ul>
  * <li>PDF files without text get an invisible text layer,</li>
- * <li>TIFF files are converted into PDF files with a text layer (the TIFF
- * file is deleted),</li>
+ * <li>TIFF files are converted into PDF files with a text layer if enabled
+ * in the settings (the TIFF file is deleted or renamed to '.ocr'),</li>
  * <li>PNG and JPEG files get the text embedded in their metadata.</li>
  * </ul>
  * Files inside archives are left alone. Any failure is logged and leaves
@@ -61,9 +61,13 @@ public final class OcrPreprocessor {
 				SearchablePdf.ocr(plain, engine, cancelable);
 			}
 			else if (ext.equals("tif") || ext.equals("tiff")) {
-				File pdf = SearchablePdf.convertTiff(plain, engine, cancelable);
-				if (pdf != null)
-					return pdf;
+				// Without conversion, TIFF files are recognized at parse time
+				if (SettingsConf.Bool.ConvertTiffToPdf.get()) {
+					File pdf = SearchablePdf.convertTiff(plain, engine, cancelable,
+						SettingsConf.Bool.KeepTiffAfterConversion.get());
+					if (pdf != null)
+						return pdf;
+				}
 			}
 			else if (OcrTextEmbedding.supports(ext)) {
 				if (OcrTextEmbedding.read(plain) == null) {

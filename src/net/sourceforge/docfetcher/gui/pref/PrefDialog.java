@@ -137,7 +137,15 @@ public final class PrefDialog {
 
 			new CheckOption(
 				Msg.pref_ocr.get(),
-				SettingsConf.Bool.OcrEnabled)
+				SettingsConf.Bool.OcrEnabled),
+
+			new CheckOption(
+				Msg.pref_convert_tiff.get(),
+				SettingsConf.Bool.ConvertTiffToPdf),
+
+			new CheckOption(
+				Msg.pref_keep_tiff.get(),
+				SettingsConf.Bool.KeepTiffAfterConversion)
 
 			// TODO post-release-1.1: Implement this; requires saving and restoring the tree expansion state
 			//	new CheckOption(
