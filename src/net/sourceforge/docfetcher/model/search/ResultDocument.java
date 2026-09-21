@@ -73,7 +73,7 @@ public final class ResultDocument {
 	private final OutlookMailFactory mailFactory;
 	
 	// Cached values
-	private final String uid;
+	private String uid;
 	private final boolean isEmail;
 	private Path path;
 	private Path parentPath;
@@ -252,6 +252,56 @@ public final class ResultDocument {
 		}
 	}
 	
+	/**
+	 * Returns true if this document is a plain file on disk, i.e. not an
+	 * email and not an entry inside an archive. Only such documents can be
+	 * renamed or moved.
+	 */
+	public boolean isPlainFileOnDisk() {
+		if (isEmail)
+			return false;
+		try {
+			return getPath().splitAtExistingFile().getRight().isEmpty();
+		}
+		catch (FileNotFoundException e) {
+			return false;
+		}
+	}
+	
+	/**
+	 * Updates this document after its file was renamed or moved on disk, so
+	 * that the result table and the preview reflect the new location until
+	 * the index has been updated. Must be called from the GUI thread.
+	 */
+	public void setPathAfterFileOperation(@NotNull File newFile) {
+		Util.checkNotNull(newFile);
+		onlyFiles();
+		String oldFilename = getFilename();
+		String oldTitle = getTitle();
+		String newFilename = newFile.getName();
+		Path newPath = new Path(newFile);
+		
+		// The UID consists of a type prefix and the path
+		String oldPathStr = getPath().getPath();
+		String prefix = uid.endsWith(oldPathStr)
+			? uid.substring(0, uid.length() - oldPathStr.length())
+			: DocumentType.FILE.createUniqueId(new Path("")); // fallback
+		String newUid = prefix + newPath.getPath();
+		
+		luceneDoc.removeFields(Fields.UID.key());
+		luceneDoc.add(Fields.UID.create(newUid));
+		luceneDoc.removeFields(Fields.FILENAME.key());
+		luceneDoc.add(Fields.FILENAME.create(newFilename));
+		// The title defaults to the filename without extension
+		if (oldTitle.equals(Util.splitFilename(oldFilename)[0])) {
+			luceneDoc.removeFields(Fields.TITLE.key());
+			luceneDoc.add(Fields.TITLE.create(Util.splitFilename(newFilename)[0]));
+		}
+		uid = newUid;
+		path = null;
+		parentPath = null;
+	}
+	
 	public boolean isEmail() {
 		return isEmail;
 	}
@@ -330,10 +380,13 @@ public final class ResultDocument {
 		return new ArrayList<String>(terms);
 	}
 	
-	// Should be run in a thread
-	// thrown parse exception has localized error message
+	/**
+	 * Returns the plain text of the document, extracted from the file. This
+	 * may take a while and should be run in a non-GUI thread. The thrown
+	 * parse exception has a localized error message.
+	 */
 	@NotNull
-	private String getText() throws ParseException, FileNotFoundException,
+	public String getText() throws ParseException, FileNotFoundException,
 			CheckedOutOfMemoryError {
 		onlyFiles();
 		String parserName = luceneDoc.get(Fields.PARSER.key());

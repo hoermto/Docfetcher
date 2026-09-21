@@ -142,6 +142,16 @@ public final class PreviewPanel extends Composite {
 		setPreviewUnchecked(doc);
 	}
 	
+	/**
+	 * Reloads the currently displayed document, e.g. after its file was
+	 * renamed or moved.
+	 */
+	public void refresh() {
+		UtilGui.assertSwtThread();
+		if (lastDoc != null)
+			setPreviewUnchecked(lastDoc);
+	}
+	
 	public boolean setHtmlFile(@NotNull File file) {
 		Util.checkNotNull(file);
 		UtilGui.assertSwtThread();

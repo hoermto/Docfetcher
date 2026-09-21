@@ -22,6 +22,8 @@ One shortcut you might find useful: Press `Ctrl+F` or `Alt+F` to move the focus 
 
 **Filtering**: Click on the `Search Settings...` button next to the `Search` button to open the search filters: (1) The `Document Types` list allows you to filter the results by type. (2) By unchecking items in the `Search Scope` area, you can filter the results by location. Filter changes take effect immediately.
 
+**Renaming and moving documents**: Files in the result table can be renamed (`F2` or `Rename...` in the context menu) and moved into another folder (`Move to Folder...` in the context menu). The move dialog suggests folders whose documents have similar content, based on the keywords in your indexes; you can also browse for any other folder. Dragging files from the result table into Windows Explorer moves them; hold `Ctrl` while dragging to copy them instead, in which case DocFetcher asks whether to keep the original. The affected indexes are updated automatically. These operations are not available for emails and for files inside archives.
+
 **Index updates**: If files in the indexed folders are added, removed or modified, the corresponding indexes have to be updated, otherwise your search results might be out of date. Fortunately, updating an index is virtually always much faster than creating it from scratch, since only the changes have to be processed. Also, DocFetcher can update its indexes automatically in two ways:
 
 1. ***DocFetcher itself***: If DocFetcher is running and the *folder watching* for the modified folder is enabled, DocFetcher detects the changes and updates its indexes immediately.

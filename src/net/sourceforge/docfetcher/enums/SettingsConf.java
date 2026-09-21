@@ -305,6 +305,7 @@ public final class SettingsConf {
 		FileExtensionChooser (-1, -1, 300, 450),
 		PreferencesDialog (-1, -1, 750, 600),
 		SearchSettingsDialog (-1, -1, 400, 600),
+		MoveToFolderDialog (-1, -1, 560, 380),
 		;
 
 		public final int[] defaultValue;

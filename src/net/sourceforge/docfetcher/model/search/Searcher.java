@@ -13,7 +13,11 @@ package net.sourceforge.docfetcher.model.search;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Collections;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -28,6 +32,7 @@ import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.model.Fields;
 import net.sourceforge.docfetcher.model.IndexLoadingProblems.CorruptedIndex;
 import net.sourceforge.docfetcher.model.IndexRegistry;
+import net.sourceforge.docfetcher.model.DocumentType;
 import net.sourceforge.docfetcher.model.IndexRegistry.ExistingIndexesHandler;
 import net.sourceforge.docfetcher.model.LuceneIndex;
 import net.sourceforge.docfetcher.model.Path;
@@ -51,6 +56,7 @@ import net.sourceforge.docfetcher.util.collect.LazyList;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.queries.mlt.MoreLikeThis;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
@@ -333,6 +339,92 @@ public final class Searcher {
 	@ThreadSafe
 	public void stopSearch(){
 		stopped =true;
+	}
+	
+	/**
+	 * Suggests folders into which a document with the given text could be
+	 * moved: The indexed documents most similar to the text (by keyword
+	 * usage) are looked up, and their folders are ranked by the accumulated
+	 * similarity. Folders equal to the given one are excluded, as are folders
+	 * that don't exist on disk (e.g. archive contents). Returns at most
+	 * {@code maxFolders} suggestions, best first, with relevances normalized
+	 * to 0..1.
+	 * <p>
+	 * This may take a moment and should be run in a non-GUI thread.
+	 */
+	@ImmutableCopy
+	@NotNull
+	@ThreadSafe
+	public List<FolderSuggestion> suggestFolders(	@NotNull String text,
+													@Nullable File excludeFolder,
+													int maxFolders)
+			throws SearchException, CheckedOutOfMemoryError {
+		Util.checkNotNull(text);
+		readLock.lock();
+		try {
+			checkIndexesExist();
+			
+			IndexReader reader = luceneSearcher.getIndexReader();
+			MoreLikeThis mlt = new MoreLikeThis(reader);
+			mlt.setAnalyzer(IndexRegistry.getAnalyzer());
+			mlt.setFieldNames(new String[] { Fields.CONTENT.key() });
+			mlt.setMinTermFreq(1);
+			mlt.setMinDocFreq(1);
+			mlt.setMaxQueryTerms(40);
+			Query query = mlt.like(Fields.CONTENT.key(), new StringReader(text));
+			
+			int maxDocs = 200;
+			ScoreDoc[] scoreDocs = luceneSearcher.search(query, maxDocs).scoreDocs;
+			
+			// Accumulate the scores of the similar documents per folder
+			Map<File, Double> folderScores = new HashMap<File, Double>();
+			for (ScoreDoc scoreDoc : scoreDocs) {
+				Document doc = luceneSearcher.doc(scoreDoc.doc);
+				String uid = doc.get(Fields.UID.key());
+				if (uid == null || DocumentType.isEmailType(uid))
+					continue;
+				File folder;
+				try {
+					File file = DocumentType.extractPath(uid).getCanonicalFile();
+					folder = Util.getParentFile(file);
+				}
+				catch (RuntimeException e) {
+					continue;
+				}
+				if (folder == null || !folder.isDirectory())
+					continue; // e.g. archive entries
+				if (excludeFolder != null && Util.isCanonicallyEqual(folder, excludeFolder))
+					continue;
+				Double sum = folderScores.get(folder);
+				folderScores.put(folder, (sum == null ? 0 : sum) + scoreDoc.score);
+			}
+			
+			List<Map.Entry<File, Double>> entries = new ArrayList<Map.Entry<File, Double>>(folderScores.entrySet());
+			Collections.sort(entries, new Comparator<Map.Entry<File, Double>>() {
+				public int compare(Map.Entry<File, Double> e1, Map.Entry<File, Double> e2) {
+					return Double.compare(e2.getValue(), e1.getValue());
+				}
+			});
+			
+			List<FolderSuggestion> suggestions = new ArrayList<FolderSuggestion>();
+			double max = entries.isEmpty() ? 1 : entries.get(0).getValue();
+			for (Map.Entry<File, Double> entry : entries) {
+				if (suggestions.size() >= maxFolders)
+					break;
+				double relevance = max > 0 ? entry.getValue() / max : 0;
+				suggestions.add(new FolderSuggestion(entry.getKey(), relevance));
+			}
+			return suggestions;
+		}
+		catch (IOException e) {
+			throw new SearchException(e.getMessage());
+		}
+		catch (OutOfMemoryError e) {
+			throw new CheckedOutOfMemoryError(e);
+		}
+		finally {
+			readLock.unlock();
+		}
 	}
 	
 	@ImmutableCopy

@@ -13,9 +13,12 @@ package net.sourceforge.docfetcher.gui;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
@@ -27,6 +30,9 @@ import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.model.FileResource;
+import net.sourceforge.docfetcher.model.IndexRegistry;
+import net.sourceforge.docfetcher.model.LuceneIndex;
+import net.sourceforge.docfetcher.model.index.Task.IndexAction;
 import net.sourceforge.docfetcher.model.Path;
 import net.sourceforge.docfetcher.model.Path.PathParts;
 import net.sourceforge.docfetcher.model.parse.ParseException;
@@ -42,10 +48,18 @@ import net.sourceforge.docfetcher.util.collect.AlphanumComparator;
 import net.sourceforge.docfetcher.util.gui.ContextMenuManager;
 import net.sourceforge.docfetcher.util.gui.FileIconCache;
 import net.sourceforge.docfetcher.util.gui.MenuAction;
+import net.sourceforge.docfetcher.util.gui.dialog.MultipleChoiceDialog;
+import net.sourceforge.docfetcher.util.gui.dialog.TextInputDialog;
 import net.sourceforge.docfetcher.util.gui.viewer.VirtualTableViewer;
 import net.sourceforge.docfetcher.util.gui.viewer.VirtualTableViewer.Column;
 
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.dnd.DND;
+import org.eclipse.swt.dnd.DragSource;
+import org.eclipse.swt.dnd.DragSourceAdapter;
+import org.eclipse.swt.dnd.DragSourceEvent;
+import org.eclipse.swt.dnd.FileTransfer;
+import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.events.ControlAdapter;
 import org.eclipse.swt.events.ControlEvent;
 import org.eclipse.swt.events.KeyAdapter;
@@ -56,6 +70,7 @@ import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
 
@@ -101,13 +116,22 @@ public final class ResultPanel {
 	public final Event<List<ResultDocument>> evtSelection = new Event<List<ResultDocument>> ();
 	public final Event<Void> evtHideInSystemTray = new Event<Void>();
 	
+	/** Fired after documents were renamed or moved, so that the preview can be refreshed. */
+	public final Event<Void> evtDocumentsChanged = new Event<Void>();
+	
 	private final VirtualTableViewer<ResultDocument> viewer;
 	private final FileIconCache iconCache;
+	private final IndexRegistry indexRegistry;
+	@Nullable private DragSource dragSource;
+	private int dragOperations = 0;
+	private boolean lastDragWasCopy = false;
 	private HeaderMode presetHeaderMode = HeaderMode.FILES; // externally suggested header mode
 	private HeaderMode actualHeaderMode = HeaderMode.FILES; // header mode after examining each visible element
 	private final Column<ResultDocument> dateColumn;
 
-	public ResultPanel(@NotNull Composite parent) {
+	public ResultPanel(@NotNull Composite parent, @NotNull IndexRegistry indexRegistry) {
+		Util.checkNotNull(indexRegistry);
+		this.indexRegistry = indexRegistry;
 		iconCache = new FileIconCache(parent);
 		
 		int treeStyle = SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL | SWT.FULL_SELECTION | SWT.BORDER;
@@ -134,8 +158,12 @@ public final class ResultPanel {
 					copyToClipboard();
 				else if (e.stateMask == SWT.MOD1 && e.keyCode == 'a')
 					table.selectAll();
+				else if (e.keyCode == SWT.F2)
+					renameSelection();
 			}
 		});
+		
+		initDragSource(table);
 		
 		viewer.setSortingEnabled(true);
 		initContextMenu();
@@ -411,6 +439,33 @@ public final class ResultPanel {
 		
 		menuManager.addSeparator();
 		
+		menuManager.add(new MenuAction(Msg.rename_document.get()) {
+			public boolean isEnabled() {
+				List<ResultDocument> sel = viewer.getSelection();
+				return sel.size() == 1 && !sel.get(0).isEmail();
+			}
+			public void run() {
+				renameSelection();
+			}
+		});
+		
+		menuManager.add(new MenuAction(Msg.move_to_folder.get()) {
+			public boolean isEnabled() {
+				List<ResultDocument> sel = viewer.getSelection();
+				if (sel.isEmpty())
+					return false;
+				for (ResultDocument doc : sel)
+					if (doc.isEmail())
+						return false;
+				return true;
+			}
+			public void run() {
+				moveSelection();
+			}
+		});
+		
+		menuManager.addSeparator();
+		
 		String label = Util.IS_MAC_OS_X ? Msg.copy_macosx.get() : Msg.copy.get();
 		menuManager.add(new MenuAction(label) {
 			public boolean isEnabled() {
@@ -420,6 +475,262 @@ public final class ResultPanel {
 				copyToClipboard();
 			}
 		});
+	}
+	
+	/*
+	 * Renaming and moving documents. Both operate on the files on disk,
+	 * update the affected result documents in memory (so that the table and
+	 * the preview show the new location immediately) and enqueue updates of
+	 * the affected indexes.
+	 */
+	
+	private void renameSelection() {
+		List<ResultDocument> sel = viewer.getSelection();
+		if (sel.size() != 1)
+			return;
+		ResultDocument doc = sel.get(0);
+		if (!doc.isPlainFileOnDisk()) {
+			AppUtil.showError(Msg.only_plain_files.get(), true, true);
+			return;
+		}
+		File file = doc.getPath().getCanonicalFile();
+		TextInputDialog dialog = new TextInputDialog(
+			getControl().getShell(), Msg.rename_document_title.get(),
+			Msg.rename_document_msg.get(), file.getName());
+		dialog.setSelectFilenameOnly(true);
+		String newName = dialog.open();
+		if (newName == null)
+			return;
+		newName = newName.trim();
+		if (newName.isEmpty() || newName.equals(file.getName()))
+			return;
+		if (newName.contains("/") || newName.contains("\\")) {
+			AppUtil.showError(Msg.file_operation_failed.format(newName), true, true);
+			return;
+		}
+		File target = new File(file.getParentFile(), newName);
+		if (moveFile(file, target)) {
+			doc.setPathAfterFileOperation(target);
+			viewer.refresh();
+			updateIndexesFor(Arrays.asList(file, target));
+			evtDocumentsChanged.fire(null);
+		}
+	}
+	
+	private void moveSelection() {
+		List<ResultDocument> sel = viewer.getSelection();
+		if (sel.isEmpty())
+			return;
+		for (ResultDocument doc : sel) {
+			if (!doc.isPlainFileOnDisk()) {
+				AppUtil.showError(Msg.only_plain_files.get(), true, true);
+				return;
+			}
+		}
+		MoveToFolderDialog dialog = new MoveToFolderDialog(
+			getControl().getShell(), indexRegistry.getSearcher(), sel);
+		File targetDir = dialog.open();
+		if (targetDir == null)
+			return;
+		if (!targetDir.isDirectory() && !targetDir.mkdirs()) {
+			AppUtil.showError(Msg.file_operation_failed.format(targetDir.getPath()), true, true);
+			return;
+		}
+		
+		List<File> affected = new ArrayList<File>();
+		List<ResultDocument> moved = new ArrayList<ResultDocument>();
+		for (ResultDocument doc : sel) {
+			File file = doc.getPath().getCanonicalFile();
+			File target = new File(targetDir, file.getName());
+			if (Util.isCanonicallyEqual(file, target))
+				continue;
+			if (!moveFile(file, target))
+				break; // Error already shown
+			affected.add(file);
+			affected.add(target);
+			doc.setPathAfterFileOperation(target);
+			moved.add(doc);
+		}
+		if (moved.isEmpty())
+			return;
+		
+		// Documents moved outside of all indexed folders disappear from the
+		// results once the index is updated, so remove them right away
+		List<ResultDocument> outside = new ArrayList<ResultDocument>();
+		for (ResultDocument doc : moved)
+			if (findIndexFor(doc.getPath().getCanonicalFile()) == null)
+				outside.add(doc);
+		viewer.removeElements(outside);
+		viewer.refresh();
+		updateIndexesFor(affected);
+		evtDocumentsChanged.fire(null);
+	}
+	
+	/**
+	 * Moves or renames the given file. Returns true on success; on failure an
+	 * error message is shown and false is returned.
+	 */
+	private static boolean moveFile(@NotNull File source, @NotNull File target) {
+		if (target.exists()) {
+			AppUtil.showError(Msg.file_exists_error.format(target.getPath()), true, true);
+			return false;
+		}
+		try {
+			java.nio.file.Files.move(source.toPath(), target.toPath());
+			return true;
+		}
+		catch (IOException e) {
+			AppUtil.showError(Msg.file_operation_failed.format(e.toString()), true, true);
+			return false;
+		}
+	}
+	
+	@Nullable
+	private LuceneIndex findIndexFor(@NotNull File file) {
+		for (LuceneIndex index : indexRegistry.getIndexes()) {
+			File root = index.getCanonicalRootFile();
+			if (Util.contains(root, file) || Util.isCanonicallyEqual(root, file))
+				return index;
+		}
+		return null;
+	}
+	
+	/**
+	 * Enqueues updates for all indexes containing any of the given files.
+	 * Folder watching would trigger these updates anyway, but only if it is
+	 * enabled for the index.
+	 */
+	private void updateIndexesFor(@NotNull Collection<File> files) {
+		Set<LuceneIndex> indexes = new HashSet<LuceneIndex>();
+		for (File file : files) {
+			LuceneIndex index = findIndexFor(file);
+			if (index != null)
+				indexes.add(index);
+		}
+		for (LuceneIndex index : indexes)
+			indexRegistry.getQueue().addTask(index, IndexAction.UPDATE);
+	}
+	
+	/*
+	 * Drag and drop of result files into other programs, e.g. the file
+	 * manager. Without a modifier key the files are moved (the drop target
+	 * performs the move); with the Ctrl key held down they are copied, after
+	 * which the user is asked whether to keep the original. The allowed
+	 * operation is decided when the mouse button goes down, since the drag
+	 * source's operations can't be changed while dragging.
+	 */
+	
+	private void initDragSource(@NotNull final Table table) {
+		table.addListener(SWT.MouseDown, new Listener() {
+			public void handleEvent(org.eclipse.swt.widgets.Event e) {
+				boolean copy = (e.stateMask & SWT.CTRL) != 0;
+				int operations = copy ? DND.DROP_COPY : DND.DROP_MOVE;
+				lastDragWasCopy = copy;
+				if (dragSource == null || dragOperations != operations)
+					createDragSource(table, operations);
+			}
+		});
+		createDragSource(table, DND.DROP_MOVE);
+	}
+	
+	private void createDragSource(@NotNull final Table table, int operations) {
+		if (dragSource != null)
+			dragSource.dispose();
+		dragOperations = operations;
+		dragSource = new DragSource(table, operations);
+		dragSource.setTransfer(new Transfer[] { FileTransfer.getInstance() });
+		dragSource.addDragListener(new DragSourceAdapter() {
+			private List<ResultDocument> draggedDocs = Collections.emptyList();
+			private List<File> draggedFiles = Collections.emptyList();
+			
+			public void dragStart(DragSourceEvent event) {
+				draggedDocs = new ArrayList<ResultDocument>();
+				draggedFiles = new ArrayList<File>();
+				for (ResultDocument doc : viewer.getSelection()) {
+					if (!doc.isPlainFileOnDisk())
+						continue;
+					draggedDocs.add(doc);
+					draggedFiles.add(doc.getPath().getCanonicalFile());
+				}
+				event.doit = !draggedFiles.isEmpty();
+			}
+			
+			public void dragSetData(DragSourceEvent event) {
+				if (!FileTransfer.getInstance().isSupportedType(event.dataType))
+					return;
+				String[] paths = new String[draggedFiles.size()];
+				for (int i = 0; i < paths.length; i++)
+					paths[i] = draggedFiles.get(i).getPath();
+				event.data = paths;
+			}
+			
+			public void dragFinished(DragSourceEvent event) {
+				if (draggedFiles.isEmpty())
+					return;
+				List<File> files = draggedFiles;
+				List<ResultDocument> docs = draggedDocs;
+				draggedFiles = Collections.emptyList();
+				draggedDocs = Collections.emptyList();
+				
+				if (event.detail == DND.DROP_COPY && lastDragWasCopy) {
+					askToRemoveOriginals(files);
+				}
+				else if (event.detail == DND.DROP_MOVE) {
+					// A target that doesn't move the files itself expects
+					// the source to delete them
+					for (File file : files)
+						if (file.exists())
+							file.delete();
+				}
+				// Targets that move the files themselves report no
+				// operation; in any case, drop rows of files that are gone
+				List<ResultDocument> gone = new ArrayList<ResultDocument>();
+				for (int i = 0; i < files.size(); i++)
+					if (!files.get(i).exists())
+						gone.add(docs.get(i));
+				if (!gone.isEmpty()) {
+					viewer.removeElements(gone);
+					updateIndexesFor(files);
+					evtDocumentsChanged.fire(null);
+				}
+			}
+		});
+	}
+	
+	/**
+	 * After files were copied by dragging them with Ctrl into another
+	 * program, asks whether the originals should be removed, to avoid
+	 * duplicate documents.
+	 */
+	private void askToRemoveOriginals(@NotNull final List<File> files) {
+		MultipleChoiceDialog<Boolean> dialog = new MultipleChoiceDialog<Boolean>(getControl().getShell());
+		dialog.setTitle(Msg.confirm_operation.get());
+		dialog.setText(Msg.copied_keep_original_msg.get());
+		dialog.addButton(Msg.keep_both_bt.get(), Boolean.FALSE);
+		dialog.addButton(Msg.remove_original_bt.get(), Boolean.TRUE);
+		Boolean remove = dialog.open();
+		if (remove == null || !remove)
+			return;
+		List<String> failed = new ArrayList<String>();
+		for (File file : files) {
+			// The copy may still be in progress; retry a few times
+			boolean deleted = false;
+			for (int attempt = 0; attempt < 10 && !deleted; attempt++) {
+				deleted = !file.exists() || file.delete();
+				if (!deleted) {
+					try {
+						Thread.sleep(300);
+					}
+					catch (InterruptedException e) {
+						break;
+					}
+				}
+			}
+			if (!deleted)
+				failed.add(file.getPath());
+		}
+		if (!failed.isEmpty())
+			AppUtil.showError(Msg.remove_original_failed.format(Util.join("\n", failed)), true, true);
 	}
 	
 	private void copyToClipboard() {

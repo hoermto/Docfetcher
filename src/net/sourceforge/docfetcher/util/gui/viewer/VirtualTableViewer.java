@@ -12,6 +12,7 @@
 package net.sourceforge.docfetcher.util.gui.viewer;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -186,6 +187,24 @@ public abstract class VirtualTableViewer<E> {
 		table.clearAll();
 		lastSortColumn = null;
 		table.setSortColumn(null);
+	}
+	
+	/**
+	 * Removes the given elements from the table, keeping the current sorting.
+	 */
+	public final void removeElements(@NotNull Collection<E> toRemove) {
+		if (elements == null || toRemove.isEmpty())
+			return;
+		elements.removeAll(toRemove);
+		table.setItemCount(elements.size());
+		table.clearAll();
+	}
+	
+	/**
+	 * Redraws all rows, e.g. after the elements' contents have changed.
+	 */
+	public final void refresh() {
+		table.clearAll();
 	}
 	
 	@MutableCopy

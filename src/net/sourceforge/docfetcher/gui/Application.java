@@ -1200,7 +1200,7 @@ public final class Application {
 		    	openPrefDialog(false);
 		    }
 		});
-		resultPanel = new ResultPanel(comp);
+		resultPanel = new ResultPanel(comp, indexRegistry);
 
 		comp.setLayout(new FormLayout());
 		FormDataFactory fdf = FormDataFactory.getInstance();
@@ -1241,6 +1241,16 @@ public final class Application {
 		resultPanel.evtHideInSystemTray.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
 				systemTrayHider.hide();
+			}
+		});
+
+		resultPanel.evtDocumentsChanged.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				// Rows of moved-away documents are removed, clearing the selection
+				if (resultPanel.getSelection().isEmpty())
+					previewPanel.clear();
+				else
+					previewPanel.refresh();
 			}
 		});
 

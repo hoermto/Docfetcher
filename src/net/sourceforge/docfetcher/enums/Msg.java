@@ -845,6 +845,70 @@ public enum Msg {
 	dont_ask_again ("&Don't Ask Again",
 		"Button label for permanently dismissing a question."),
 	
+	// Renaming and moving documents from the result table
+	rename_document ("Rename...\tF2",
+		"Context menu entry of the result table for renaming the selected " +
+		"file. The '\tF2' is a keyboard shortcut."),
+	rename_document_title ("Rename Document",
+		"Window title of the dialog for renaming a file."),
+	rename_document_msg ("New file name:",
+		"Label of the text field in the dialog for renaming a file."),
+	move_to_folder ("Move to Folder...",
+		"Context menu entry of the result table for moving the selected " +
+		"files into another folder."),
+	move_to_folder_title ("Move to Folder",
+		"Window title of the dialog for moving files into another folder."),
+	move_suggestions_label (
+		"Suggested folders, based on documents with similar content:",
+		"Label above the list of suggested target folders in the 'Move to " +
+		"Folder' dialog."),
+	computing_suggestions ("Looking for similar documents...",
+		"Placeholder shown in the 'Move to Folder' dialog while the folder " +
+		"suggestions are being computed."),
+	no_suggestions (
+		"No similar documents were found in the indexes. Use 'Browse...' to " +
+		"choose a folder.",
+		"Message shown in the 'Move to Folder' dialog when no folder could be " +
+		"suggested."),
+	move_bt ("&Move",
+		"Label of the button in the 'Move to Folder' dialog that moves the " +
+		"files."),
+	folder_col ("Folder",
+		"Header of the folder column in the 'Move to Folder' dialog."),
+	match_col ("Match",
+		"Header of the column in the 'Move to Folder' dialog showing how well " +
+		"a suggested folder matches, as a percentage."),
+	target_folder_label ("Target folder:",
+		"Label of the field showing the chosen target folder in the 'Move to " +
+		"Folder' dialog."),
+	only_plain_files (
+		"This operation is only available for files on disk, not for emails " +
+		"or files inside archives.",
+		"Error message shown when the user tries to rename or move an email " +
+		"or an archive entry."),
+	file_exists_error (
+		"A file with this name already exists:\n{0}",
+		"Error message shown when renaming or moving a file would overwrite " +
+		"an existing file. The path is inserted in the {0} slot."),
+	file_operation_failed (
+		"The file could not be renamed or moved:\n{0}",
+		"Error message shown when renaming or moving a file failed. The " +
+		"reason is inserted in the {0} slot."),
+	copied_keep_original_msg (
+		"The document was copied to the target folder. Do you want to keep " +
+		"the original as well? Choose 'Remove Original' to avoid duplicates.",
+		"Question asked after the user copied a document by dragging it with " +
+		"the Ctrl key into another program, e.g. Windows Explorer."),
+	keep_both_bt ("&Keep Both",
+		"Button label: keep both the original and the copied document."),
+	remove_original_bt ("&Remove Original",
+		"Button label: delete the original document after it was copied."),
+	remove_original_failed (
+		"The original document could not be removed. It may still be in use " +
+		"by the copy operation; please remove it manually:\n{0}",
+		"Error message shown when deleting the original document after a " +
+		"copy failed. The path is inserted in the {0} slot."),
+	
 	// Search settings dialog (document types and search scope filters)
 	search_settings_title ("Search Settings",
 		"Window title of the dialog containing the search filters, i.e. the " +
