@@ -26,7 +26,7 @@ Schnellzugriffstaste  |  Mit dieser Tastenkombination können Sie das DocFetcher
 
 Reiter „Indizes“
 ----------------
-Der Reiter `Indizes` listet alle vorhandenen Indizes mit ihrem Status auf (`In Warteschlange`, `Wird erstellt`/`Wird aktualisiert`/`Wird neu erstellt` mit dem Fortschritt in Prozent oder der Zeitpunkt der letzten Aktualisierung) und bietet Buttons zu deren Verwaltung. Während der Indizierung zeigt das Hauptfenster unten rechts einen Fortschrittsbalken für alle anstehenden Aufgaben.
+Der Reiter `Indizes` listet alle vorhandenen Indizes mit ihrem Status auf (`In Warteschlange`, `Wird erstellt`/`Wird aktualisiert`/`Wird neu erstellt` mit dem Fortschritt in Prozent oder der Zeitpunkt der letzten Aktualisierung) und bietet Buttons zu deren Verwaltung. Während der Indizierung zeigt das Hauptfenster unten rechts einen Fortschrittsbalken für alle anstehenden Aufgaben; ein Klick darauf (oder ein Doppelklick auf einen Index mit laufender Aufgabe in der Liste) zeigt das Indizierungsfenster mit der Warteschlange, der Konfiguration neuer Indizes und eventuellen Fehlern. Ein neuer Index bleibt im Zustand `Nicht gestartet`, bis Sie in diesem Fenster auf `Start` klicken.
 
 Button  |  Anmerkungen
 --------|-------------

@@ -982,6 +982,7 @@ public final class Application {
 			: Msg.indexing.get();
 		indexingStatus.setContents(Img.INDEXING.get(), text);
 		indexingStatus.setProgress(percent);
+		tooltip.append("\n\n").append(Msg.indexing_status_tooltip.get());
 		indexingStatus.setToolTipText(tooltip.toString());
 		indexingStatus.setVisible(true);
 	}
@@ -1760,9 +1761,16 @@ public final class Application {
 	private static void initStatusBar() {
 		statusBar = new StatusBar(shell) {
 			public List<StatusBarPart> createRightParts(StatusBar statusBar) {
-				indexingStatus = new StatusBarPart(statusBar, false);
+				// Clicking the progress indicator shows the indexing window
+				// (queue, configuration of new indexes, errors)
+				indexingStatus = new StatusBarPart(statusBar, true);
 				indexingStatus.setContents(Img.INDEXING.get(), Msg.indexing.get());
 				indexingStatus.setVisible(false);
+				indexingStatus.evtClicked.add(new Event.Listener<Void>() {
+					public void update(Void eventData) {
+						indexPanel.openIndexingDialog();
+					}
+				});
 				
 				List<StatusBarPart> parts = new ArrayList<StatusBarPart>(1);
 				parts.add(indexingStatus);

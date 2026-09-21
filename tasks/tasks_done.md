@@ -67,3 +67,5 @@
   - After each search, results whose files no longer exist (and whose index root is available) are dropped and an update of the affected index is queued (first 2000 results checked). New option 'Update all indexes once a day in the background' (default on). Also fixed Path's file predicate accepting folders.
 - ocr for png/jpg and add text to metadata
   - Covered by the 2.4 OCR feature: PNG iTXt chunk / JPEG COM segment keyed DocFetcherOCR. Confirmed: no need to expose the text in Windows Explorer (EXIF/XMP), so nothing more to do.
+- bug: new index shows "waiting for config" and the indexing window can't be reached anymore from bottom right
+  - The state means the 'Run' button of the indexing window hasn't been pressed (window was minimized). Status text now says so; the status-bar progress indicator is clickable again and shows the indexing window (queue/config/errors, not settings), and double-clicking an index with a task on the Indexes tab does the same.

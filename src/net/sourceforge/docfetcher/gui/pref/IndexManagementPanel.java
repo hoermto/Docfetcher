@@ -181,6 +181,20 @@ final class IndexManagementPanel {
 			public void widgetSelected(SelectionEvent e) {
 				updateButtonStates();
 			}
+			public void widgetDefaultSelected(SelectionEvent e) {
+				// Double-click on an index with a running or pending task
+				// shows the indexing window, e.g. to press 'Run'
+				TableItem[] sel = table.getSelection();
+				if (sel.length == 0)
+					return;
+				LuceneIndex index = (LuceneIndex) sel[0].getData();
+				boolean hasTask;
+				synchronized (tasksByIndex) {
+					hasTask = tasksByIndex.containsKey(index);
+				}
+				if (hasTask)
+					indexPanel.openIndexingDialog();
+			}
 		});
 
 		// Buttons

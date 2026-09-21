@@ -276,9 +276,13 @@ public enum Msg {
 	index_col_status ("Status",
 		"Column header of the index table on the preferences dialog: the " +
 		"state of the index (queued, indexing, last update)."),
-	index_status_waiting ("Waiting for configuration",
+	index_status_waiting ("Not started: press 'Run' in the indexing window",
 		"Status of an index whose creation has been started but whose " +
-		"settings haven't been confirmed yet."),
+		"settings haven't been confirmed with the 'Run' button of the " +
+		"indexing window yet."),
+	indexing_status_tooltip ("Click to show the indexing window.",
+		"Last line of the tooltip of the indexing progress indicator in " +
+		"the status bar."),
 	index_status_queued ("Queued",
 		"Status of an index that waits for its indexing task to start."),
 	index_status_creating ("Creating {0}",

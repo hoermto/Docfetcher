@@ -26,7 +26,7 @@ Global hotkey  |  The keyboard shortcut specified here can be used to move the D
 
 Indexes tab
 -----------
-The `Indexes` tab lists all existing indexes with their status (`Queued`, `Creating`/`Updating`/`Rebuilding` with the progress in percent, or the time of the last update) and provides buttons for managing them. While indexing runs, the bottom right of the main window shows a progress bar for all queued tasks.
+The `Indexes` tab lists all existing indexes with their status (`Queued`, `Creating`/`Updating`/`Rebuilding` with the progress in percent, or the time of the last update) and provides buttons for managing them. While indexing runs, the bottom right of the main window shows a progress bar for all queued tasks; clicking it (or double-clicking an index with a running task in the list) shows the indexing window with the queue, the configuration of new indexes and any errors. A new index stays in the state `Not started` until you press `Run` in that window.
 
 Button  |  Comment
 --------|---------

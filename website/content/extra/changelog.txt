@@ -7,7 +7,7 @@
 === Changes ===
   * The result and inbox tables show the file name in the first column instead of the title; the separate 'Filename' column is gone.
   * Indexing progress: a progress bar at the bottom right of the main window shows the overall progress of all queued indexing tasks, and the 'Indexes' tab of the preferences has a 'Status' column (queued, creating/updating/rebuilding with percentage, time of the last update).
-  * Index management and settings are reachable from the menu bar only; the 'Manage Indexes' entry of the search-scope context menu and the click on the status bar were removed.
+  * Index management and settings are reachable from the menu bar only; the 'Manage Indexes' entry of the search-scope context menu was removed. Clicking the progress indicator in the status bar (or double-clicking an index with a running task on the 'Indexes' tab) shows the indexing window, e.g. to press 'Run' for a new index.
   * Search results whose files have been deleted or moved in the meantime are no longer shown; the affected index is updated in the background. Optionally, all indexes are updated once a day while the program runs (on by default).
 
 === Bugfixes ===
