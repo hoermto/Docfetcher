@@ -35,6 +35,7 @@ import org.apache.poi.xwpf.usermodel.XWPFStyles;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.apache.poi.xwpf.usermodel.XWPFTableCell;
 import org.apache.poi.xwpf.usermodel.XWPFTableRow;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTcPr;
 
 import com.google.common.io.Closeables;
@@ -56,6 +57,8 @@ final class DocxHtmlRenderer {
 
 	/** Maximum size of an embedded image in bytes; larger images are skipped. */
 	private static final int MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
+	private static final Pattern JC_VAL_PATTERN = Pattern.compile("val=\"([^\"]*)\"");
 
 	private final XWPFDocument doc;
 	private final StringBuilder sb = new StringBuilder(16 * 1024);
@@ -87,10 +90,64 @@ final class DocxHtmlRenderer {
 	private void renderBody(@NotNull List<IBodyElement> elements) {
 		for (IBodyElement element : elements) {
 			if (element instanceof XWPFParagraph)
-				renderParagraph((XWPFParagraph) element);
+				renderParagraphSafely((XWPFParagraph) element);
 			else if (element instanceof XWPFTable)
 				renderTable((XWPFTable) element);
 			// Content controls (SDTs) and other elements are ignored
+		}
+	}
+
+	/**
+	 * Renders a paragraph; if POI chokes on it (e.g. on attribute values of
+	 * newer Word versions it doesn't know, such as the 'start' alignment),
+	 * the paragraph's plain text is emitted instead, so that one odd
+	 * paragraph doesn't spoil the whole preview.
+	 */
+	private void renderParagraphSafely(@NotNull XWPFParagraph p) {
+		int start = sb.length();
+		try {
+			renderParagraph(p);
+		}
+		catch (RuntimeException e) {
+			sb.setLength(start);
+			String text;
+			try {
+				text = p.getText();
+			}
+			catch (RuntimeException e2) {
+				text = "";
+			}
+			if (text != null && !text.isEmpty())
+				sb.append("<p>").append(HtmlPage.escape(text)).append("</p>\n");
+		}
+	}
+
+	/**
+	 * Returns the paragraph alignment, mapping the values 'start' and 'end'
+	 * of newer documents (unknown to this POI version) to left and right.
+	 */
+	@Nullable
+	private static ParagraphAlignment getAlignment(@NotNull XWPFParagraph p) {
+		try {
+			return p.getAlignment();
+		}
+		catch (RuntimeException e) {
+			try {
+				CTPPr ppr = p.getCTP().getPPr();
+				if (ppr == null || !ppr.isSetJc())
+					return null;
+				// Typed access validates and throws again, so read the XML
+				Matcher m = JC_VAL_PATTERN.matcher(ppr.getJc().xmlText());
+				String raw = m.find() ? m.group(1) : "";
+				if (raw.equals("start"))
+					return ParagraphAlignment.LEFT;
+				if (raw.equals("end"))
+					return ParagraphAlignment.RIGHT;
+				return null;
+			}
+			catch (RuntimeException e2) {
+				return null;
+			}
 		}
 	}
 
@@ -102,7 +159,7 @@ final class DocxHtmlRenderer {
 		String tag = headingLevel > 0 ? "h" + headingLevel : "p";
 
 		StringBuilder style = new StringBuilder();
-		ParagraphAlignment alignment = p.getAlignment();
+		ParagraphAlignment alignment = getAlignment(p);
 		if (alignment == ParagraphAlignment.CENTER)
 			style.append("text-align:center;");
 		else if (alignment == ParagraphAlignment.RIGHT)
@@ -213,6 +270,25 @@ final class DocxHtmlRenderer {
 		}
 	}
 
+	private static boolean isUnderlined(@NotNull XWPFRun run) {
+		try {
+			return run.getUnderline() != UnderlinePatterns.NONE;
+		}
+		catch (RuntimeException e) {
+			return false; // Unknown underline value
+		}
+	}
+
+	@Nullable
+	private static VerticalAlign getVerticalAlign(@NotNull XWPFRun run) {
+		try {
+			return run.getSubscript();
+		}
+		catch (RuntimeException e) {
+			return null; // Unknown vertical alignment value
+		}
+	}
+
 	private void renderRun(@NotNull XWPFRun run) {
 		String text = run.text();
 		boolean hasText = text != null && !text.isEmpty();
@@ -239,9 +315,9 @@ final class DocxHtmlRenderer {
 
 			boolean bold = run.isBold();
 			boolean italic = run.isItalic();
-			boolean underline = run.getUnderline() != UnderlinePatterns.NONE;
+			boolean underline = isUnderlined(run);
 			boolean strike = run.isStrikeThrough();
-			VerticalAlign vAlign = run.getSubscript();
+			VerticalAlign vAlign = getVerticalAlign(run);
 			boolean sub = vAlign == VerticalAlign.SUBSCRIPT;
 			boolean sup = vAlign == VerticalAlign.SUPERSCRIPT;
 
