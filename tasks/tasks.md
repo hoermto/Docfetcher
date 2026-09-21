@@ -7,7 +7,6 @@
 
 ## changes
 
-[] add check to run the app only once at a time
 
 ## features
 [] story: as user, i want to move a rename a document in result list (F2, right click). 

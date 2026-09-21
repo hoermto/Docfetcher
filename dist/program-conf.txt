@@ -22,13 +22,10 @@
 AppName = DocFetcher
 
 # By default, DocFetcher checks on startup whether another instance of itself is
-# already running, and warns if that's the case, as running multiple instances
-# simultaneously will lead to inconsistent program behavior with respect to
-# saving and loading the program state. This single-instance check has the side
-# effect that DocFetcher will also display a warning message if the DocFetcher
-# process was forcibly terminated the last time it was run. If that warning
-# message is bothering you, you can turn it off by setting the following to
-# false:
+# already running. If so, the running instance is brought to the front and the
+# new instance exits, as running multiple instances simultaneously will lead to
+# inconsistent program behavior with respect to saving and loading the program
+# state. Set this to false to allow multiple instances:
 CheckSingleInstance = true
 
 # By default, when DocFetcher starts up it checks the index folder for any

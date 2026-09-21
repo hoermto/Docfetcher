@@ -21,3 +21,5 @@
 - add page count per document. on indexing, store page per text extracted and add to index metadata, then show in table. currently is always empty. Maybe is other reason
   - Cause: page counts are only recorded when a document is parsed by 2.0; an index Update skips unchanged files. Indexes now carry a format version, and indexes created before 2.0 trigger a one-time prompt at startup (Rebuild Now / Later / Don't Ask Again); the rebuild runs in the background.
   - Additional sources: RTF (\nofpages from Word's info group) and a fallback for Word documents without page metadata (counts rendered/explicit page breaks). Verified: PDF 3, DOCX with page breaks 4, RTF 6.
+- add check to run the app only once at a time
+  - The running instance listens on a loopback socket (port stored in the lock file). Launching a second instance brings the running one to the front (restoring it from tray/minimized) and exits silently; a stale lock file (after a crash) no longer causes the 'launch another instance?' dialog. CheckSingleInstance in program-conf.txt still disables the check.

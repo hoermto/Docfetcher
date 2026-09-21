@@ -328,6 +328,17 @@ public final class Application {
 		initHotkey();
 		initGlobalKeys(display);
 		
+		// Show the window when another instance is launched
+		AppUtil.evtActivateRequested.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				UtilGui.runAsyncExec(shell, new Runnable() {
+					public void run() {
+						activateMainWindow();
+					}
+				});
+			}
+		});
+		
 		if (SettingsConf.Bool.ShowDocFetcherProTip.get()) {
 			showDocFetcherProTip();
 		}
@@ -1724,19 +1735,28 @@ public final class Application {
 			public void update(Void eventData) {
 				UtilGui.runSyncExec(shell, new Runnable() {
 					public void run() {
-						if (systemTrayHider.isHidden()) {
-							systemTrayHider.restore();
-						}
-						else {
-							shell.setMinimized(false);
-							shell.setVisible(true);
-							shell.forceActive();
-							searchBar.setFocus();
-						}
+						activateMainWindow();
 					}
 				});
 			}
 		});
+	}
+	
+	/**
+	 * Brings the main window to the front, restoring it from the system tray
+	 * or from its minimized state if necessary. Must be called from the GUI
+	 * thread.
+	 */
+	private static void activateMainWindow() {
+		if (systemTrayHider.isHidden()) {
+			systemTrayHider.restore();
+		}
+		else {
+			shell.setMinimized(false);
+			shell.setVisible(true);
+			shell.forceActive();
+			searchBar.setFocus();
+		}
 	}
 	
 	private static void handleHotkeyConflict(int[] hotkey) {

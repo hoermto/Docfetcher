@@ -98,7 +98,6 @@ public final class SettingsConf {
 		ShowRelativePathsMessage (true),
 		AutoScrollToFirstMatch (true),
 		CloseToTray (false), // Legacy, migrated to Int.CloseAction on startup
-		AllowOnlyOneInstance (false),
 		;
 
 		public final Event<Boolean> evtChanged = new Event<Boolean> ();
