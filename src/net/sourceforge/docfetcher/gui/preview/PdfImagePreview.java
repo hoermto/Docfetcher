@@ -30,7 +30,6 @@ import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.ImageData;
-import org.eclipse.swt.graphics.PaletteData;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
@@ -304,7 +303,7 @@ final class PdfImagePreview extends ToolBarForm {
 				try {
 					PDFRenderer renderer = new PDFRenderer(doc);
 					BufferedImage image = renderer.renderImage(index, renderScale, ImageType.RGB);
-					imageData = toImageData(image);
+					imageData = ImagePreview.toImageData(image);
 				}
 				catch (Throwable e) {
 					// Rendering errors for single pages are not fatal; leave
@@ -353,25 +352,6 @@ final class PdfImagePreview extends ToolBarForm {
 		catch (IOException e) {
 			// Ignore
 		}
-	}
-
-	/**
-	 * Converts an RGB BufferedImage into SWT image data.
-	 */
-	@NotNull
-	private static ImageData toImageData(@NotNull BufferedImage image) {
-		int width = image.getWidth();
-		int height = image.getHeight();
-		PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
-		ImageData data = new ImageData(width, height, 24, palette);
-		int[] row = new int[width];
-		for (int y = 0; y < height; y++) {
-			image.getRGB(0, y, width, 1, row, 0, width);
-			for (int x = 0; x < width; x++)
-				row[x] &= 0xFFFFFF;
-			data.setPixels(0, y, width, row, 0);
-		}
-		return data;
 	}
 
 	/** Receives error messages from the background loading thread. */

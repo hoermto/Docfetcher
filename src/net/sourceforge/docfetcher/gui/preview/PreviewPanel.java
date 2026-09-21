@@ -76,6 +76,7 @@ public final class PreviewPanel extends Composite {
 	@Nullable private EmailPreview emailPreview;
 	@Nullable private HtmlPreview htmlPreview;
 	@Nullable private PdfImagePreview pdfImagePreview;
+	@Nullable private ImagePreview imagePreview;
 	private final Composite stackComp;
 	private final StackLayout stackLayout;
 	private final DelayedOverlay delayedOverlay;
@@ -164,7 +165,7 @@ public final class PreviewPanel extends Composite {
 		requestCount++;
 		setError(null, requestCount);
 		
-		clearPreviews(true, false, true, false, true);
+		clearPreviews(true, false, true, false, true, true);
 		htmlPreview.setFile(file, false);
 		return true;
 	}
@@ -179,8 +180,17 @@ public final class PreviewPanel extends Composite {
 			if (emailPreview == null)
 				emailPreview = new EmailPreview(stackComp);
 			moveToTop(emailPreview);
-			clearPreviews(true, false, false, true, true);
+			clearPreviews(true, false, false, true, true, true);
 			new EmailThread(doc, requestCount).start();
+		}
+		else if (doc.isImageFile()) {
+			if (imagePreview == null) {
+				imagePreview = new ImagePreview(stackComp);
+				Event.redirect(imagePreview.evtHideInSystemTray, evtHideInSystemTray);
+			}
+			moveToTop(imagePreview);
+			clearPreviews(true, false, true, true, true, false);
+			new ImageThread(doc, requestCount).start();
 		}
 		else if (doc.isPdfFile() && !(createAndShowHtmlPreview() && htmlPreview.isEdge())) {
 			/*
@@ -192,30 +202,30 @@ public final class PreviewPanel extends Composite {
 				Event.redirect(pdfImagePreview.evtHideInSystemTray, evtHideInSystemTray);
 			}
 			moveToTop(pdfImagePreview);
-			clearPreviews(true, false, true, true, false);
+			clearPreviews(true, false, true, true, false, true);
 			new PdfImageThread(doc, requestCount).start();
 		}
 		else if (doc.isRichPreviewFile() && createAndShowHtmlPreview()) {
 			// PDF in the browser's PDF viewer; Word, Excel and RTF converted to HTML
-			clearPreviews(true, false, true, false, true);
+			clearPreviews(true, false, true, false, true, true);
 			new RichDocThread(doc, requestCount).start();
 		}
 		else if (doc.isChmFile()) {
 			moveToTop(textPreview);
-			clearPreviews(true, true, true, true, true);
+			clearPreviews(true, true, true, true, true, true);
 			new PagingThread(doc, requestCount).start();
 		}
 		else if (doc.isHtmlFile()
 				&& SettingsConf.Bool.PreferHtmlPreview.get()
 				&& createAndShowHtmlPreview()) {
-			clearPreviews(true, false, true, false, true);
+			clearPreviews(true, false, true, false, true, true);
 			new HtmlThread(doc, requestCount).start();
 		}
 		else {
 			boolean htmlEnabled = doc.isHtmlFile() && !browserCreationFailed;
 			textPreview.setHtmlButtonEnabled(htmlEnabled);
 			moveToTop(textPreview);
-			clearPreviews(false, false, true, true, true);
+			clearPreviews(false, false, true, true, true, true);
 			new TextThread(doc, requestCount).start();
 		}
 	}
@@ -260,7 +270,7 @@ public final class PreviewPanel extends Composite {
 		disposeLastResources();
 		requestCount++;
 		setError(null, requestCount);
-		clearPreviews(true, false, true, true, true);
+		clearPreviews(true, false, true, true, true, true);
 		ResultDocument ret = lastDoc;
 		lastDoc = null;
 		return ret;
@@ -271,7 +281,8 @@ public final class PreviewPanel extends Composite {
 								boolean showPageToolBar,
 								boolean email,
 								boolean html,
-								boolean pdfImage) {
+								boolean pdfImage,
+								boolean image) {
 		if (text)
 			textPreview.clear(showPageToolBar);
 		if (email && emailPreview != null)
@@ -280,6 +291,8 @@ public final class PreviewPanel extends Composite {
 			htmlPreview.clear();
 		if (pdfImage && pdfImagePreview != null)
 			pdfImagePreview.clear();
+		if (image && imagePreview != null)
+			imagePreview.clear();
 	}
 
 	@NotThreadSafe
@@ -558,6 +571,30 @@ public final class PreviewPanel extends Composite {
 			boolean success = runSafely(startCount, stackComp, new Runnable() {
 				public void run() {
 					pdfImagePreview.setFile(file, new PdfImagePreview.ErrorHandler() {
+						public void handleError(String message) {
+							setError(Msg.preview_render_failed.format(message), startCount);
+						}
+					});
+					lastHtmlResource = resource; // Keep the file alive while displayed
+				}
+			});
+			if (!success)
+				resource.dispose();
+		}
+	}
+	
+	private class ImageThread extends PreviewThread {
+		public ImageThread(@NotNull ResultDocument doc, long startCount) {
+			super(doc, startCount);
+		}
+
+		protected void doRun(Hider overlayHider) throws ParseException,
+				FileNotFoundException, CheckedOutOfMemoryError {
+			final FileResource resource = doc.getFileResource();
+			final File file = resource.getFile();
+			boolean success = runSafely(startCount, stackComp, new Runnable() {
+				public void run() {
+					imagePreview.setFile(file, new ImagePreview.ErrorHandler() {
 						public void handleError(String message) {
 							setError(Msg.preview_render_failed.format(message), startCount);
 						}

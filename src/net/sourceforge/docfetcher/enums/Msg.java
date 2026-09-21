@@ -946,9 +946,9 @@ public enum Msg {
 		"Label on the 'Inbox' tab showing the number of listed files, " +
 		"inserted in the {0} slot."),
 	inbox_not_indexed (
-		"The inbox folder is being indexed. The files will appear once " +
-		"indexing has finished.",
-		"Message shown on the 'Inbox' tab while the inbox folder has no " +
+		"The inbox folder is being indexed. Name and folder suggestions " +
+		"will be available once indexing has finished.",
+		"Message shown on an inbox tab while the inbox folder has no " +
 		"index yet."),
 	inbox_folder_missing (
 		"The inbox folder does not exist:\n{0}",
@@ -1002,7 +1002,11 @@ public enum Msg {
 	page_of ("Page {0} of {1}",
 		"Label showing the current page number and the total number of pages " +
 		"in the PDF preview."),
-
+	image_dimensions ("{0} x {1} pixels",
+		"Label on the image preview toolbar showing the width and height " +
+		"of the image, inserted in the {0} and {1} slots."),
+	unsupported_image_format ("Unsupported image format.",
+		"Error shown in the preview pane when an image file can't be decoded."),
 	;
 	
 	private static boolean checkEnabled = true;

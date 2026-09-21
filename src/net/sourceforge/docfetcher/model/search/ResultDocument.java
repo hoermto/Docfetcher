@@ -14,7 +14,9 @@ package net.sourceforge.docfetcher.model.search;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -339,6 +341,19 @@ public final class ResultDocument {
 	
 	public boolean isRtfFile() {
 		return wasParsedBy("RtfParser");
+	}
+	
+	private static final Set<String> IMAGE_EXTENSIONS = new HashSet<String>(
+		Arrays.asList("png", "jpg", "jpeg", "gif", "bmp", "tif", "tiff"));
+	
+	/**
+	 * Returns true if this is an image file (by extension), which the preview
+	 * pane shows as a picture, e.g. a scanned document.
+	 */
+	public boolean isImageFile() {
+		if (isEmail)
+			return false;
+		return IMAGE_EXTENSIONS.contains(Util.getExtension(getFilename()).toLowerCase());
 	}
 	
 	/**

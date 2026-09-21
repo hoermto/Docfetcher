@@ -30,15 +30,16 @@ import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.LuceneIndex;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.model.search.Searcher;
+import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 
 /**
- * The 'Inbox' tab: lists the indexed files located directly in the inbox
- * folder (e.g. new documents from a scanner) in a result table, so that they
- * can be previewed, renamed and moved like search results.
+ * An inbox tab: lists all files located directly in the inbox folder (e.g.
+ * new documents from a scanner), indexed or not, in a result table, so that
+ * they can be previewed, renamed and moved like search results.
  */
 public final class InboxPanel {
 
@@ -84,6 +85,13 @@ public final class InboxPanel {
 
 		resultPanel = new ResultPanel(comp, indexRegistry, true);
 		resultPanel.getControl().setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+		
+		// Files may have been moved away or renamed
+		resultPanel.evtDocumentsChanged.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				refresh();
+			}
+		});
 	}
 
 	@NotNull
@@ -143,21 +151,18 @@ public final class InboxPanel {
 				}
 				else {
 					LuceneIndex index = findIndexFor(folder);
-					if (index == null) {
+					if (index == null)
 						message = Msg.inbox_not_indexed.get();
+					try {
+						Searcher searcher = indexRegistry.getSearcher();
+						if (searcher != null)
+							docs = searcher.listFolder(index, folder);
 					}
-					else {
-						try {
-							Searcher searcher = indexRegistry.getSearcher();
-							if (searcher != null)
-								docs = searcher.listFolder(index, folder);
-						}
-						catch (Exception e) {
-							message = e.getMessage();
-						}
-						catch (OutOfMemoryError e) {
-							message = e.toString();
-						}
+					catch (Exception e) {
+						message = e.getMessage();
+					}
+					catch (OutOfMemoryError e) {
+						message = e.toString();
 					}
 				}
 				final List<ResultDocument> result = docs;

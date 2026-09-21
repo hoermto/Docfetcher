@@ -40,6 +40,7 @@ import net.sourceforge.docfetcher.model.Path;
 import net.sourceforge.docfetcher.model.PendingDeletion;
 import net.sourceforge.docfetcher.model.index.DecoratedMultiReader;
 import net.sourceforge.docfetcher.model.index.IndexingConfig;
+import net.sourceforge.docfetcher.model.parse.ParseService;
 import net.sourceforge.docfetcher.model.index.file.FileFactory;
 import net.sourceforge.docfetcher.model.index.outlook.OutlookMailFactory;
 import net.sourceforge.docfetcher.model.parse.Parser;
@@ -439,19 +440,73 @@ public final class Searcher {
 	}
 	
 	/**
-	 * Lists the indexed documents located directly in the given folder (not
-	 * in its subfolders). The folder must be covered by the given index. The
-	 * results carry a match-all query, i.e. nothing is highlighted in the
-	 * preview.
+	 * Lists the files located directly in the given folder (not in its
+	 * subfolders), whether they are indexed or not. Indexed files are
+	 * returned with their index data (title, page count, etc.); for the other
+	 * files, the data is derived from the file itself. {@code index} is the
+	 * index covering the folder, or null if there is none. The results carry
+	 * a match-all query, i.e. nothing is highlighted in the preview.
 	 */
 	@ImmutableCopy
 	@NotNull
 	@ThreadSafe
-	public List<ResultDocument> listFolder(	@NotNull LuceneIndex index,
+	public List<ResultDocument> listFolder(	@Nullable LuceneIndex index,
 											@NotNull File folder)
 			throws SearchException, CheckedOutOfMemoryError {
-		Util.checkNotNull(index, folder);
+		Util.checkNotNull(folder);
+		IndexingConfig config = index != null ? index.getConfig() : new IndexingConfig();
 		
+		// Indexed documents by canonical file path
+		Map<String, ResultDocument> indexed = new HashMap<String, ResultDocument>();
+		if (index != null) {
+			for (ResultDocument doc : listIndexedFolder(index, folder)) {
+				File file = Util.getCanonicalFile(doc.getPath().getCanonicalFile());
+				indexed.put(file.getPath(), doc);
+			}
+		}
+		
+		List<ResultDocument> results = new ArrayList<ResultDocument>();
+		File[] files = folder.listFiles();
+		if (files == null)
+			return results;
+		for (File file : files) {
+			if (!file.isFile() || file.isHidden())
+				continue;
+			ResultDocument doc = indexed.get(Util.getCanonicalFile(file).getPath());
+			results.add(doc != null ? doc : createFileDocument(config, file));
+		}
+		return results;
+	}
+	
+	/**
+	 * Creates a result document for a file that is not (yet) in an index,
+	 * with the data that can be read from the file system.
+	 */
+	@NotNull
+	private ResultDocument createFileDocument(	@NotNull IndexingConfig config,
+												@NotNull File file) {
+		String filename = file.getName();
+		Document doc = new Document();
+		doc.add(Fields.UID.create(DocumentType.FILE.createUniqueId(config.getStorablePath(file))));
+		doc.add(Fields.FILENAME.create(filename));
+		doc.add(Fields.TYPE.create(Util.getExtension(filename)));
+		doc.add(Fields.PARSER.create(ParseService.getParserName(config, filename)));
+		doc.add(Fields.TITLE.create(Util.splitFilename(filename)[0]));
+		doc.add(Fields.SIZE.create(file.length()));
+		doc.add(Fields.LAST_MODIFIED.create(String.valueOf(file.lastModified())));
+		return new ResultDocument(
+			doc, 0, new MatchAllDocsQuery(), false, config, fileFactory,
+			outlookMailFactory);
+	}
+	
+	/**
+	 * Lists the indexed documents located directly in the given folder (not
+	 * in its subfolders). The folder must be covered by the given index.
+	 */
+	@NotNull
+	private List<ResultDocument> listIndexedFolder(	@NotNull LuceneIndex index,
+													@NotNull File folder)
+			throws SearchException, CheckedOutOfMemoryError {
 		// The UIDs contain the path in the form the index stores it
 		Path folderPath = Util.isCanonicallyEqual(index.getCanonicalRootFile(), folder)
 			? index.getRootFolder().getPath()

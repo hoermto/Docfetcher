@@ -6,7 +6,6 @@
 - no git push allowed
 
 ## changes
-[] add preview for png/jpg
 
 ## features
 [] v2.4 UI style follow W11 on Windows

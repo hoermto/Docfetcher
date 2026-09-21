@@ -391,6 +391,20 @@ public final class ParseService {
 //		throw new IllegalArgumentException();
 	}
 	
+	/**
+	 * Returns the name of the parser that would parse a file with the given
+	 * name, as stored in the index, or the name of the filename-only parser if
+	 * no parser matches.
+	 */
+	@NotNull
+	public static String getParserName(	@NotNull IndexingConfig config,
+										@NotNull String filename) {
+		Parser parser = findParserByName(config, filename);
+		return parser == null
+			? FILENAME_PARSER
+			: parser.getClass().getSimpleName();
+	}
+	
 	@Nullable
 	private static Parser findParserByName(	@NotNull IndexingConfig config,
 											@NotNull String filename) {
