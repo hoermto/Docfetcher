@@ -302,6 +302,11 @@ public final class ResultDocument {
 		parentPath = null;
 	}
 	
+	@NotNull
+	public String getUniqueId() {
+		return uid;
+	}
+	
 	public boolean isEmail() {
 		return isEmail;
 	}

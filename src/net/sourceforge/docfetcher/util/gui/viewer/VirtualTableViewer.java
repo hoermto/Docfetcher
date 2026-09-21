@@ -200,6 +200,28 @@ public abstract class VirtualTableViewer<E> {
 		table.clearAll();
 	}
 	
+	/** Returns the current elements (empty before the first setRoot call). */
+	@NotNull
+	public final List<E> getElements() {
+		return elements == null ? Collections.<E>emptyList() : Collections.unmodifiableList(elements);
+	}
+	
+	/**
+	 * Selects the given elements (those that are present in the table).
+	 */
+	public final void setSelection(@NotNull Collection<E> toSelect) {
+		if (elements == null)
+			return;
+		List<Integer> indices = new ArrayList<Integer>();
+		for (int i = 0; i < elements.size(); i++)
+			if (toSelect.contains(elements.get(i)))
+				indices.add(i);
+		int[] array = new int[indices.size()];
+		for (int i = 0; i < array.length; i++)
+			array[i] = indices.get(i);
+		table.setSelection(array);
+	}
+	
 	/**
 	 * Redraws all rows, e.g. after the elements' contents have changed.
 	 */

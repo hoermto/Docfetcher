@@ -22,7 +22,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import net.sourceforge.docfetcher.enums.Img;
@@ -36,6 +38,8 @@ import net.sourceforge.docfetcher.model.index.Task.IndexAction;
 import net.sourceforge.docfetcher.model.Path;
 import net.sourceforge.docfetcher.model.Path.PathParts;
 import net.sourceforge.docfetcher.model.parse.ParseException;
+import net.sourceforge.docfetcher.model.search.NameSuggester;
+import net.sourceforge.docfetcher.model.search.NameSuggester.Suggestion;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.Event;
@@ -49,7 +53,6 @@ import net.sourceforge.docfetcher.util.gui.ContextMenuManager;
 import net.sourceforge.docfetcher.util.gui.FileIconCache;
 import net.sourceforge.docfetcher.util.gui.MenuAction;
 import net.sourceforge.docfetcher.util.gui.dialog.MultipleChoiceDialog;
-import net.sourceforge.docfetcher.util.gui.dialog.TextInputDialog;
 import net.sourceforge.docfetcher.util.gui.viewer.VirtualTableViewer;
 import net.sourceforge.docfetcher.util.gui.viewer.VirtualTableViewer.Column;
 
@@ -64,6 +67,8 @@ import org.eclipse.swt.events.ControlAdapter;
 import org.eclipse.swt.events.ControlEvent;
 import org.eclipse.swt.events.KeyAdapter;
 import org.eclipse.swt.events.KeyEvent;
+import org.eclipse.swt.events.MenuAdapter;
+import org.eclipse.swt.events.MenuEvent;
 import org.eclipse.swt.events.MouseAdapter;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.SelectionAdapter;
@@ -71,6 +76,8 @@ import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
 
@@ -125,6 +132,19 @@ public final class ResultPanel {
 	@Nullable private DragSource dragSource;
 	private int dragOperations = 0;
 	private boolean lastDragWasCopy = false;
+	
+	/*
+	 * Name suggestions are computed in the background when a document is
+	 * selected, so that they're usually ready when the context menu or the
+	 * rename dialog is opened. Both maps are accessed under their own lock.
+	 */
+	private final Map<ResultDocument, Suggestion> suggestionCache = new LinkedHashMap<ResultDocument, Suggestion>(16, 0.75f, true) {
+		protected boolean removeEldestEntry(Map.Entry<ResultDocument, Suggestion> eldest) {
+			return size() > 50;
+		}
+	};
+	private final Set<ResultDocument> suggestionsInProgress = new HashSet<ResultDocument>();
+	private final Set<ResultDocument> suggestionsFailed = new HashSet<ResultDocument>();
 	private HeaderMode presetHeaderMode = HeaderMode.FILES; // externally suggested header mode
 	private HeaderMode actualHeaderMode = HeaderMode.FILES; // header mode after examining each visible element
 	private final Column<ResultDocument> dateColumn;
@@ -170,7 +190,10 @@ public final class ResultPanel {
 		
 		table.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				evtSelection.fire(viewer.getSelection());
+				List<ResultDocument> selection = viewer.getSelection();
+				evtSelection.fire(selection);
+				if (selection.size() == 1)
+					requestSuggestion(selection.get(0));
 			}
 		});
 		
@@ -449,6 +472,18 @@ public final class ResultPanel {
 			}
 		});
 		
+		final Menu renameToMenu = menuManager.addSubmenu(new MenuAction(Msg.rename_to_submenu.get()) {
+			public boolean isEnabled() {
+				List<ResultDocument> sel = viewer.getSelection();
+				return sel.size() == 1 && !sel.get(0).isEmail();
+			}
+		});
+		renameToMenu.addMenuListener(new MenuAdapter() {
+			public void menuShown(MenuEvent e) {
+				fillRenameToMenu(renameToMenu);
+			}
+		});
+		
 		menuManager.add(new MenuAction(Msg.move_to_folder.get()) {
 			public boolean isEnabled() {
 				List<ResultDocument> sel = viewer.getSelection();
@@ -494,13 +529,18 @@ public final class ResultPanel {
 			return;
 		}
 		File file = doc.getPath().getCanonicalFile();
-		TextInputDialog dialog = new TextInputDialog(
-			getControl().getShell(), Msg.rename_document_title.get(),
-			Msg.rename_document_msg.get(), file.getName());
-		dialog.setSelectFilenameOnly(true);
+		RenameDialog dialog = new RenameDialog(
+			getControl().getShell(), file.getName(), getSuggestion(doc));
 		String newName = dialog.open();
-		if (newName == null)
-			return;
+		if (newName != null)
+			renameTo(doc, newName);
+	}
+	
+	/**
+	 * Renames the document's file to the given name (in the same folder).
+	 */
+	private void renameTo(@NotNull ResultDocument doc, @NotNull String newName) {
+		File file = doc.getPath().getCanonicalFile();
 		newName = newName.trim();
 		if (newName.isEmpty() || newName.equals(file.getName()))
 			return;
@@ -510,10 +550,120 @@ public final class ResultPanel {
 		}
 		File target = new File(file.getParentFile(), newName);
 		if (moveFile(file, target)) {
-			doc.setPathAfterFileOperation(target);
+			synchronized (suggestionCache) {
+				Suggestion suggestion = suggestionCache.remove(doc);
+				doc.setPathAfterFileOperation(target);
+				if (suggestion != null)
+					suggestionCache.put(doc, suggestion);
+			}
 			viewer.refresh();
 			updateIndexesFor(Arrays.asList(file, target));
 			evtDocumentsChanged.fire(null);
+		}
+	}
+	
+	/*
+	 * Name suggestions
+	 */
+	
+	@Nullable
+	private Suggestion getSuggestion(@NotNull ResultDocument doc) {
+		synchronized (suggestionCache) {
+			return suggestionCache.get(doc);
+		}
+	}
+	
+	/**
+	 * Computes the name suggestion for the given document in the background,
+	 * unless it is already available or being computed.
+	 */
+	private void requestSuggestion(@NotNull final ResultDocument doc) {
+		if (!doc.isPlainFileOnDisk())
+			return;
+		synchronized (suggestionCache) {
+			if (suggestionCache.containsKey(doc) || suggestionsInProgress.contains(doc)
+					|| suggestionsFailed.contains(doc))
+				return;
+			suggestionsInProgress.add(doc);
+		}
+		Thread thread = new Thread(ResultPanel.class.getName() + " (name suggestion)") {
+			public void run() {
+				Suggestion suggestion = null;
+				try {
+					suggestion = NameSuggester.suggest(doc, indexRegistry.getSearcher());
+				}
+				catch (Exception e) {
+					// Unparsable document etc.: no suggestion
+				}
+				catch (OutOfMemoryError e) {
+					// Ditto
+				}
+				synchronized (suggestionCache) {
+					suggestionsInProgress.remove(doc);
+					if (suggestion != null)
+						suggestionCache.put(doc, suggestion);
+					else
+						suggestionsFailed.add(doc);
+				}
+			}
+		};
+		thread.setDaemon(true);
+		thread.setPriority(Thread.MIN_PRIORITY);
+		thread.start();
+	}
+	
+	/**
+	 * Fills the 'Rename To' submenu with name variants using 2 to 5 of the
+	 * suggested keywords for the selected document.
+	 */
+	private void fillRenameToMenu(@NotNull Menu menu) {
+		for (MenuItem item : menu.getItems())
+			item.dispose();
+		List<ResultDocument> sel = viewer.getSelection();
+		if (sel.size() != 1)
+			return;
+		final ResultDocument doc = sel.get(0);
+		Suggestion suggestion = getSuggestion(doc);
+		
+		String infoText = null;
+		boolean inProgress;
+		synchronized (suggestionCache) {
+			inProgress = suggestionsInProgress.contains(doc);
+		}
+		if (suggestion == null) {
+			requestSuggestion(doc);
+			infoText = inProgress || !suggestionsFailed.contains(doc)
+				? Msg.suggestions_computing.get()
+				: Msg.suggestions_unavailable.get();
+		}
+		else if (suggestion.getWords().size() < 2) {
+			infoText = Msg.suggestions_unavailable.get();
+		}
+		if (infoText != null) {
+			MenuItem item = new MenuItem(menu, SWT.PUSH);
+			item.setText(infoText);
+			item.setEnabled(false);
+			item.setData(new MenuAction(infoText));
+			return;
+		}
+		
+		String extension = Util.splitFilename(doc.getFilename())[1];
+		int maxWords = Math.min(NameSuggester.MAX_WORDS, suggestion.getWords().size());
+		for (int words = 2; words <= maxWords; words++) {
+			final String name = suggestion.buildName(words, extension);
+			final MenuAction action = new MenuAction(name.replace("&", "&&")) {
+				public void run() {
+					renameTo(doc, name);
+				}
+			};
+			MenuItem item = new MenuItem(menu, SWT.PUSH);
+			item.setText(action.getLabel());
+			item.setData(action);
+			item.addSelectionListener(new SelectionAdapter() {
+				public void widgetSelected(SelectionEvent e) {
+					action.run();
+				}
+			});
 		}
 	}
 	
@@ -746,6 +896,17 @@ public final class ResultPanel {
 	@NotNull
 	public Table getControl() {
 		return viewer.getControl();
+	}
+	
+	/**
+	 * Selects the documents with the given unique IDs, if present.
+	 */
+	public void selectByUids(@NotNull Set<String> uids) {
+		List<ResultDocument> toSelect = new ArrayList<ResultDocument>();
+		for (ResultDocument doc : viewer.getElements())
+			if (uids.contains(doc.getUniqueId()))
+				toSelect.add(doc);
+		viewer.setSelection(toSelect);
 	}
 	
 	public int getItemCount() {

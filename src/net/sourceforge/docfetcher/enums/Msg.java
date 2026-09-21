@@ -918,6 +918,57 @@ public enum Msg {
 		"shown in the first column of the 'Move to Folder' dialog, e.g. 2 " +
 		"shows 'Projects/Reports'."),
 	
+	// Inbox tab and name suggestions
+	search_tab ("Search",
+		"Label of the main window tab containing the search field and the " +
+		"search results."),
+	inbox_tab ("Inbox",
+		"Label of the main window tab listing the files in the inbox folder, " +
+		"e.g. documents from a scanner that still have to be renamed and filed."),
+	pref_inbox_folder ("Inbox folder:",
+		Comments.prefOption + "The folder whose files are listed on the " +
+		"'Inbox' tab, typically where a scanner saves new documents."),
+	pref_inbox_folder_hint (
+		"Files in this folder are listed on the 'Inbox' tab, where they can " +
+		"be renamed and moved. Leave empty to hide the tab. The folder is " +
+		"indexed automatically.",
+		"Explanatory text below the 'Inbox folder' option on the preferences " +
+		"dialog."),
+	inbox_folder_label ("Inbox folder: {0}",
+		"Label on the 'Inbox' tab showing the inbox folder. The folder path " +
+		"is inserted in the {0} slot."),
+	inbox_files_count ("{0} files",
+		"Label on the 'Inbox' tab showing the number of listed files, " +
+		"inserted in the {0} slot."),
+	inbox_not_indexed (
+		"The inbox folder is being indexed. The files will appear once " +
+		"indexing has finished.",
+		"Message shown on the 'Inbox' tab while the inbox folder has no " +
+		"index yet."),
+	inbox_folder_missing (
+		"The inbox folder does not exist:\n{0}",
+		"Message shown on the 'Inbox' tab when the configured folder is " +
+		"missing. The path is inserted in the {0} slot."),
+	refresh ("Refresh",
+		"Label of the button that reloads the file list on the 'Inbox' tab."),
+	rename_to_submenu ("Rename To",
+		"Context menu entry of the result table containing suggested file " +
+		"names; selecting one renames the file."),
+	suggestions_computing ("(computing suggestions...)",
+		"Disabled entry in the 'Rename To' submenu while the name " +
+		"suggestions are being computed."),
+	suggestions_unavailable ("(no suggestion available)",
+		"Disabled entry in the 'Rename To' submenu when no suggestion could " +
+		"be computed, e.g. because the document couldn't be parsed."),
+	suggested_keywords ("Suggested keywords (click to add):",
+		"Label above the list of suggested keywords in the rename dialog."),
+	use_current_name ("Use current name",
+		"Link in the rename dialog that resets the name field to the " +
+		"file's current name."),
+	use_suggested_name ("Use suggested name",
+		"Link in the rename dialog that fills the name field with the " +
+		"suggested name."),
+	
 	// Search settings dialog (document types and search scope filters)
 	search_settings_title ("Search Settings",
 		"Window title of the dialog containing the search filters, i.e. the " +

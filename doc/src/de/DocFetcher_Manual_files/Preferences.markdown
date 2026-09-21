@@ -35,3 +35,4 @@ Umbenennen...  |  Ändert den angezeigten Namen des selektierten Index.
 Entfernen  |  Entfernt die selektierten Indizes.
 Verwaiste entfernen  |  Entfernt alle Indizes, deren Dokument-Ordner nicht mehr existieren.
 Index-Ordner  |  Der Ordner, in dem DocFetcher seine Index-Dateien ablegt. Leer lassen, um den Standardordner zu verwenden. Eine Änderung wird erst nach einem Neustart von DocFetcher wirksam; Sie werden gefragt, ob die vorhandenen Indizes beim nächsten Start in den neuen Ordner verschoben werden sollen.
+Postbox-Ordner  |  Der Ordner, der im Reiter `Postbox` des Hauptfensters aufgelistet wird, z.&nbsp;B. der Ablageordner Ihres Scanners. Leer lassen, um den Reiter auszublenden. Der Ordner wird automatisch indiziert, falls ihn noch kein Index abdeckt.

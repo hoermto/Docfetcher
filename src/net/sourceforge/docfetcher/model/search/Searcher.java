@@ -429,6 +429,109 @@ public final class Searcher {
 		}
 	}
 	
+	/**
+	 * Lists the indexed documents located directly in the given folder (not
+	 * in its subfolders). The folder must be covered by the given index. The
+	 * results carry a match-all query, i.e. nothing is highlighted in the
+	 * preview.
+	 */
+	@ImmutableCopy
+	@NotNull
+	@ThreadSafe
+	public List<ResultDocument> listFolder(	@NotNull LuceneIndex index,
+											@NotNull File folder)
+			throws SearchException, CheckedOutOfMemoryError {
+		Util.checkNotNull(index, folder);
+		
+		// The UIDs contain the path in the form the index stores it
+		Path folderPath = Util.isCanonicallyEqual(index.getCanonicalRootFile(), folder)
+			? index.getRootFolder().getPath()
+			: index.getConfig().getStorablePath(folder);
+		String prefix = DocumentType.FILE.createUniqueId(folderPath) + "/";
+		
+		readLock.lock();
+		try {
+			checkIndexesExist();
+			Query query = new MatchAllDocsQuery();
+			BooleanQuery.Builder builder = new BooleanQuery.Builder();
+			builder.add(new PrefixQuery(new Term(Fields.UID.key(), prefix)), BooleanClause.Occur.FILTER);
+			builder.add(query, BooleanClause.Occur.MUST);
+			int maxResults = Math.max(1, MAX_RESULTS);
+			ScoreDoc[] scoreDocs = luceneSearcher.search(builder.build(), maxResults).scoreDocs;
+			
+			List<ResultDocument> results = new ArrayList<ResultDocument>();
+			for (ScoreDoc scoreDoc : scoreDocs) {
+				Document doc = luceneSearcher.doc(scoreDoc.doc);
+				String uid = doc.get(Fields.UID.key());
+				if (uid == null)
+					continue;
+				// Exclude documents in subfolders
+				Path path = DocumentType.extractPath(uid);
+				if (!path.splitAtLastSeparator().getLeft().equals(folderPath))
+					continue;
+				LuceneIndex docIndex = indexes.get(((DecoratedMultiReader) luceneSearcher.getIndexReader()).decoratedReaderIndex(scoreDoc.doc));
+				results.add(new ResultDocument(
+					doc, scoreDoc.score, query, false, docIndex.getConfig(),
+					fileFactory, outlookMailFactory));
+			}
+			return results;
+		}
+		catch (IOException e) {
+			throw new SearchException(e.getMessage());
+		}
+		catch (OutOfMemoryError e) {
+			throw new CheckedOutOfMemoryError(e);
+		}
+		finally {
+			readLock.unlock();
+		}
+	}
+	
+	/**
+	 * Returns the terms of the given text that characterize it best, i.e.
+	 * terms that are frequent in the text but rare across all indexed
+	 * documents (TF-IDF), best first, lowercased as indexed. Returns at most
+	 * {@code maxTerms} terms.
+	 */
+	@ImmutableCopy
+	@NotNull
+	@ThreadSafe
+	public List<String> extractKeywords(@NotNull String text, int maxTerms)
+			throws SearchException, CheckedOutOfMemoryError {
+		Util.checkNotNull(text);
+		readLock.lock();
+		try {
+			checkIndexesExist();
+			MoreLikeThis mlt = new MoreLikeThis(luceneSearcher.getIndexReader());
+			mlt.setAnalyzer(IndexRegistry.getAnalyzer());
+			mlt.setFieldNames(new String[] { Fields.CONTENT.key() });
+			mlt.setMinTermFreq(1);
+			mlt.setMinDocFreq(1);
+			mlt.setMinWordLen(3);
+			/*
+			 * MoreLikeThis pops its priority queue lowest score first, so the
+			 * returned array is in ascending order and a limit would cut off
+			 * the best terms. Retrieve all terms and reverse them instead.
+			 */
+			mlt.setMaxQueryTerms(5000);
+			String[] terms = mlt.retrieveInterestingTerms(new StringReader(text), Fields.CONTENT.key());
+			List<String> ranked = new ArrayList<String>(Arrays.asList(terms));
+			Collections.reverse(ranked);
+			if (ranked.size() > maxTerms)
+				ranked = new ArrayList<String>(ranked.subList(0, maxTerms));
+			return ranked;
+		}
+		catch (IOException e) {
+			throw new SearchException(e.getMessage());
+		}
+		catch (OutOfMemoryError e) {
+			throw new CheckedOutOfMemoryError(e);
+		}
+		finally {
+			readLock.unlock();
+		}
+	}
+	
 	@ImmutableCopy
 	@NotNull
 	@ThreadSafe

@@ -328,7 +328,8 @@ public final class PrefDialog {
 
 		okBt = UtilGui.createPushButton(comp, Msg.ok.get(), new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				if (!indexManagementPanel.validateFolder()) {
+				if (!indexManagementPanel.validateFolder()
+						|| !indexManagementPanel.saveInboxFolder()) {
 					tabFolder.setSelection(1);
 					return;
 				}

@@ -43,6 +43,8 @@ import org.eclipse.swt.events.ControlEvent;
 import org.eclipse.swt.events.ControlListener;
 import org.eclipse.swt.events.DisposeEvent;
 import org.eclipse.swt.events.DisposeListener;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.ShellAdapter;
 import org.eclipse.swt.events.ShellEvent;
 import org.eclipse.swt.events.TraverseEvent;
@@ -56,6 +58,8 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.TabFolder;
+import org.eclipse.swt.widgets.TabItem;
 
 import com.drew.lang.Charsets;
 import com.google.common.base.Joiner;
@@ -129,6 +133,9 @@ public final class Application {
 	private static TwoPanelForm twoPanelForm;
 	private static SearchBar searchBar;
 	private static ResultPanel resultPanel;
+	private static TabFolder mainTabFolder;
+	@Nullable private static TabItem inboxTab;
+	@Nullable private static InboxPanel inboxPanel;
 	private static PreviewPanel previewPanel;
 	private static volatile StatusBarPart indexingStatus;
 	private static SystemTrayHider systemTrayHider;
@@ -332,6 +339,7 @@ public final class Application {
 		initSystemTrayHider();
 		initSearchSettingsDialog();
 		initTwoPanelForm();
+		applyInboxFolder();
 		initStatusBar();
 		initHotkey();
 		initGlobalKeys(display);
@@ -714,6 +722,8 @@ public final class Application {
 		queue.evtQueueEmpty.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
 				backgroundIndexingPending = false;
+				if (inboxPanel != null)
+					inboxPanel.refresh();
 				/*
 				 * Bug #3485598: The indexing status widget can be null at this
 				 * point. Possible explanation: An indexing update was issued by
@@ -1217,6 +1227,83 @@ public final class Application {
 	}
 
 	private static Control createRightTopPanel(Composite parent) {
+		mainTabFolder = new TabFolder(parent, SWT.TOP);
+		TabItem searchTab = new TabItem(mainTabFolder, SWT.NONE);
+		searchTab.setText(Msg.search_tab.get());
+		searchTab.setControl(createSearchPanel(mainTabFolder));
+		mainTabFolder.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				if (inboxTab != null && mainTabFolder.getSelection().length > 0
+						&& mainTabFolder.getSelection()[0] == inboxTab
+						&& inboxPanel != null)
+					inboxPanel.refresh();
+			}
+		});
+		return mainTabFolder;
+	}
+	
+	/**
+	 * Creates or removes the 'Inbox' tab according to the inbox folder
+	 * setting, and makes sure the inbox folder is indexed.
+	 */
+	private static void applyInboxFolder() {
+		String value = SettingsConf.Str.InboxFolder.get().trim();
+		if (value.isEmpty()) {
+			if (inboxTab != null) {
+				inboxTab.dispose();
+				inboxPanel.getControl().dispose();
+				inboxTab = null;
+				inboxPanel = null;
+			}
+			return;
+		}
+		File folder = Util.getCanonicalFile(value);
+		if (inboxTab == null) {
+			inboxPanel = new InboxPanel(mainTabFolder, indexRegistry);
+			inboxTab = new TabItem(mainTabFolder, SWT.NONE, 0); // Before the search tab
+			inboxTab.setText(Msg.inbox_tab.get());
+			inboxTab.setControl(inboxPanel.getControl());
+			mainTabFolder.setSelection(inboxTab);
+			
+			final ResultPanel inboxResults = inboxPanel.getResultPanel();
+			inboxResults.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
+				public void update(List<ResultDocument> eventData) {
+					if (!eventData.isEmpty())
+						previewPanel.setPreview(eventData.get(0));
+				}
+			});
+			inboxResults.evtHideInSystemTray.add(new Event.Listener<Void>() {
+				public void update(Void eventData) {
+					systemTrayHider.hide();
+				}
+			});
+			inboxResults.evtDocumentsChanged.add(new Event.Listener<Void>() {
+				public void update(Void eventData) {
+					if (inboxResults.getSelection().isEmpty())
+						previewPanel.clear();
+					else
+						previewPanel.refresh();
+				}
+			});
+		}
+		inboxPanel.setFolder(folder);
+		
+		// Index the inbox folder if no index covers it yet
+		boolean covered = false;
+		for (LuceneIndex index : indexRegistry.getIndexes()) {
+			File root = index.getCanonicalRootFile();
+			if (Util.isCanonicallyEqual(root, folder) || Util.contains(root, folder)) {
+				covered = true;
+				break;
+			}
+		}
+		if (!covered && folder.isDirectory()) {
+			if (indexPanel.createIndexForFolder(folder))
+				showIndexingStatus(shell);
+		}
+	}
+	
+	private static Control createSearchPanel(Composite parent) {
 		Composite comp = new Composite(parent, SWT.NONE);
 		searchBar = new SearchBar(comp);
 		searchBar.evtOpenPreferences.add(new Event.Listener<Void> () {
@@ -1362,6 +1449,7 @@ public final class Application {
 		prefDialog.evtOKClicked.add(new Event.Listener<Void> () {
 		    public void update(Void eventData) {
 		    	saveSettingsConfFile();
+		    	applyInboxFolder();
 		    }
 		});
 		prefDialog.open(showIndexesTab);

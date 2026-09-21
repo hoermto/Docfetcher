@@ -198,6 +198,12 @@ public final class SettingsConf {
 		 * has been changed and the user opted to move the existing indexes.
 		 */
 		PendingIndexMoveFrom (""),
+		
+		/*
+		 * Folder shown on the 'Inbox' tab, e.g. where a scanner drops new
+		 * documents. Empty means the tab is not shown.
+		 */
+		InboxFolder (""),
 		;
 
 		public final Event<String> evtChanged = new Event<String> ();

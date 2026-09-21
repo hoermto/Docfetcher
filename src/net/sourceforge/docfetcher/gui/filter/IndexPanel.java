@@ -651,6 +651,29 @@ public final class IndexPanel {
 		createTaskFromClipboard(shell, indexRegistry, dialogFactory);
 	}
 	
+	/**
+	 * Creates an index for the given folder without user interaction (the
+	 * indexing starts immediately with the default configuration). Returns
+	 * true if the task was enqueued; otherwise an error message is shown.
+	 */
+	public boolean createIndexForFolder(@NotNull File folder) {
+		Util.checkNotNull(folder);
+		File indexParentDir = indexRegistry.getIndexParentDir();
+		String overlapMsg = checkIndexDirOverlap(indexParentDir, folder);
+		if (overlapMsg != null) {
+			AppUtil.showError(overlapMsg, true, true);
+			return false;
+		}
+		FileIndex index = new FileIndex(indexParentDir, folder);
+		Rejection rejection = indexRegistry.getQueue().addTask(
+			index, IndexAction.CREATE, true);
+		if (rejection != null) {
+			AppUtil.showError(getMessage(rejection), true, true);
+			return false;
+		}
+		return true;
+	}
+	
 	public void updateIndexes(@NotNull List<LuceneIndex> indexes) {
 		enqueue(indexes, IndexAction.UPDATE);
 	}
