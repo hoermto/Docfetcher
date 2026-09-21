@@ -358,8 +358,8 @@ public final class SettingsConf {
 
 	@Description("# Comma-separated lists of table column widths.")
 	public enum ColumnWidths implements Storable {
-		ResultPanel (250, 130, 55, 200, 60, 350),
-		InboxPanel (26, 26, 250, 130, 55, 200, 60, 350),
+		ResultPanel (260, 130, 55, 60, 350),
+		InboxPanel (26, 26, 260, 130, 55, 60, 350),
 		IndexingErrorTable (100, 100, 500),
 		PatternTable (200, 75, 75),
 		;

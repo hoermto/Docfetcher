@@ -255,12 +255,16 @@ public final class ResultPanel {
 			initActionColumnClicks(table);
 		}
 		
-		viewer.addColumn(new VariableHeaderColumn<ResultDocument>(Msg.title.get(), Msg.subject.get()) {
+		// The file name identifies a document better than its title, which
+		// often is just the file name without extension or some boilerplate
+		viewer.addColumn(new VariableHeaderColumn<ResultDocument>(Msg.filename.get(), Msg.subject.get()) {
 			protected String getLabel(ResultDocument element) {
-				return element.getTitle();
+				if (element.isEmail())
+					return element.getTitle(); // Subject
+				return element.getFilename();
 			}
 			protected int compare(ResultDocument e1, ResultDocument e2) {
-				return compareAlphanum(e1.getTitle(), e2.getTitle());
+				return compareAlphanum(getLabel(e1), getLabel(e2));
 			}
 		});
 		
@@ -297,17 +301,6 @@ public final class ResultPanel {
 			}
 		});
 		
-		viewer.addColumn(new VariableHeaderColumn<ResultDocument>(Msg.filename.get(), Msg.sender.get()) {
-			protected String getLabel(ResultDocument element) {
-				if (element.isEmail())
-					return element.getSender();
-				return element.getFilename();
-			}
-			protected int compare(ResultDocument e1, ResultDocument e2) {
-				return compareAlphanum(getLabel(e1), getLabel(e2));
-			}
-		});
-
 		viewer.addColumn(new Column<ResultDocument>(Msg.type.get()) {
 			protected String getLabel(ResultDocument element) {
 				return element.getType();

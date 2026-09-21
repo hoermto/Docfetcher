@@ -6,7 +6,6 @@
 - no git push allowed
 
 ## changes
-[] in inbox and search table, remove the title and use the filename instead; drop the filename column (duplicated, eats up space)
 
 ## features
 [] ocr for png/jpg and add text to metadata
