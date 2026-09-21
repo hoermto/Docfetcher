@@ -295,6 +295,15 @@ def create_base_build(dst, is_portable, force_macos=False, force_windows=False):
 			continue
 		shutil.copyfile(lib_file, join(dst, "lib", name))
 
+	# Trained data for text recognition (the Tesseract libraries themselves
+	# are native libraries and were copied above)
+	tessdata_src = "lib/tesseract/tessdata"
+	if osp.isdir(tessdata_src):
+		tessdata_dst = join(dst, "lib", "tessdata")
+		if osp.exists(tessdata_dst):
+			shutil.rmtree(tessdata_dst)
+		shutil.copytree(tessdata_src, tessdata_dst)
+
 # for non-Windows platforms
 # string, string -> None
 def copy_compiled_executables(dst_dir, path_templ):

@@ -38,6 +38,7 @@ import org.eclipse.swt.widgets.TabItem;
 
 import net.sourceforge.docfetcher.gui.ManualLocator;
 import net.sourceforge.docfetcher.gui.filter.IndexPanel;
+import net.sourceforge.docfetcher.model.ocr.OcrEngine;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.Event;
@@ -128,7 +129,11 @@ public final class PrefDialog {
 
 			new CheckOption(
 				Msg.pref_update_indexes_on_startup.get(),
-				SettingsConf.Bool.UpdateIndexesOnStartup)
+				SettingsConf.Bool.UpdateIndexesOnStartup),
+
+			new CheckOption(
+				Msg.pref_ocr.get(),
+				SettingsConf.Bool.OcrEnabled)
 
 			// TODO post-release-1.1: Implement this; requires saving and restoring the tree expansion state
 			//	new CheckOption(
@@ -257,6 +262,17 @@ public final class PrefDialog {
 
 		for (PrefOption checkOption : checkOptions)
 			checkOption.createControls(comp);
+
+		// Explain why text recognition can't be used, e.g. missing runtime
+		String ocrProblem = OcrEngine.getInstance().getUnavailableReason();
+		if (ocrProblem != null) {
+			Label ocrLabel = new Label(comp, SWT.WRAP);
+			ocrLabel.setText(Msg.ocr_unavailable.format(ocrProblem));
+			ocrLabel.setForeground(comp.getDisplay().getSystemColor(SWT.COLOR_WIDGET_DISABLED_FOREGROUND));
+			GridData ocrData = new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1);
+			ocrData.widthHint = 500;
+			ocrLabel.setLayoutData(ocrData);
+		}
 
 		Label spacing = new Label(comp, SWT.NONE);
 		GridData spacingGridData = new GridData(SWT.FILL, SWT.FILL, true, false, 2, 1);

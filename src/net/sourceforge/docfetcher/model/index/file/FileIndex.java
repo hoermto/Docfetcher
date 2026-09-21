@@ -13,8 +13,10 @@ package net.sourceforge.docfetcher.model.index.file;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.model.Cancelable;
@@ -30,6 +32,7 @@ import net.sourceforge.docfetcher.model.index.IndexingError.ErrorType;
 import net.sourceforge.docfetcher.model.index.IndexingException;
 import net.sourceforge.docfetcher.model.index.IndexingInfo.InfoType;
 import net.sourceforge.docfetcher.model.index.IndexingReporter;
+import net.sourceforge.docfetcher.model.ocr.OcrPreprocessor;
 import net.sourceforge.docfetcher.model.index.MutableInt;
 import net.sourceforge.docfetcher.model.index.file.FileFolder.FileFolderVisitor;
 import net.sourceforge.docfetcher.util.Util;
@@ -279,6 +282,7 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 		 * Note: If the user aborts the indexing, the file tree must be left in
 		 * a consistent state, so that the user can continue indexing later.
 		 */
+		final Set<String> createdFiles = new HashSet<String>();
 		new HtmlFileLister<IndexingException>(
 			dirOrZip, context.getConfig(), context.getReporter()) {
 			protected void handleFile(@NotNull File file) {
@@ -288,14 +292,39 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 						unseenSubFolders.remove(file.getName());
 						return;
 					}
+					if (createdFiles.contains(file.getName()))
+						return; // Created and indexed by this run already
 					FileDocument doc = unseenDocs.remove(file.getName());
+					boolean added = doc == null;
+					boolean modified = !added && doc.isModified(context, file, null);
+					
+					/*
+					 * Text recognition may replace the file (TIFF -> PDF), in
+					 * which case the new file is indexed and the entry of the
+					 * old one is treated as deleted.
+					 */
+					if ((added || modified) && OcrPreprocessor.isEnabled()) {
+						File prepared = OcrPreprocessor.prepare(file, context.getStopper());
+						if (!prepared.equals(file)) {
+							if (doc != null)
+								unseenDocs.put(file.getName(), doc);
+							createdFiles.add(prepared.getName());
+							file = file instanceof TFile
+								? new TFile(prepared, ((TFile) file).getArchiveDetector())
+								: prepared;
+							doc = unseenDocs.remove(file.getName());
+							added = doc == null;
+							modified = !added && doc.isModified(context, file, null);
+						}
+					}
+					
 					// File added
-					if (doc == null) {
+					if (added) {
 						doc = createFileDoc(folder, file);
 						context.index(doc, file, true);
 					}
 					// File modified
-					else if (doc.isModified(context, file, null)) {
+					else if (modified) {
 						doc.setLastModified(file.lastModified());
 						doc.setHtmlFolder(null);
 						

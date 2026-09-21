@@ -166,6 +166,7 @@ public enum Msg {
 	filetype_odp ("OpenOffice.org Impress (odp, otp)", Comments.filetype),
 	filetype_pdf ("PDF Document (pdf)", Comments.filetype),
 	filetype_jpg ("JPEG (jpg, jpeg)", Comments.filetype),
+	filetype_image ("Image (png, jpg, gif, bmp, tif)", Comments.filetype),
 	filetype_mp3 ("MP3 (mp3)", Comments.filetype),
 	filetype_rtf ("Rich Text Format (rtf)", Comments.filetype),
 	filetype_svg ("Scalable Vector Graphics (svg)", Comments.filetype),
@@ -814,6 +815,15 @@ public enum Msg {
 		Comments.prefOption + "If checked, all indexes whose folders are " +
 		"watched for changes are updated in the background when the program " +
 		"starts."),
+	pref_ocr (
+		"Recognize text in images and scanned PDFs (OCR, German and English)",
+		Comments.prefOption + "If checked, the text of image files and " +
+		"PDF files without text is recognized with the bundled Tesseract " +
+		"engine and stored in the files."),
+	ocr_unavailable (
+		"Text recognition is not available: {0}",
+		"Message shown in the preferences dialog when the OCR engine could " +
+		"not be loaded. The reason is inserted in the {0} slot."),
 	
 	pref_close_action ("When closing the program window:",
 		Comments.prefOption + "Dropdown for choosing what happens when the " +
@@ -845,8 +855,9 @@ public enum Msg {
 		"were created by an older program version."),
 	rebuild_outdated_indexes_msg (
 		"The following indexes were created by an older version of {0} and " +
-		"don't contain page counts yet. Rebuild them now? The rebuild runs " +
-		"in the background.\n\n{1}",
+		"lack some information (page counts, text recognized in scanned " +
+		"documents). Rebuild them now? The rebuild runs in the " +
+		"background.\n\n{1}",
 		"Message asking the user to rebuild outdated indexes. The program " +
 		"name is inserted in the {0} slot, the list of index names in the " +
 		"{1} slot."),

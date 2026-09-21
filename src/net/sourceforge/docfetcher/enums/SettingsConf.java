@@ -85,6 +85,7 @@ public final class SettingsConf {
 		UpdateIndexesOnStartup (true),
 		AskRebuildOutdatedIndexes (true),
 		MatchFilenames (true), // Search terms also match file names as substrings
+		OcrEnabled (true), // Recognize text in images and scanned PDFs while indexing
 
 		ShowPreviewPanel (true),
 		ShowPreviewPanelAtBottom (false),

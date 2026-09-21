@@ -1,3 +1,9 @@
+==== 2026-09-21 - DocFetcher 2.4 ====
+
+=== Features ===
+  * Text recognition (OCR) with a bundled Tesseract engine (German and English): while indexing, the text of image files (PNG, JPEG, GIF, BMP, TIFF) and of PDF files without text is recognized, so scans can be searched and get name and folder suggestions. TIFF files and PDFs without text are turned into PDFs with an invisible text layer (the TIFF file is replaced); PNG and JPEG files keep the recognized text in their metadata. File dates are preserved. Can be switched off in the preferences. Requires the Microsoft Visual C++ 2015-2022 Redistributable (x64) on Windows.
+  * Existing indexes are offered for a one-time rebuild so that scans get recognized.
+
 ==== 2026-09-21 - DocFetcher 2.3 ====
 
 === Features ===

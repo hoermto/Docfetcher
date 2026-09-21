@@ -50,10 +50,11 @@ public abstract class TreeIndex <
 	
 	/**
 	 * Format version of indexes created or rebuilt by this program version.
-	 * Version 1 (DocFetcher 2.0) added page counts. Deserialized indexes from
-	 * older versions have version 0.
+	 * Version 1 (DocFetcher 2.0) added page counts, version 2 (2.4) the text
+	 * recognized in images and scanned PDFs. Deserialized indexes from older
+	 * versions have version 0.
 	 */
-	public static final int CURRENT_FORMAT_VERSION = 1;
+	public static final int CURRENT_FORMAT_VERSION = 2;
 	
 	private final IndexingConfig config;
 	private final F rootFolder;

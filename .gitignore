@@ -19,3 +19,4 @@
 .settings/
 *.DS_Store
 __pycache__/
+/lib/tesseract/linux-x86-64/
