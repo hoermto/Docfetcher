@@ -1,3 +1,21 @@
+==== 2026-09-21 - DocFetcher 2.0 ====
+
+=== Features ===
+  * Rich document preview: PDF files are shown in the embedded browser's PDF viewer (Edge/WebView2 on Windows, with a PDFBox page viewer as fallback); Word, Excel and RTF documents are rendered as formatted documents with the search terms highlighted.
+  * New tabbed preferences dialog with an 'Indexes' tab for creating, updating, rebuilding, renaming and removing indexes, and for choosing the index folder (existing indexes can be moved).
+  * Search filters (document types, search scope) moved into a 'Search Settings' dialog next to the search field.
+  * Result table: sorted by last-modified date (newest first) by default; columns Title, Last Modified, Pages, Filename, Type, Path; columns are fitted to the available width automatically.
+  * Page counts (PDF, Word, OpenDocument text, PowerPoint slides) are recorded while indexing and shown in the result table.
+  * 'Update indexes on startup' option picks up changes made while the program was closed, even without the daemon.
+  * Options to start DocFetcher with Windows and to minimize to the taskbar or hide in the system tray when closing the window; new Exit toolbar button (Ctrl+Q).
+  * Preview position (right of or below the results) can be set in the preferences.
+  * Complete German translation of the user interface and updated German manual.
+
+=== Changes ===
+  * The file-size filter and the Score, Size and Authors result columns were removed.
+  * The Windows packages can be cross-built on Linux/macOS (python3 build.py windows).
+
+
 ==== 2016-07-25 - DocFetcher 1.1.18 ====
 
 === Features ===
