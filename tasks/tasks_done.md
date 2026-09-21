@@ -32,3 +32,5 @@
   - Move dialog: size/position persisted (ShellBounds), match column fixed, folder column fills the rest. New preference 'Path segments shown for suggested folders' (1-5, default 2) renders e.g. 'testdocs/nature  (/rest/of/path)'.
   - Search Settings: 'Also match file names (any part of the name)' (default on): search terms additionally match file names as case-insensitive substrings; toggling re-runs the current search.
   - Fixed on the way: the 'Indexing...' status indicator could stay visible forever when all startup update tasks were rejected as redundant; hiding a modal dialog left the keyboard focus dangling on GTK.
+- move modal: split the first col into 2: first col with the last x parts of path, 2nd with the initial parts
+  - 'Move to Folder' dialog now has Folder (last N segments), Location (leading part) and Match columns; the folder column is sized to its contents, the location column takes the remaining width.

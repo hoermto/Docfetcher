@@ -85,7 +85,10 @@ final class MoveToFolderDialog {
 		table.setLayoutData(tableData);
 		TableColumn folderCol = new TableColumn(table, SWT.LEFT);
 		folderCol.setText(Msg.folder_col.get());
-		folderCol.setWidth(420);
+		folderCol.setWidth(200);
+		TableColumn locationCol = new TableColumn(table, SWT.LEFT);
+		locationCol.setText(Msg.index_col_location.get());
+		locationCol.setWidth(260);
 		TableColumn matchCol = new TableColumn(table, SWT.RIGHT);
 		matchCol.setText(Msg.match_col.get());
 		matchCol.setWidth(90);
@@ -223,8 +226,10 @@ final class MoveToFolderDialog {
 		table.removeAll();
 		for (FolderSuggestion suggestion : suggestions) {
 			TableItem item = new TableItem(table, SWT.NONE);
-			item.setText(0, formatFolder(suggestion.getFolder()));
-			item.setText(1, Math.round(suggestion.getRelevance() * 100) + " %");
+			String[] parts = splitFolder(suggestion.getFolder());
+			item.setText(0, parts[0]);
+			item.setText(1, parts[1]);
+			item.setText(2, Math.round(suggestion.getRelevance() * 100) + " %");
 			item.setImage(0, Img.FOLDER.get());
 			item.setData(suggestion.getFolder());
 		}
@@ -242,16 +247,23 @@ final class MoveToFolderDialog {
 				setTarget(suggestions.get(0).getFolder());
 			}
 		}
+		// Size the folder column to its contents, the location column gets the rest
+		table.getColumn(0).pack();
+		folderPreferredWidth = table.getColumn(0).getWidth();
+		fitColumns();
 		shell.layout();
 	}
 
+	private int folderPreferredWidth = 200;
+
 	/**
-	 * Formats a folder for display: the last few path segments (as configured
-	 * in the preferences) followed by the remaining leading part of the path
-	 * in parentheses, e.g. "Projects/Reports  (C:\\Users\\me\\Documents)".
+	 * Splits a folder path for display into the trailing part (the last few
+	 * segments, as configured in the preferences) and the leading part, e.g.
+	 * "Projects/Reports" and "C:\\Users\\me\\Documents". The leading part is
+	 * empty if the whole path fits into the configured number of segments.
 	 */
 	@NotNull
-	static String formatFolder(@NotNull File folder) {
+	static String[] splitFolder(@NotNull File folder) {
 		int segments = Math.max(1, SettingsConf.Int.FolderPathSegments.get());
 		List<String> names = new ArrayList<String>();
 		File current = folder;
@@ -260,16 +272,16 @@ final class MoveToFolderDialog {
 			current = current.getParentFile();
 		}
 		if (names.isEmpty())
-			return Util.getSystemAbsPath(folder);
+			return new String[] { Util.getSystemAbsPath(folder), "" };
 		String tail = Util.join(File.separator, names);
-		if (current == null)
-			return tail;
-		return tail + "  (" + Util.getSystemAbsPath(current) + ")";
+		String head = current == null ? "" : Util.getSystemAbsPath(current);
+		return new String[] { tail, head };
 	}
-	
+
 	/**
-	 * Gives the match column a fixed width and lets the folder column fill
-	 * the rest of the table, so that long paths get as much room as possible.
+	 * Gives the match column a fixed width, the folder column the width of
+	 * its contents (but at most about half of the table) and the location
+	 * column the rest, so that long paths get as much room as possible.
 	 */
 	private void fitColumns() {
 		if (table.isDisposed())
@@ -279,10 +291,14 @@ final class MoveToFolderDialog {
 			return;
 		TableColumn[] columns = table.getColumns();
 		int matchWidth = 90;
-		columns[1].setWidth(matchWidth);
-		columns[0].setWidth(Math.max(100, available - matchWidth));
+		int remaining = Math.max(200, available - matchWidth);
+		int folderWidth = Math.min(folderPreferredWidth, remaining / 2);
+		folderWidth = Math.max(folderWidth, 100);
+		columns[0].setWidth(folderWidth);
+		columns[1].setWidth(remaining - folderWidth);
+		columns[2].setWidth(matchWidth);
 	}
-	
+
 	private void setTarget(@Nullable File folder) {
 		targetField.setText(folder == null ? "" : Util.getSystemAbsPath(folder));
 		moveBt.setEnabled(folder != null);

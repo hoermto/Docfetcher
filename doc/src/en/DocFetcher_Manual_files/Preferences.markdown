@@ -15,7 +15,7 @@ When closing the program window  |  What happens when you click on the close but
 Clear search history on exit  |  If checked, DocFetcher will wipe out its history of entered queries on exit.
 Update indexes on startup  |  If checked, all indexes whose folders are watched for changes (see the `Watch folders for file changes` indexing option) are updated in the background when DocFetcher starts. This picks up files that were added, changed, renamed or removed while DocFetcher was not running, even if the DocFetcher daemon is not installed.
 Preview position  |  Whether the preview pane is shown to the right of or below the result table.
-Path segments shown for suggested folders  |  How many trailing parts of a folder path are shown in the first column of the `Move to Folder` dialog, e.g. 2 shows `Projects/Reports`; the rest of the path follows in parentheses.
+Path segments shown for suggested folders  |  How many trailing parts of a folder path are shown in the `Folder` column of the `Move to Folder` dialog, e.g. 2 shows `Projects/Reports`; the leading part of the path is shown in the `Location` column.
 Word segmentation  |  The word segmentation algorithm to use during indexing. The standard algorithm works well with Western languages like English and German. The source code and Chinese algorithm are intended for indexing source code and Chinese text, respectively. Changing the word segmentation algorithm requires rebuilding all existing indexes.
 Highlight color  |  The color to use for highlighting matches in the preview pane.
 Preview font (normal)  |  The font to use in the text preview; applies to all document formats except plain text files.
