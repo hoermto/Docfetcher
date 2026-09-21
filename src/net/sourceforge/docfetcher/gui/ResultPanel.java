@@ -73,13 +73,18 @@ import org.eclipse.swt.events.MouseAdapter;
 import org.eclipse.swt.events.MouseEvent;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Cursor;
 import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.MenuItem;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
 
 /**
  * @author Tran Nam Quang
@@ -149,9 +154,25 @@ public final class ResultPanel {
 	private HeaderMode actualHeaderMode = HeaderMode.FILES; // header mode after examining each visible element
 	private final Column<ResultDocument> dateColumn;
 
+	/** Number of leading columns with clickable action icons (rename, move). */
+	private final int actionColumnCount;
+	
 	public ResultPanel(@NotNull Composite parent, @NotNull IndexRegistry indexRegistry) {
+		this(parent, indexRegistry, false);
+	}
+	
+	/**
+	 * @param actionColumns
+	 *            If true, the table starts with two narrow columns showing a
+	 *            rename and a move icon for each row; clicking an icon runs
+	 *            the respective action for that row.
+	 */
+	public ResultPanel(	@NotNull Composite parent,
+						@NotNull IndexRegistry indexRegistry,
+						boolean actionColumns) {
 		Util.checkNotNull(indexRegistry);
 		this.indexRegistry = indexRegistry;
+		this.actionColumnCount = actionColumns ? 2 : 0;
 		iconCache = new FileIconCache(parent);
 		
 		int treeStyle = SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL | SWT.FULL_SELECTION | SWT.BORDER;
@@ -196,6 +217,32 @@ public final class ResultPanel {
 					requestSuggestion(selection.get(0));
 			}
 		});
+		
+		if (actionColumns) {
+			viewer.addColumn(new Column<ResultDocument>("", SWT.CENTER) {
+				protected String getLabel(ResultDocument element) {
+					return "";
+				}
+				protected Image getImage(ResultDocument element) {
+					return element.isEmail() ? null : Img.PEN.get();
+				}
+				protected String getToolTipText() {
+					return Msg.rename_document_title.get();
+				}
+			});
+			viewer.addColumn(new Column<ResultDocument>("", SWT.CENTER) {
+				protected String getLabel(ResultDocument element) {
+					return "";
+				}
+				protected Image getImage(ResultDocument element) {
+					return element.isEmail() ? null : Img.MOVE.get();
+				}
+				protected String getToolTipText() {
+					return Msg.move_to_folder_title.get();
+				}
+			});
+			initActionColumnClicks(table);
+		}
 		
 		viewer.addColumn(new VariableHeaderColumn<ResultDocument>(Msg.title.get(), Msg.subject.get()) {
 			protected String getLabel(ResultDocument element) {
@@ -275,8 +322,14 @@ public final class ResultPanel {
 		
 		
 		
-		SettingsConf.ColumnWidths.ResultPanel.bind(table);
-		SettingsConf.ColumnOrder.ResultPanelColumnOrder.bind(table);
+		if (actionColumns) {
+			SettingsConf.ColumnWidths.InboxPanel.bind(table);
+			SettingsConf.ColumnOrder.InboxPanelColumnOrder.bind(table);
+		}
+		else {
+			SettingsConf.ColumnWidths.ResultPanel.bind(table);
+			SettingsConf.ColumnOrder.ResultPanelColumnOrder.bind(table);
+		}
 		
 		initColumnFitting(table);
 	}
@@ -349,9 +402,16 @@ public final class ResultPanel {
 			if (available <= 0)
 				return;
 			TableColumn[] columns = table.getColumns();
+			
+			// The action icon columns keep a fixed width
+			int actionWidth = 26;
+			available -= actionColumnCount * actionWidth;
+			if (available <= 0)
+				return;
+			
 			double totalWeight = 0;
-			for (double weight : columnWeights)
-				totalWeight += weight;
+			for (int i = actionColumnCount; i < columnWeights.length; i++)
+				totalWeight += columnWeights[i];
 			if (totalWeight <= 0)
 				return;
 			fittingColumns = true;
@@ -359,14 +419,18 @@ public final class ResultPanel {
 				int assigned = 0;
 				for (int i = 0; i < columns.length; i++) {
 					int width;
-					if (i == columns.length - 1)
+					if (i < actionColumnCount)
+						width = actionWidth;
+					else if (i == columns.length - 1)
 						width = available - assigned; // Absorb rounding errors
 					else
 						width = (int) Math.round(columnWeights[i] * available / totalWeight);
-					width = Math.max(width, MIN_COLUMN_WIDTH);
+					if (i >= actionColumnCount)
+						width = Math.max(width, MIN_COLUMN_WIDTH);
 					if (columns[i].getWidth() != width)
 						columns[i].setWidth(width);
-					assigned += width;
+					if (i >= actionColumnCount)
+						assigned += width;
 				}
 			}
 			finally {
@@ -512,6 +576,34 @@ public final class ResultPanel {
 		});
 	}
 	
+	/**
+	 * Runs the rename or move action when the corresponding icon of a row is
+	 * clicked. The row is selected first, so the actions work on it.
+	 */
+	private void initActionColumnClicks(@NotNull final Table table) {
+		table.addMouseListener(new MouseAdapter() {
+			public void mouseUp(MouseEvent e) {
+				if (e.button != 1)
+					return;
+				Point pt = new Point(e.x, e.y);
+				TableItem item = table.getItem(pt);
+				if (item == null)
+					return;
+				for (int col = 0; col < actionColumnCount; col++) {
+					if (!item.getBounds(col).contains(pt))
+						continue;
+					table.setSelection(item);
+					evtSelection.fire(viewer.getSelection());
+					if (col == 0)
+						renameSelection();
+					else
+						moveSelection();
+					return;
+				}
+			}
+		});
+	}
+	
 	/*
 	 * Renaming and moving documents. Both operate on the files on disk,
 	 * update the affected result documents in memory (so that the table and
@@ -530,7 +622,7 @@ public final class ResultPanel {
 		}
 		File file = doc.getPath().getCanonicalFile();
 		RenameDialog dialog = new RenameDialog(
-			getControl().getShell(), file.getName(), getSuggestion(doc));
+			getControl().getShell(), file.getName(), waitForSuggestion(doc));
 		String newName = dialog.open();
 		if (newName != null)
 			renameTo(doc, newName);
@@ -574,6 +666,44 @@ public final class ResultPanel {
 	}
 	
 	/**
+	 * Returns the name suggestion for the document, computing it first if
+	 * necessary. While computing, the busy cursor is shown and events are
+	 * dispatched, so the GUI stays responsive; gives up after a few seconds.
+	 */
+	@Nullable
+	private Suggestion waitForSuggestion(@NotNull ResultDocument doc) {
+		Suggestion suggestion = getSuggestion(doc);
+		if (suggestion != null)
+			return suggestion;
+		synchronized (suggestionCache) {
+			if (suggestionsFailed.contains(doc))
+				return null;
+		}
+		requestSuggestion(doc);
+		Display display = getControl().getDisplay();
+		Shell shell = getControl().getShell();
+		Cursor waitCursor = display.getSystemCursor(SWT.CURSOR_WAIT);
+		shell.setCursor(waitCursor);
+		try {
+			long deadline = System.currentTimeMillis() + 8000;
+			while (System.currentTimeMillis() < deadline) {
+				boolean pending;
+				synchronized (suggestionCache) {
+					pending = suggestionsInProgress.contains(doc);
+				}
+				if (!pending)
+					break;
+				if (!display.readAndDispatch())
+					display.sleep();
+			}
+		}
+		finally {
+			shell.setCursor(null);
+		}
+		return getSuggestion(doc);
+	}
+	
+	/**
 	 * Computes the name suggestion for the given document in the background,
 	 * unless it is already available or being computed.
 	 */
@@ -605,6 +735,10 @@ public final class ResultPanel {
 					else
 						suggestionsFailed.add(doc);
 				}
+				// Wake up a GUI thread that may be waiting for this result
+				UtilGui.runAsyncExec(getControl(), new Runnable() {
+					public void run() {}
+				});
 			}
 		};
 		thread.setDaemon(true);

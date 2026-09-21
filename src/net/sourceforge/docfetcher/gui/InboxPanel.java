@@ -82,7 +82,7 @@ public final class InboxPanel {
 		messageLabel.setLayoutData(messageData);
 		messageLabel.setVisible(false);
 
-		resultPanel = new ResultPanel(comp, indexRegistry);
+		resultPanel = new ResultPanel(comp, indexRegistry, true);
 		resultPanel.getControl().setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 	}
 

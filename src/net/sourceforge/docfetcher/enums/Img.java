@@ -66,6 +66,8 @@ public enum Img implements FilenameProvider {
 	PACKAGE ("package.gif"),
 	PREFERENCES ("preferences.gif"),
 	EXIT ("exit.png"),
+	PEN ("pen.png"),
+	MOVE ("move.png"),
 	REFRESH ("refresh.gif"),
 	REMOVE ("remove.gif"),
 	RESTORE ("restore.png"),
