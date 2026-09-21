@@ -84,6 +84,7 @@ public final class SettingsConf {
 		HotkeyEnabled (true),
 		ShowDocFetcherProTip (true),
 		UpdateIndexesOnStartup (true),
+		AskRebuildOutdatedIndexes (true),
 
 		ShowPreviewPanel (true),
 		ShowPreviewPanelAtBottom (false),

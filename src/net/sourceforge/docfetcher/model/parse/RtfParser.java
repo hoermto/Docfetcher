@@ -17,9 +17,11 @@ import java.util.Collection;
 import java.util.Collections;
 
 import net.sourceforge.docfetcher.enums.Msg;
+import net.sourceforge.docfetcher.util.annotations.Nullable;
 
 import org.apache.tika.config.TikaConfig;
 import org.apache.tika.metadata.Metadata;
+import org.apache.tika.metadata.Office;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.apache.tika.parser.rtf.RTFParser;
 import org.apache.tika.sax.BodyContentHandler;
@@ -65,6 +67,7 @@ final class RtfParser extends StreamParser {
 			// RTF documents also have a "comments" field, but Tika's RTF parser
 			// doesn't seem to read it.
 			return new ParseResult(bodyHandler.toString())
+				.setPageCount(parsePageCount(metadata.get(Office.PAGE_COUNT)))
 				.addAuthor(metadata.get(TikaCoreProperties.CREATOR))
 				.setTitle(metadata.get(TikaCoreProperties.TITLE))
 				.addMiscMetadata(metadata.get(Metadata.SUBJECT)) // not equivalent to TikaCoreProperties.KEYWORDS
@@ -99,6 +102,18 @@ final class RtfParser extends StreamParser {
 		}
 		catch (Exception e) {
 			throw new ParseException(e);
+		}
+	}
+	
+	// The page count comes from the \\nofpages control word written by Word
+	private static int parsePageCount(@Nullable String value) {
+		if (value == null)
+			return -1;
+		try {
+			return Integer.parseInt(value.trim());
+		}
+		catch (NumberFormatException e) {
+			return -1;
 		}
 	}
 	

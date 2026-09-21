@@ -827,6 +827,24 @@ public enum Msg {
 		"Tooltip of the toolbar button that exits the program. The '\tCtrl+Q' " +
 		"is a keyboard shortcut and might need translation."),
 	
+	rebuild_outdated_indexes_title ("Outdated Indexes",
+		"Window title of the dialog asking the user to rebuild indexes that " +
+		"were created by an older program version."),
+	rebuild_outdated_indexes_msg (
+		"The following indexes were created by an older version of {0} and " +
+		"don't contain page counts yet. Rebuild them now? The rebuild runs " +
+		"in the background.\n\n{1}",
+		"Message asking the user to rebuild outdated indexes. The program " +
+		"name is inserted in the {0} slot, the list of index names in the " +
+		"{1} slot."),
+	rebuild_now ("&Rebuild Now",
+		"Button label for rebuilding the outdated indexes immediately."),
+	later ("&Later",
+		"Button label for postponing an action; the user is asked again " +
+		"the next time the program starts."),
+	dont_ask_again ("&Don't Ask Again",
+		"Button label for permanently dismissing a question."),
+	
 	// Search settings dialog (document types and search scope filters)
 	search_settings_title ("Search Settings",
 		"Window title of the dialog containing the search filters, i.e. the " +

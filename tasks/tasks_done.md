@@ -18,3 +18,6 @@
   - Result table columns are now Title, Last Modified, Pages, Filename, Type, Path. The page count is recorded while indexing for PDF (page count), Word/OpenDocument text (page count from document metadata) and PowerPoint (slide count); other formats and indexes created before this change show an empty cell until the index is rebuilt.
 - at least provide complete german translation
   - All 38 previously untranslated UI strings translated in Resource_de.properties; the German manual (main page and preferences page) updated for the new preferences dialog, search settings dialog and index management.
+- add page count per document. on indexing, store page per text extracted and add to index metadata, then show in table. currently is always empty. Maybe is other reason
+  - Cause: page counts are only recorded when a document is parsed by 2.0; an index Update skips unchanged files. Indexes now carry a format version, and indexes created before 2.0 trigger a one-time prompt at startup (Rebuild Now / Later / Don't Ask Again); the rebuild runs in the background.
+  - Additional sources: RTF (\nofpages from Word's info group) and a fallback for Word documents without page metadata (counts rendered/explicit page breaks). Verified: PDF 3, DOCX with page breaks 4, RTF 6.

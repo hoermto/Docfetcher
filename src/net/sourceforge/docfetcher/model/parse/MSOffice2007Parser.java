@@ -12,6 +12,7 @@
 package net.sourceforge.docfetcher.model.parse;
 
 import java.io.File;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -24,6 +25,8 @@ import org.apache.poi.POIXMLProperties;
 import org.apache.poi.extractor.ExtractorFactory;
 import org.apache.poi.openxml4j.exceptions.OpenXML4JRuntimeException;
 import org.apache.poi.openxml4j.opc.OPCPackage;
+import org.apache.poi.openxml4j.opc.PackagingURIHelper;
+import org.apache.poi.openxml4j.opc.PackagePart;
 import org.apache.poi.openxml4j.opc.PackageAccess;
 import org.apache.poi.openxml4j.opc.PackageProperties;
 import org.apache.poi.openxml4j.util.ZipSecureFile;
@@ -253,7 +256,55 @@ abstract class MSOffice2007Parser extends FileParser {
 		catch (LinkageError e) {
 			// Missing optional classes; treat as unavailable
 		}
-		return -1;
+		return countWordPageBreaks(pkg);
+	}
+	
+	/**
+	 * Fallback for Word documents without page metadata: Counts the page
+	 * break markers in the main document part. Word records a
+	 * 'lastRenderedPageBreak' marker at each page boundary when saving; if
+	 * there are none, explicit page breaks are counted instead. Returns -1
+	 * if no markers are found or this isn't a Word document.
+	 */
+	private static int countWordPageBreaks(@NotNull OPCPackage pkg) {
+		InputStream in = null;
+		try {
+			PackagePart part = pkg.getPart(
+				PackagingURIHelper.createPartName("/word/document.xml"));
+			if (part == null)
+				return -1;
+			in = part.getInputStream();
+			int rendered = 0;
+			int explicit = 0;
+			byte[] buf = new byte[64 * 1024];
+			String carry = "";
+			int n;
+			while ((n = in.read(buf)) > 0) {
+				String chunk = carry + new String(buf, 0, n, "UTF-8");
+				rendered += countOccurrences(chunk, "<w:lastRenderedPageBreak");
+				explicit += countOccurrences(chunk, "w:type=\"page\"");
+				// Keep a tail so that markers spanning two chunks are found
+				carry = chunk.length() > 40 ? chunk.substring(chunk.length() - 40) : chunk;
+			}
+			int breaks = rendered > 0 ? rendered : explicit;
+			return breaks > 0 ? breaks + 1 : -1;
+		}
+		catch (Exception e) {
+			return -1;
+		}
+		finally {
+			Closeables.closeQuietly(in);
+		}
+	}
+	
+	private static int countOccurrences(@NotNull String s, @NotNull String sub) {
+		int count = 0;
+		int i = 0;
+		while ((i = s.indexOf(sub, i)) >= 0) {
+			count++;
+			i += sub.length();
+		}
+		return count;
 	}
 	
 	// Caller is responsible for closing the given package

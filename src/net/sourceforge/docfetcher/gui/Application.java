@@ -86,6 +86,7 @@ import net.sourceforge.docfetcher.model.IndexLoadingProblems.CorruptedIndex;
 import net.sourceforge.docfetcher.model.IndexLoadingProblems.OverflowIndex;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.LuceneIndex;
+import net.sourceforge.docfetcher.model.TreeIndex;
 import net.sourceforge.docfetcher.model.index.IndexingQueue;
 import net.sourceforge.docfetcher.model.index.Task.CancelAction;
 import net.sourceforge.docfetcher.model.index.Task.CancelHandler;
@@ -747,6 +748,10 @@ public final class Application {
 					// Must be called *after* the indexes have been loaded
 					daemon.enqueueUpdateTasks();
 					
+					// Offer to rebuild indexes that lack page counts
+					if (SettingsConf.Bool.AskRebuildOutdatedIndexes.get())
+						offerRebuildOfOutdatedIndexes(mainShell);
+					
 					/*
 					 * Pick up changes made while the program was closed, even
 					 * if the daemon isn't running. The updates run in the
@@ -824,6 +829,55 @@ public final class Application {
 		if (SystemConf.Bool.IsPortable.get())
 			return new File(appDataDir, "indexes");
 		return appDataDir;
+	}
+	
+	/**
+	 * Asks the user once per startup whether indexes created by an older
+	 * program version (which lack page counts) should be rebuilt, and enqueues
+	 * the rebuilds in the background if so. Must be called after the indexes
+	 * have been loaded, from a non-GUI thread.
+	 */
+	private static void offerRebuildOfOutdatedIndexes(@NotNull final Shell mainShell) {
+		final List<LuceneIndex> outdated = new ArrayList<LuceneIndex>();
+		for (LuceneIndex index : indexRegistry.getIndexes()) {
+			if (index.getFormatVersion() < TreeIndex.CURRENT_FORMAT_VERSION
+					&& index.getCanonicalRootFile().exists())
+				outdated.add(index);
+		}
+		if (outdated.isEmpty())
+			return;
+		
+		final boolean[] rebuild = { false };
+		UtilGui.runSyncExec(mainShell, new Runnable() {
+			public void run() {
+				List<String> names = new ArrayList<String>(outdated.size());
+				for (LuceneIndex index : outdated)
+					names.add(index.getRootFolder().getDisplayName());
+				String msg = Msg.rebuild_outdated_indexes_msg.format(
+					SystemConf.Str.ProgramName.get(), Util.join("\n", names));
+				
+				MultipleChoiceDialog<Integer> dialog = new MultipleChoiceDialog<Integer>(mainShell);
+				dialog.setTitle(Msg.rebuild_outdated_indexes_title.get());
+				dialog.setText(msg);
+				dialog.addButton(Msg.rebuild_now.get(), 1);
+				dialog.addButton(Msg.later.get(), 0);
+				dialog.addButton(Msg.dont_ask_again.get(), -1);
+				Integer answer = dialog.open();
+				if (answer == null)
+					return; // Dialog closed, ask again next time
+				if (answer < 0)
+					SettingsConf.Bool.AskRebuildOutdatedIndexes.set(false);
+				rebuild[0] = answer > 0;
+				if (rebuild[0] && indexingStatus != null)
+					indexingStatus.setVisible(true);
+			}
+		});
+		
+		if (!rebuild[0])
+			return;
+		IndexingQueue queue = indexRegistry.getQueue();
+		for (LuceneIndex index : outdated)
+			queue.addTask(index, IndexAction.REBUILD, true);
 	}
 	
 	/**

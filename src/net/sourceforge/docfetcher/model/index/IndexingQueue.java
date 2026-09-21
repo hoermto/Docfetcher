@@ -315,6 +315,20 @@ public final class IndexingQueue {
 	@ThreadSafe
 	public Rejection addTask(	@NotNull LuceneIndex index,
 								@NotNull IndexAction action) {
+		return addTask(index, action, false);
+	}
+	
+	/**
+	 * Like {@link #addTask(LuceneIndex, IndexAction)}, but if {@code ready}
+	 * is true, the task is started without waiting for the user to confirm
+	 * its configuration in the indexing dialog. This is used for rebuilds that
+	 * are triggered programmatically, e.g. on startup.
+	 */
+	@Nullable
+	@ThreadSafe
+	public Rejection addTask(	@NotNull LuceneIndex index,
+								@NotNull IndexAction action,
+								boolean ready) {
 		Util.checkNotNull(index, action);
 		Util.checkThat(index instanceof FileIndex
 				|| index instanceof OutlookIndex);
@@ -481,6 +495,9 @@ public final class IndexingQueue {
 		evtAdded.fire(task);
 		for (Task removedTask : removedTasks)
 			evtRemoved.fire(removedTask);
+		
+		if (ready && task.is(TaskState.NOT_READY))
+			setReady(task);
 		
 		return null;
 	}

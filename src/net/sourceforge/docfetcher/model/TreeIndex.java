@@ -48,9 +48,17 @@ public abstract class TreeIndex <
 	
 	private static final long serialVersionUID = 1L;
 	
+	/**
+	 * Format version of indexes created or rebuilt by this program version.
+	 * Version 1 (DocFetcher 2.0) added page counts. Deserialized indexes from
+	 * older versions have version 0.
+	 */
+	public static final int CURRENT_FORMAT_VERSION = 1;
+	
 	private final IndexingConfig config;
 	private final F rootFolder;
 	private final long created;
+	private int formatVersion = CURRENT_FORMAT_VERSION;
 	@Nullable private final Path fileIndexDirPath;
 	@Nullable private transient RAMDirectory ramIndexDir;
 	@Nullable private transient File indexParentDir;
@@ -99,6 +107,10 @@ public abstract class TreeIndex <
 	
 	public final long getCreated() {
 		return created;
+	}
+	
+	public final int getFormatVersion() {
+		return formatVersion;
 	}
 	
 	@NotNull
@@ -200,6 +212,9 @@ public abstract class TreeIndex <
 	}
 	
 	private void clear(boolean removeTopLevel) {
+		// A rebuild re-parses everything, so the index gets the current format
+		if (!removeTopLevel)
+			formatVersion = CURRENT_FORMAT_VERSION;
 		if (fileIndexDirPath != null) {
 			File fileIndexDir = getIndexDirPath().getCanonicalFile();
 			if (fileIndexDir.exists()) {

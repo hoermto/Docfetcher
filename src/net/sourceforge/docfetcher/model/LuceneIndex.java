@@ -85,4 +85,12 @@ public interface LuceneIndex extends ViewNode, Serializable {
 	
 	public long getCreated();
 	
+	/**
+	 * Returns the format version of the index, see
+	 * {@link TreeIndex#CURRENT_FORMAT_VERSION}. Indexes created by older
+	 * program versions have a lower version and may lack information that
+	 * newer versions record, e.g. page counts.
+	 */
+	public int getFormatVersion();
+	
 }
