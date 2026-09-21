@@ -14,6 +14,7 @@ package net.sourceforge.docfetcher.model.search;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringReader;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
@@ -456,12 +457,13 @@ public final class Searcher {
 		Util.checkNotNull(folder);
 		IndexingConfig config = index != null ? index.getConfig() : new IndexingConfig();
 		
-		// Indexed documents by canonical file path
+		// Indexed documents by canonical file path (Unicode-normalized, since
+		// the index stores composed names while the disk may use decomposed ones)
 		Map<String, ResultDocument> indexed = new HashMap<String, ResultDocument>();
 		if (index != null) {
 			for (ResultDocument doc : listIndexedFolder(index, folder)) {
 				File file = Util.getCanonicalFile(doc.getPath().getCanonicalFile());
-				indexed.put(file.getPath(), doc);
+				indexed.put(normalize(file.getPath()), doc);
 			}
 		}
 		
@@ -472,10 +474,15 @@ public final class Searcher {
 		for (File file : files) {
 			if (!file.isFile() || file.isHidden())
 				continue;
-			ResultDocument doc = indexed.get(Util.getCanonicalFile(file).getPath());
+			ResultDocument doc = indexed.get(normalize(Util.getCanonicalFile(file).getPath()));
 			results.add(doc != null ? doc : createFileDocument(config, file));
 		}
 		return results;
+	}
+	
+	@NotNull
+	private static String normalize(@NotNull String path) {
+		return Normalizer.normalize(path, Normalizer.Form.NFC);
 	}
 	
 	/**
