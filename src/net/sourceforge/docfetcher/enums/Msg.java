@@ -246,8 +246,22 @@ public enum Msg {
 	// Various GUI controls
 	search ("Search",
 		"Label of the 'Search' button right next to the search field."),
-	open_manual ("Open Manual (F1)",
-		"Tooltip text for the '?' button to open the manual."),
+	menu_file ("&File",
+		"Label of the 'File' menu in the menu bar. The '&' marks the " +
+		"mnemonic character."),
+	menu_help ("&Help",
+		"Label of the 'Help' menu in the menu bar. The '&' marks the " +
+		"mnemonic character."),
+	menu_preferences ("&Preferences...",
+		"Menu entry that opens the preferences dialog."),
+	menu_indexes ("&Indexes...",
+		"Menu entry that opens the preferences dialog on the 'Indexes' tab."),
+	menu_manual ("&Manual\tF1",
+		"Menu entry that opens the manual. The '\tF1' is the keyboard " +
+		"shortcut."),
+	menu_about ("&About {0}",
+		"Menu entry that shows the program name and version. The program " +
+		"name is inserted in the {0} slot."),
 	preferences ("Preferences",
 		"Window title for the preferences dialog and tooltip text for the button " +
 		"to open the preferences dialog."),
@@ -258,8 +272,9 @@ public enum Msg {
 		"Window title for the web interface dialog and the tooltip text for " +
 		"the button to open the web interface dialog."),
 	to_systray (
-		"Minimize To System Tray",
-		"Label for a button to minimize the program into the system tray."),
+		"Minimize To System &Tray",
+		"Menu entry that minimizes the program into the system tray. The " +
+		"'&' marks the mnemonic character."),
 	press_f1_for_help (
 		"Press F1 for help.",
 		"On startup, this message shown in the status bar to indicate that " +
@@ -820,9 +835,10 @@ public enum Msg {
 		"Error message shown when registering or unregistering the program " +
 		"as a Windows startup program failed. The reason is inserted in the " +
 		"{0} slot."),
-	exit_app ("Exit DocFetcher\tCtrl+Q",
-		"Tooltip of the toolbar button that exits the program. The '\tCtrl+Q' " +
-		"is a keyboard shortcut and might need translation."),
+	exit_app ("E&xit DocFetcher\tCtrl+Q",
+		"Menu entry that exits the program. The '\tCtrl+Q' is a keyboard " +
+		"shortcut and might need translation; the '&' marks the mnemonic " +
+		"character."),
 	
 	rebuild_outdated_indexes_title ("Outdated Indexes",
 		"Window title of the dialog asking the user to rebuild indexes that " +

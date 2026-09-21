@@ -1,6 +1,6 @@
 Preferences
 ===========
-The preferences dialog has two tabs: `General` and `Indexes`.
+The preferences dialog is opened via `File > Preferences...` in the menu bar and has two tabs: `General` and `Indexes`.
 
 General tab
 -----------

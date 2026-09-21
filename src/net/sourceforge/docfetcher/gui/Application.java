@@ -53,6 +53,8 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.MenuItem;
+import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.TabFolder;
 import org.eclipse.swt.widgets.TabItem;
@@ -332,6 +334,7 @@ public final class Application {
 		configureWebView2DataDir();
 		initCocoaMenu(display);
 		initSystemTrayHider();
+		initMenuBar();
 		initSearchSettingsDialog();
 		initTwoPanelForm();
 		InboxFolders.migrateLegacySetting();
@@ -1358,11 +1361,6 @@ public final class Application {
 	private static Control createSearchPanel(Composite parent) {
 		Composite comp = new Composite(parent, SWT.NONE);
 		searchBar = new SearchBar(comp);
-		searchBar.evtOpenPreferences.add(new Event.Listener<Void> () {
-		    public void update(Void eventData) {
-		    	openPrefDialog(false);
-		    }
-		});
 		resultPanel = new ResultPanel(comp, indexRegistry);
 
 		comp.setLayout(new FormLayout());
@@ -1370,27 +1368,9 @@ public final class Application {
 		fdf.margin(0).top().left().right().applyTo(searchBar.getControl());
 		fdf.top(searchBar.getControl()).bottom().applyTo(resultPanel.getControl());
 
-		searchBar.evtHideInSystemTray.add(new Event.Listener<Void>() {
-			public void update(Void eventData) {
-				systemTrayHider.hide();
-			}
-		});
-
-		searchBar.evtOpenManual.add(new Event.Listener<Void>() {
-			public void update(Void eventData) {
-				showManual();
-			}
-		});
-
 		searchBar.evtOpenSearchSettings.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
 				searchSettingsDialog.open();
-			}
-		});
-
-		searchBar.evtExit.add(new Event.Listener<Void>() {
-			public void update(Void eventData) {
-				requestExit();
 			}
 		});
 
@@ -1491,6 +1471,85 @@ public final class Application {
 		});
 	}
 	
+	/**
+	 * Creates the menu bar with the program-wide actions (preferences,
+	 * indexes, system tray, exit, manual), so that they are reachable from
+	 * every tab. The keyboard shortcuts shown are handled by the global key
+	 * filter.
+	 */
+	private static void initMenuBar() {
+		Menu menuBar = new Menu(shell, SWT.BAR);
+		shell.setMenuBar(menuBar);
+
+		Menu fileMenu = createMenu(menuBar, Msg.menu_file.get());
+		createMenuItem(fileMenu, Msg.menu_preferences.get(), Img.PREFERENCES.get(), new Runnable() {
+			public void run() {
+				openPrefDialog(false);
+			}
+		});
+		createMenuItem(fileMenu, Msg.menu_indexes.get(), Img.FOLDER.get(), new Runnable() {
+			public void run() {
+				openPrefDialog(true);
+			}
+		});
+		new MenuItem(fileMenu, SWT.SEPARATOR);
+		/*
+		 * On Ubuntu Unity, disable hiding in system tray. See bug #3457028 and
+		 * follow-up bug #3457035.
+		 */
+		if (!Util.IS_UBUNTU_UNITY) {
+			createMenuItem(fileMenu, Msg.to_systray.get(), Img.HIDE.get(), new Runnable() {
+				public void run() {
+					systemTrayHider.hide();
+				}
+			});
+		}
+		createMenuItem(fileMenu, Msg.exit_app.get(), Img.EXIT.get(), new Runnable() {
+			public void run() {
+				requestExit();
+			}
+		});
+
+		Menu helpMenu = createMenu(menuBar, Msg.menu_help.get());
+		createMenuItem(helpMenu, Msg.menu_manual.get(), Img.HELP.get(), new Runnable() {
+			public void run() {
+				showManual();
+			}
+		});
+		final String appName = SystemConf.Str.ProgramName.get();
+		createMenuItem(helpMenu, Msg.menu_about.format(appName), null, new Runnable() {
+			public void run() {
+				AppUtil.showInfo(appName + " " + SystemConf.Str.ProgramVersion.get());
+			}
+		});
+	}
+
+	@NotNull
+	private static Menu createMenu(@NotNull Menu menuBar, @NotNull String label) {
+		MenuItem item = new MenuItem(menuBar, SWT.CASCADE);
+		item.setText(label);
+		Menu menu = new Menu(shell, SWT.DROP_DOWN);
+		item.setMenu(menu);
+		return menu;
+	}
+
+	@NotNull
+	private static MenuItem createMenuItem(	@NotNull Menu menu,
+											@NotNull String label,
+											@Nullable Image image,
+											@NotNull final Runnable action) {
+		MenuItem item = new MenuItem(menu, SWT.PUSH);
+		item.setText(label);
+		if (image != null)
+			item.setImage(image);
+		item.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				action.run();
+			}
+		});
+		return item;
+	}
+
 	/**
 	 * Opens the preferences dialog. If {@code showIndexesTab} is true, the
 	 * 'Indexes' tab is selected initially.

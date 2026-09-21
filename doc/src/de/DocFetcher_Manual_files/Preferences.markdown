@@ -1,6 +1,6 @@
 Programm-Einstellungen
 ======================
-Der Einstellungen-Dialog hat zwei Reiter: `Allgemein` und `Indizes`.
+Der Einstellungen-Dialog wird über `Datei > Einstellungen...` in der Menüleiste geöffnet und hat zwei Reiter: `Allgemein` und `Indizes`.
 
 Reiter „Allgemein“
 ------------------
