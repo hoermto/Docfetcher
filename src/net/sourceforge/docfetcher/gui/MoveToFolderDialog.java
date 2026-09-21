@@ -196,9 +196,10 @@ final class MoveToFolderDialog {
 					for (ResultDocument doc : docs)
 						text.append(doc.getFilename()).append('\n');
 
-					File exclude = docs.size() == 1
-						? Util.getParentFile(docs.get(0).getPath().getCanonicalFile())
-						: null;
+					// Never suggest the current folder or an inbox folder
+					List<File> exclude = InboxFolders.getFolders();
+					if (docs.size() == 1)
+						exclude.add(Util.getParentFile(docs.get(0).getPath().getCanonicalFile()));
 					suggestions = searcher.suggestFolders(text.toString(), exclude, MAX_SUGGESTIONS);
 				}
 				catch (Exception e) {

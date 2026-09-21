@@ -7,7 +7,6 @@
 
 ## changes
 [] add preview for png/jpg
-[] support multiple inbox folders in settings, and add them if set as additional tab. let user select a name, if empty use the last part of folder name
 
 ## features
 [] v2.4 UI style follow W11 on Windows

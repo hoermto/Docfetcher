@@ -26,6 +26,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
@@ -129,8 +130,8 @@ public final class Application {
 	private static SearchBar searchBar;
 	private static ResultPanel resultPanel;
 	private static TabFolder mainTabFolder;
-	@Nullable private static TabItem inboxTab;
-	@Nullable private static InboxPanel inboxPanel;
+	private static final List<InboxTab> inboxTabs = new ArrayList<InboxTab>();
+	private static final Set<File> inboxIndexRequests = new HashSet<File>();
 	private static PreviewPanel previewPanel;
 	private static volatile StatusBarPart indexingStatus;
 	private static SystemTrayHider systemTrayHider;
@@ -333,7 +334,8 @@ public final class Application {
 		initSystemTrayHider();
 		initSearchSettingsDialog();
 		initTwoPanelForm();
-		applyInboxFolder();
+		InboxFolders.migrateLegacySetting();
+		applyInboxFolders();
 		initStatusBar();
 		initHotkey();
 		initGlobalKeys(display);
@@ -712,8 +714,7 @@ public final class Application {
 		queue.evtQueueEmpty.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
 				backgroundIndexingPending = false;
-				if (inboxPanel != null)
-					inboxPanel.refresh();
+				refreshInboxTabs();
 				/*
 				 * Bug #3485598: The indexing status widget can be null at this
 				 * point. Possible explanation: An indexing update was issued by
@@ -1223,73 +1224,134 @@ public final class Application {
 		searchTab.setControl(createSearchPanel(mainTabFolder));
 		mainTabFolder.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				if (inboxTab != null && mainTabFolder.getSelection().length > 0
-						&& mainTabFolder.getSelection()[0] == inboxTab
-						&& inboxPanel != null)
-					inboxPanel.refresh();
+				InboxTab selected = getSelectedInboxTab();
+				if (selected != null)
+					selected.panel.refresh();
 			}
 		});
 		return mainTabFolder;
 	}
 	
+	/** An inbox tab of the main window. */
+	private static final class InboxTab {
+		final InboxFolders.Entry entry;
+		final TabItem tab;
+		final InboxPanel panel;
+
+		InboxTab(@NotNull InboxFolders.Entry entry, @NotNull TabItem tab, @NotNull InboxPanel panel) {
+			this.entry = entry;
+			this.tab = tab;
+			this.panel = panel;
+		}
+	}
+
+	@Nullable
+	private static InboxTab getSelectedInboxTab() {
+		TabItem[] selection = mainTabFolder.getSelection();
+		if (selection.length == 0)
+			return null;
+		for (InboxTab inboxTab : inboxTabs)
+			if (inboxTab.tab == selection[0])
+				return inboxTab;
+		return null;
+	}
+
+	/** Reloads the file lists of all inbox tabs. Safe to call from any thread. */
+	private static void refreshInboxTabs() {
+		for (InboxTab inboxTab : inboxTabs)
+			inboxTab.panel.refresh();
+	}
+
 	/**
-	 * Creates or removes the 'Inbox' tab according to the inbox folder
-	 * setting, and makes sure the inbox folder is indexed.
+	 * Creates, updates or removes the inbox tabs according to the configured
+	 * inbox folders, and makes sure the folders are indexed. The inbox tabs
+	 * are placed before the search tab, in the configured order.
 	 */
-	private static void applyInboxFolder() {
-		String value = SettingsConf.Str.InboxFolder.get().trim();
-		if (value.isEmpty()) {
-			if (inboxTab != null) {
-				inboxTab.dispose();
-				inboxPanel.getControl().dispose();
-				inboxTab = null;
-				inboxPanel = null;
+	private static void applyInboxFolders() {
+		List<InboxFolders.Entry> entries = InboxFolders.load();
+		List<InboxFolders.Entry> current = new ArrayList<InboxFolders.Entry>(inboxTabs.size());
+		for (InboxTab inboxTab : inboxTabs)
+			current.add(inboxTab.entry);
+		if (!entries.equals(current)) {
+			/*
+			 * Rebuild all tabs. Select the tab of the previously selected
+			 * folder if it still exists, otherwise the first inbox tab if an
+			 * inbox tab was selected before (or on startup).
+			 */
+			InboxTab selected = getSelectedInboxTab();
+			boolean selectInbox = inboxTabs.isEmpty() || selected != null;
+			File selectedFolder = selected == null ? null : selected.entry.getFolder();
+			for (InboxTab inboxTab : inboxTabs) {
+				inboxTab.tab.dispose();
+				inboxTab.panel.getControl().dispose();
 			}
-			return;
+			inboxTabs.clear();
+			InboxTab toSelect = null;
+			for (InboxFolders.Entry entry : entries) {
+				InboxTab inboxTab = createInboxTab(entry, inboxTabs.size());
+				inboxTabs.add(inboxTab);
+				if (toSelect == null && (selectedFolder == null
+						|| Util.isCanonicallyEqual(selectedFolder, entry.getFolder())))
+					toSelect = inboxTab;
+			}
+			if (toSelect == null && !inboxTabs.isEmpty())
+				toSelect = inboxTabs.get(0);
+			if (selectInbox && toSelect != null)
+				mainTabFolder.setSelection(toSelect.tab);
 		}
-		File folder = Util.getCanonicalFile(value);
-		if (inboxTab == null) {
-			inboxPanel = new InboxPanel(mainTabFolder, indexRegistry);
-			inboxTab = new TabItem(mainTabFolder, SWT.NONE, 0); // Before the search tab
-			inboxTab.setText(Msg.inbox_tab.get());
-			inboxTab.setControl(inboxPanel.getControl());
-			mainTabFolder.setSelection(inboxTab);
-			
-			final ResultPanel inboxResults = inboxPanel.getResultPanel();
-			inboxResults.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
-				public void update(List<ResultDocument> eventData) {
-					if (!eventData.isEmpty())
-						previewPanel.setPreview(eventData.get(0));
-				}
-			});
-			inboxResults.evtHideInSystemTray.add(new Event.Listener<Void>() {
-				public void update(Void eventData) {
-					systemTrayHider.hide();
-				}
-			});
-			inboxResults.evtDocumentsChanged.add(new Event.Listener<Void>() {
-				public void update(Void eventData) {
-					if (inboxResults.getSelection().isEmpty())
-						previewPanel.clear();
-					else
-						previewPanel.refresh();
-				}
-			});
+		for (InboxTab inboxTab : inboxTabs) {
+			inboxTab.panel.setFolder(inboxTab.entry.getFolder());
+			ensureIndexed(inboxTab.entry.getFolder());
 		}
-		inboxPanel.setFolder(folder);
-		
-		// Index the inbox folder if no index covers it yet
-		boolean covered = false;
+	}
+
+	@NotNull
+	private static InboxTab createInboxTab(	@NotNull InboxFolders.Entry entry,
+											int index) {
+		InboxPanel inboxPanel = new InboxPanel(mainTabFolder, indexRegistry);
+		TabItem tab = new TabItem(mainTabFolder, SWT.NONE, index);
+		tab.setText(entry.getTabName());
+		tab.setControl(inboxPanel.getControl());
+
+		final ResultPanel inboxResults = inboxPanel.getResultPanel();
+		inboxResults.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
+			public void update(List<ResultDocument> eventData) {
+				if (!eventData.isEmpty())
+					previewPanel.setPreview(eventData.get(0));
+			}
+		});
+		inboxResults.evtHideInSystemTray.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				systemTrayHider.hide();
+			}
+		});
+		inboxResults.evtDocumentsChanged.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				if (inboxResults.getSelection().isEmpty())
+					previewPanel.clear();
+				else
+					previewPanel.refresh();
+			}
+		});
+		return new InboxTab(entry, tab, inboxPanel);
+	}
+
+	/**
+	 * Creates an index for the given folder if no index covers it yet. Folders
+	 * whose indexing has already been requested are skipped, since the index
+	 * appears in the registry only after indexing has finished.
+	 */
+	private static void ensureIndexed(@NotNull File folder) {
 		for (LuceneIndex index : indexRegistry.getIndexes()) {
 			File root = index.getCanonicalRootFile();
-			if (Util.isCanonicallyEqual(root, folder) || Util.contains(root, folder)) {
-				covered = true;
-				break;
-			}
+			if (Util.isCanonicallyEqual(root, folder) || Util.contains(root, folder))
+				return;
 		}
-		if (!covered && folder.isDirectory()) {
-			if (indexPanel.createIndexForFolder(folder))
-				showIndexingStatus(shell);
+		if (!folder.isDirectory() || inboxIndexRequests.contains(folder))
+			return;
+		if (indexPanel.createIndexForFolder(folder)) {
+			inboxIndexRequests.add(folder);
+			showIndexingStatus(shell);
 		}
 	}
 	
@@ -1439,7 +1501,7 @@ public final class Application {
 		prefDialog.evtOKClicked.add(new Event.Listener<Void> () {
 		    public void update(Void eventData) {
 		    	saveSettingsConfFile();
-		    	applyInboxFolder();
+		    	applyInboxFolders();
 		    }
 		});
 		prefDialog.open(showIndexesTab);

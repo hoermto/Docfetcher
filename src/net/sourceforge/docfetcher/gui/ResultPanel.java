@@ -747,9 +747,11 @@ public final class ResultPanel {
 					catch (Exception e) {
 						// No name suggestion, folders may still work
 					}
-					File parent = Util.getParentFile(doc.getPath().getCanonicalFile());
+					// Never suggest the current folder or an inbox folder
+					List<File> exclude = InboxFolders.getFolders();
+					exclude.add(Util.getParentFile(doc.getPath().getCanonicalFile()));
 					List<FolderSuggestion> folders = searcher.suggestFolders(
-						text + "\n" + doc.getFilename(), parent, MAX_FOLDER_SUGGESTIONS);
+						text + "\n" + doc.getFilename(), exclude, MAX_FOLDER_SUGGESTIONS);
 					suggestions = new Suggestions(name, folders);
 				}
 				catch (Exception e) {

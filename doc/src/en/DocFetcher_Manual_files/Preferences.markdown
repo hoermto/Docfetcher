@@ -35,4 +35,4 @@ Rename...  |  Changes the display name of the selected index.
 Remove  |  Removes the selected indexes.
 Remove Orphaned  |  Removes all indexes whose document folders no longer exist.
 Index folder  |  The folder where DocFetcher stores its index files. Leave it empty to use the default location. Changing the folder takes effect after DocFetcher is restarted; you will be asked whether the existing indexes should be moved to the new folder on the next start.
-Inbox folder  |  The folder listed on the `Inbox` tab of the main window, e.g. where a scanner saves new documents. Leave it empty to hide the tab. The folder is indexed automatically if no index covers it yet.
+Inbox folders  |  Folders each of which is listed on its own tab of the main window, e.g. where a scanner saves new documents. `Add...` adds a folder, `Rename...` sets the name of its tab (empty: the last part of the folder path). The folders are indexed automatically if no index covers them yet.

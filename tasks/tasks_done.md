@@ -45,3 +45,5 @@
   - 'Move To' submenu in the result table context menu (both tabs): up to five suggested folders (same keyword similarity as the dialog, computed in the background together with the name suggestions) that move the selected files with one click, plus 'Other Folder...' opening the dialog.
 - remove the "try docfetcher pro" from UI
   - Removed the 'Try DocFetcher Pro' status bar link and the one-time hint overlay (plus the related setting and strings).
+- support multiple inbox folders in settings, and add them if set as additional tab. let user select a name, if empty use the last part of folder name
+  - Preferences > Indexes: list of inbox folders (Add.../Remove/Rename...); each folder gets its own tab before the Search tab, named after the last path segment unless a name is set. Setting InboxFolders (path|name entries) replaces InboxFolder, which is migrated at startup. Inbox folders are excluded from the folder suggestions. The preferences dialog grows to its preferred size if the stored size is too small.

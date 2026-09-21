@@ -27,6 +27,7 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.DirectoryDialog;
 import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.MenuItem;
 import org.eclipse.swt.widgets.Table;
@@ -39,6 +40,7 @@ import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.enums.SystemConf;
+import net.sourceforge.docfetcher.gui.InboxFolders;
 import net.sourceforge.docfetcher.gui.filter.IndexPanel;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.IndexRegistry.ExistingIndexesHandler;
@@ -50,6 +52,7 @@ import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 import net.sourceforge.docfetcher.util.collect.AlphanumComparator;
+import net.sourceforge.docfetcher.util.gui.dialog.InputDialog;
 
 /**
  * Contents of the 'Indexes' tab on the preferences dialog: A table of all
@@ -68,7 +71,8 @@ final class IndexManagementPanel {
 	private final File defaultIndexDir;
 	private final Table table;
 	private final Text folderField;
-	private final Text inboxField;
+	private final Table inboxTable;
+	private final List<InboxFolders.Entry> inboxEntries;
 	private final List<Button> selectionButtons = new ArrayList<Button>();
 	@Nullable private Button renameBt;
 
@@ -113,7 +117,7 @@ final class IndexManagementPanel {
 		table.setHeaderVisible(true);
 		table.setLinesVisible(false);
 		GridData tableData = new GridData(SWT.FILL, SWT.FILL, true, true);
-		tableData.heightHint = 150;
+		tableData.heightHint = 120;
 		table.setLayoutData(tableData);
 
 		TableColumn nameCol = new TableColumn(table, SWT.LEFT);
@@ -171,36 +175,67 @@ final class IndexManagementPanel {
 		hintData.widthHint = 400;
 		hintLabel.setLayoutData(hintData);
 		
-		// Inbox folder
+		// Inbox folders
 		Label inboxLabel = new Label(comp, SWT.NONE);
-		inboxLabel.setText(Msg.pref_inbox_folder.get());
+		inboxLabel.setText(Msg.pref_inbox_folders.get());
 		inboxLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false, 2, 1));
 		
-		Composite inboxComp = new Composite(comp, SWT.NONE);
-		inboxComp.setLayout(UtilGui.createGridLayout(2, false, 0, 5));
-		inboxComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
+		inboxEntries = InboxFolders.load();
+		inboxTable = new Table(comp, SWT.BORDER | SWT.SINGLE | SWT.FULL_SELECTION | SWT.V_SCROLL | SWT.H_SCROLL);
+		inboxTable.setHeaderVisible(true);
+		inboxTable.setLinesVisible(false);
+		GridData inboxTableData = new GridData(SWT.FILL, SWT.FILL, true, false);
+		inboxTableData.heightHint = 80;
+		inboxTable.setLayoutData(inboxTableData);
+		TableColumn inboxFolderCol = new TableColumn(inboxTable, SWT.LEFT);
+		inboxFolderCol.setText(Msg.folder_col.get());
+		inboxFolderCol.setWidth(350);
+		TableColumn inboxNameCol = new TableColumn(inboxTable, SWT.LEFT);
+		inboxNameCol.setText(Msg.inbox_col_tab_name.get());
+		inboxNameCol.setWidth(180);
 		
-		inboxField = new Text(inboxComp, SWT.BORDER | SWT.SINGLE);
-		inboxField.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		inboxField.setText(SettingsConf.Str.InboxFolder.get().trim());
-		
-		Button inboxBrowseBt = UtilGui.createPushButton(inboxComp, Msg.browse.get(), new SelectionAdapter() {
-			public void widgetSelected(SelectionEvent e) {
-				DirectoryDialog dialog = new DirectoryDialog(comp.getShell());
-				dialog.setText(Msg.pref_inbox_folder.get());
-				String current = inboxField.getText().trim();
-				dialog.setFilterPath(current.isEmpty()
-					? SettingsConf.Str.LastIndexedFolder.get()
-					: current);
-				String path = dialog.open();
-				if (path != null)
-					inboxField.setText(Util.getSystemAbsPath(path));
+		Composite inboxButtons = new Composite(comp, SWT.NONE);
+		inboxButtons.setLayout(UtilGui.createGridLayout(1, false, 0, 5));
+		inboxButtons.setLayoutData(new GridData(SWT.FILL, SWT.FILL, false, false));
+		createButton(inboxButtons, Msg.add_inbox_folder_bt.get(), new Runnable() {
+			public void run() {
+				addInboxFolder();
 			}
 		});
-		inboxBrowseBt.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, false, false));
+		final Button removeInboxBt = createButton(inboxButtons, Msg.remove_index_bt.get(), new Runnable() {
+			public void run() {
+				int i = inboxTable.getSelectionIndex();
+				if (i < 0)
+					return;
+				inboxEntries.remove(i);
+				fillInboxTable();
+				inboxTable.setSelection(Math.min(i, inboxEntries.size() - 1));
+				inboxTable.notifyListeners(SWT.Selection, null);
+			}
+		});
+		final Button renameInboxBt = createButton(inboxButtons, Msg.rename_index_bt.get(), new Runnable() {
+			public void run() {
+				renameInboxFolder();
+			}
+		});
+		inboxTable.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				boolean selected = inboxTable.getSelectionIndex() >= 0;
+				removeInboxBt.setEnabled(selected);
+				renameInboxBt.setEnabled(selected);
+			}
+		});
+		inboxTable.addListener(SWT.MouseDoubleClick, new Listener() {
+			public void handleEvent(org.eclipse.swt.widgets.Event e) {
+				renameInboxFolder();
+			}
+		});
+		removeInboxBt.setEnabled(false);
+		renameInboxBt.setEnabled(false);
+		fillInboxTable();
 		
 		Label inboxHint = new Label(comp, SWT.WRAP);
-		inboxHint.setText(Msg.pref_inbox_folder_hint.get());
+		inboxHint.setText(Msg.pref_inbox_folders_hint.get());
 		inboxHint.setForeground(comp.getDisplay().getSystemColor(SWT.COLOR_WIDGET_DISABLED_FOREGROUND));
 		GridData inboxHintData = new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1);
 		inboxHintData.widthHint = 400;
@@ -394,20 +429,69 @@ final class IndexManagementPanel {
 
 	public void restoreDefaultFolder() {
 		folderField.setText(SettingsConf.Str.IndexFolder.defaultValue);
-		inboxField.setText(SettingsConf.Str.InboxFolder.defaultValue);
+		inboxEntries.clear();
+		fillInboxTable();
+	}
+	
+	private void fillInboxTable() {
+		inboxTable.removeAll();
+		for (InboxFolders.Entry entry : inboxEntries) {
+			TableItem item = new TableItem(inboxTable, SWT.NONE);
+			item.setText(0, entry.getPath());
+			item.setText(1, entry.getTabName());
+			item.setImage(0, Img.FOLDER.get());
+		}
+	}
+	
+	/** Lets the user choose a folder and adds it to the inbox folders. */
+	private void addInboxFolder() {
+		DirectoryDialog dialog = new DirectoryDialog(comp.getShell());
+		dialog.setText(Msg.add_inbox_folder_bt.get());
+		dialog.setFilterPath(inboxEntries.isEmpty()
+			? SettingsConf.Str.LastIndexedFolder.get()
+			: inboxEntries.get(inboxEntries.size() - 1).getPath());
+		String path = dialog.open();
+		if (path == null)
+			return;
+		path = Util.getSystemAbsPath(path);
+		for (InboxFolders.Entry entry : inboxEntries)
+			if (entry.getPath().equals(path))
+				return; // Already in the list
+		inboxEntries.add(new InboxFolders.Entry(path, ""));
+		fillInboxTable();
+		inboxTable.setSelection(inboxEntries.size() - 1);
+		inboxTable.notifyListeners(SWT.Selection, null);
+	}
+	
+	/** Asks the user for the tab name of the selected inbox folder. */
+	private void renameInboxFolder() {
+		int i = inboxTable.getSelectionIndex();
+		if (i < 0)
+			return;
+		InboxFolders.Entry entry = inboxEntries.get(i);
+		InputDialog dialog = new InputDialog(comp.getShell(),
+			Msg.rename_inbox_folder_title.get(), Msg.rename_inbox_folder_msg.get(),
+			entry.getName());
+		String name = dialog.open();
+		if (name == null)
+			return;
+		inboxEntries.set(i, new InboxFolders.Entry(entry.getPath(), name));
+		fillInboxTable();
+		inboxTable.setSelection(i);
 	}
 	
 	/**
-	 * Validates and saves the inbox folder. Returns false (after showing an
-	 * error) if a non-empty value doesn't denote an existing folder.
+	 * Validates and saves the inbox folders. Returns false (after showing an
+	 * error) if one of the folders doesn't exist.
 	 */
-	public boolean saveInboxFolder() {
-		String value = inboxField.getText().trim();
-		if (!value.isEmpty() && !new File(value).isDirectory()) {
-			AppUtil.showError(Msg.inbox_folder_missing.format(value), true, true);
-			return false;
+	public boolean saveInboxFolders() {
+		for (InboxFolders.Entry entry : inboxEntries) {
+			if (!entry.getFolder().isDirectory()) {
+				AppUtil.showError(Msg.inbox_folder_missing.format(entry.getPath()), true, true);
+				return false;
+			}
 		}
-		SettingsConf.Str.InboxFolder.set(value.isEmpty() ? "" : Util.getSystemAbsPath(value));
+		InboxFolders.save(inboxEntries);
 		return true;
 	}
 

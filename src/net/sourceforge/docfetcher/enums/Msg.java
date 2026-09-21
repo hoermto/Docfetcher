@@ -919,18 +919,26 @@ public enum Msg {
 	search_tab ("Search",
 		"Label of the main window tab containing the search field and the " +
 		"search results."),
-	inbox_tab ("Inbox",
-		"Label of the main window tab listing the files in the inbox folder, " +
-		"e.g. documents from a scanner that still have to be renamed and filed."),
-	pref_inbox_folder ("Inbox folder:",
-		Comments.prefOption + "The folder whose files are listed on the " +
-		"'Inbox' tab, typically where a scanner saves new documents."),
-	pref_inbox_folder_hint (
-		"Files in this folder are listed on the 'Inbox' tab, where they can " +
-		"be renamed and moved. Leave empty to hide the tab. The folder is " +
-		"indexed automatically.",
-		"Explanatory text below the 'Inbox folder' option on the preferences " +
+	pref_inbox_folders ("Inbox folders:",
+		Comments.prefOption + "List of folders each of which is shown on its " +
+		"own tab in the main window, typically where a scanner saves new " +
+		"documents."),
+	pref_inbox_folders_hint (
+		"Each folder is shown on its own tab, where its files can be renamed " +
+		"and moved. The folders are indexed automatically. The tab is named " +
+		"after the last part of the folder path unless a name is set.",
+		"Explanatory text below the 'Inbox folders' list on the preferences " +
 		"dialog."),
+	inbox_col_tab_name ("Tab Name",
+		"Column header of the inbox folder list on the preferences dialog: " +
+		"the name of the tab in the main window."),
+	add_inbox_folder_bt ("Add...",
+		"Button on the preferences dialog for adding an inbox folder."),
+	rename_inbox_folder_title ("Rename Inbox Tab",
+		"Title of the dialog for changing the name of an inbox tab."),
+	rename_inbox_folder_msg (
+		"Please enter the tab name (leave empty to use the folder name):",
+		"Message on the dialog for changing the name of an inbox tab."),
 	inbox_folder_label ("Inbox folder: {0}",
 		"Label on the 'Inbox' tab showing the inbox folder. The folder path " +
 		"is inserted in the {0} slot."),

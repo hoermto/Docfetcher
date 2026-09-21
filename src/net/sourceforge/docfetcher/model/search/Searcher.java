@@ -17,6 +17,7 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -83,6 +84,14 @@ import com.google.common.io.Closeables;
 @ThreadSafe
 public final class Searcher {
 	
+	private static boolean isExcluded(	@NotNull File folder,
+										@NotNull Collection<File> excludeFolders) {
+		for (File excluded : excludeFolders)
+			if (Util.isCanonicallyEqual(folder, excluded))
+				return true;
+		return false;
+	}
+
 	/**
 	 * A single page of results.
 	 */
@@ -358,10 +367,10 @@ public final class Searcher {
 	@NotNull
 	@ThreadSafe
 	public List<FolderSuggestion> suggestFolders(	@NotNull String text,
-													@Nullable File excludeFolder,
+													@NotNull Collection<File> excludeFolders,
 													int maxFolders)
 			throws SearchException, CheckedOutOfMemoryError {
-		Util.checkNotNull(text);
+		Util.checkNotNull(text, excludeFolders);
 		readLock.lock();
 		try {
 			checkIndexesExist();
@@ -395,7 +404,7 @@ public final class Searcher {
 				}
 				if (folder == null || !folder.isDirectory())
 					continue; // e.g. archive entries
-				if (excludeFolder != null && Util.isCanonicallyEqual(folder, excludeFolder))
+				if (isExcluded(folder, excludeFolders))
 					continue;
 				Double sum = folderScores.get(folder);
 				folderScores.put(folder, (sum == null ? 0 : sum) + scoreDoc.score);

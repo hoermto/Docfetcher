@@ -199,8 +199,8 @@ public final class SettingsConf {
 		PendingIndexMoveFrom (""),
 		
 		/*
-		 * Folder shown on the 'Inbox' tab, e.g. where a scanner drops new
-		 * documents. Empty means the tab is not shown.
+		 * Inbox folder of version 2.3; migrated to StrList.InboxFolders on
+		 * startup.
 		 */
 		InboxFolder (""),
 		;
@@ -269,9 +269,12 @@ public final class SettingsConf {
 		}
 	}
 
-	@Description("# Semicolon-separated lists of strings.")
+	@Description("# Semicolon-separated lists of strings. InboxFolders" +
+			"\r\n# contains entries of the form 'path|name', where the name is" +
+			"\r\n# optional; each folder is shown on its own inbox tab.")
 	public enum StrList implements Storable {
 		SearchHistory,
+		InboxFolders,
 		;
 
 		public final Event<List<String>> evtChanged = new Event<List<String>> ();
@@ -312,7 +315,7 @@ public final class SettingsConf {
 		MainWindow (-1, -1, 1024, 768),
 		IndexingDialog (-1, -1, 600, 750),
 		FileExtensionChooser (-1, -1, 300, 450),
-		PreferencesDialog (-1, -1, 750, 600),
+		PreferencesDialog (-1, -1, 750, 680),
 		SearchSettingsDialog (-1, -1, 400, 600),
 		MoveToFolderDialog (-1, -1, 560, 380),
 		;

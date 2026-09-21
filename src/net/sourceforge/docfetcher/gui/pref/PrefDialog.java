@@ -22,6 +22,8 @@ import net.sourceforge.docfetcher.enums.*;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.FormLayout;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -329,7 +331,7 @@ public final class PrefDialog {
 		okBt = UtilGui.createPushButton(comp, Msg.ok.get(), new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
 				if (!indexManagementPanel.validateFolder()
-						|| !indexManagementPanel.saveInboxFolder()) {
+						|| !indexManagementPanel.saveInboxFolders()) {
 					tabFolder.setSelection(1);
 					return;
 				}
@@ -431,11 +433,29 @@ public final class PrefDialog {
 	public void open(boolean showIndexesTab) {
 		tabFolder.setSelection(showIndexesTab ? 1 : 0);
 		okBt.setFocus();
+		growToPreferredSize();
 		shell.open();
 		while (!shell.isDisposed()) {
 			if (!shell.getDisplay().readAndDispatch())
 				shell.getDisplay().sleep();
 		}
+	}
+
+	/**
+	 * Enlarges the dialog if the stored size is too small to show all options
+	 * without scrolling, e.g. after an update that added options.
+	 */
+	private void growToPreferredSize() {
+		Point preferred = shell.computeSize(SWT.DEFAULT, SWT.DEFAULT);
+		Rectangle bounds = shell.getBounds();
+		Rectangle client = shell.getMonitor().getClientArea();
+		int width = Math.min(Math.max(bounds.width, preferred.x), client.width);
+		int height = Math.min(Math.max(bounds.height, preferred.y), client.height);
+		if (width == bounds.width && height == bounds.height)
+			return;
+		int x = Math.max(client.x, Math.min(bounds.x, client.x + client.width - width));
+		int y = Math.max(client.y, Math.min(bounds.y, client.y + client.height - height));
+		shell.setBounds(x, y, width, height);
 	}
 
 	@NotNull
