@@ -7,6 +7,10 @@
 === Changes ===
   * The result and inbox tables show the file name in the first column instead of the title; the separate 'Filename' column is gone.
 
+=== Bugfixes ===
+  * Files whose names contain accented characters in decomposed form (e.g. synced from macOS or written by some apps) were reported as "File not found" in the preview and couldn't be renamed or moved.
+  * The preview of Word documents saved by newer Word versions failed with "string value 'start' is not a valid enumeration value for ST_Jc".
+
 ==== 2026-09-21 - DocFetcher 2.3 ====
 
 === Features ===

@@ -5,7 +5,14 @@
 - add for each change/feature/bugfix a git commit with brief commit line
 - no git push allowed
 
+## bugs
+
+[] the scan settings modal can be opened from menu, from search tab and bottom right from app. It feels wrong and double configured?
+
 ## changes
+
+[] show index status (in %) per folder in index settings. Also add general progress bar in app window bottom right about overall status
+
 
 ## features
 [] ocr for png/jpg and add text to metadata
