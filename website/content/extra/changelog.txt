@@ -1,3 +1,11 @@
+==== 2026-09-21 - DocFetcher 2.1 ====
+
+=== Changes ===
+  * Only one instance of DocFetcher runs at a time: launching it again brings the running instance to the front. Stale lock files after a crash no longer trigger a warning dialog.
+  * Indexes created before version 2.0 don't contain page counts; DocFetcher now offers once to rebuild them in the background.
+  * Page counts are also read from RTF files and, for Word documents without page metadata, estimated from the page breaks.
+
+
 ==== 2026-09-21 - DocFetcher 2.0 ====
 
 === Features ===
