@@ -82,7 +82,6 @@ public final class SettingsConf {
 		UseTypeAheadSearch (false),
 		ResetLocationFilterOnExit (true),
 		HotkeyEnabled (true),
-		ShowDocFetcherProTip (true),
 		UpdateIndexesOnStartup (true),
 		AskRebuildOutdatedIndexes (true),
 		MatchFilenames (true), // Search terms also match file names as substrings

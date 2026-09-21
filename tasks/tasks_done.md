@@ -43,3 +43,5 @@
   - Title column shows no file-type/email icon anymore. The rename dialog edits only the base name and shows the extension as a fixed label; all rename paths keep the original extension.
 - similar to "Rename To": add a "Move To" submenu with the top 5 target folders and an entry that opens the manual folder selection, in search and inbox
   - 'Move To' submenu in the result table context menu (both tabs): up to five suggested folders (same keyword similarity as the dialog, computed in the background together with the name suggestions) that move the selected files with one click, plus 'Other Folder...' opening the dialog.
+- remove the "try docfetcher pro" from UI
+  - Removed the 'Try DocFetcher Pro' status bar link and the one-time hint overlay (plus the related setting and strings).
