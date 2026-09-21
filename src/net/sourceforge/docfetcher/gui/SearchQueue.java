@@ -74,6 +74,7 @@ public final class SearchQueue {
 	
 	@Nullable private volatile String query;
 	@Nullable private volatile Set<String> listDocIds;
+	@Nullable private volatile String lastSearchQuery; // last query that was run
 	@Nullable private List<ResultDocument> results;
 	@Nullable private Set<String> checkedParsers;
 	@Nullable private TreeCheckState treeCheckState;
@@ -106,6 +107,28 @@ public final class SearchQueue {
 		thread.start();
 		
 		initListeners();
+	}
+	
+	/**
+	 * Runs the last explicit search again, e.g. after a setting that affects
+	 * the query was changed. Does nothing if no search has been run yet.
+	 */
+	public void rerunLastSearch() {
+		lock.lock();
+		try {
+			if (lastSearchQuery == null)
+				return;
+			indexPanel.getIndexRegistry().getSearcher().stopSearch();
+			query = lastSearchQuery;
+			listDocIds = null;
+			searchBar.setEnabled(false);
+			queue.add(GuiEvent.SEARCH_OR_LIST);
+			queue.add(GuiEvent.EXPLICIT_SEARCH);
+			queueNotEmpty.signal();
+		}
+		finally {
+			lock.unlock();
+		}
 	}
 	
 	private void initListeners() {
@@ -217,6 +240,10 @@ public final class SearchQueue {
 			listDocIds = this.listDocIds;
 			this.query = null;
 			this.listDocIds = null;
+			if (query != null)
+				lastSearchQuery = query;
+			else if (listDocIds != null)
+				lastSearchQuery = null; // A document listing replaced the search
 		}
 		catch (InterruptedException e) {
 			return false;

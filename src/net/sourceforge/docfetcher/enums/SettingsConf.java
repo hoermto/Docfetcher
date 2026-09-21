@@ -85,6 +85,7 @@ public final class SettingsConf {
 		ShowDocFetcherProTip (true),
 		UpdateIndexesOnStartup (true),
 		AskRebuildOutdatedIndexes (true),
+		MatchFilenames (true), // Search terms also match file names as substrings
 
 		ShowPreviewPanel (true),
 		ShowPreviewPanelAtBottom (false),
@@ -141,6 +142,9 @@ public final class SettingsConf {
 		 * system tray is not supported on Ubuntu Unity.
 		 */
 		CloseAction (CLOSE_ACTION_EXIT),
+		
+		// Number of trailing path segments shown for suggested folders
+		FolderPathSegments (2),
 		;
 
 		public final Event<Integer> evtChanged = new Event<Integer> ();

@@ -909,6 +909,15 @@ public enum Msg {
 		"Error message shown when deleting the original document after a " +
 		"copy failed. The path is inserted in the {0} slot."),
 	
+	match_filenames ("Also match file names (any part of the name)",
+		"Checkbox on the search settings dialog: If checked, the search " +
+		"terms are additionally matched against the file names, as " +
+		"substrings."),
+	pref_folder_path_segments ("Path segments shown for suggested folders:",
+		Comments.prefOption + "How many trailing parts of a folder path are " +
+		"shown in the first column of the 'Move to Folder' dialog, e.g. 2 " +
+		"shows 'Projects/Reports'."),
+	
 	// Search settings dialog (document types and search scope filters)
 	search_settings_title ("Search Settings",
 		"Window title of the dialog containing the search filters, i.e. the " +

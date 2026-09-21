@@ -13,6 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.ControlAdapter;
+import org.eclipse.swt.events.ControlEvent;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.layout.GridData;
@@ -86,7 +88,17 @@ final class MoveToFolderDialog {
 		folderCol.setWidth(420);
 		TableColumn matchCol = new TableColumn(table, SWT.RIGHT);
 		matchCol.setText(Msg.match_col.get());
-		matchCol.setWidth(70);
+		matchCol.setWidth(90);
+		table.addControlListener(new ControlAdapter() {
+			public void controlResized(ControlEvent e) {
+				// Deferred: on GTK the client area is stale during the event
+				UtilGui.runAsyncExec(table, new Runnable() {
+					public void run() {
+						fitColumns();
+					}
+				});
+			}
+		});
 		table.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
 				TableItem[] sel = table.getSelection();
@@ -211,9 +223,7 @@ final class MoveToFolderDialog {
 		table.removeAll();
 		for (FolderSuggestion suggestion : suggestions) {
 			TableItem item = new TableItem(table, SWT.NONE);
-			File folder = suggestion.getFolder();
-			String parent = folder.getParent() == null ? "" : "  (" + Util.getSystemAbsPath(folder.getParentFile()) + ")";
-			item.setText(0, folder.getName() + parent);
+			item.setText(0, formatFolder(suggestion.getFolder()));
 			item.setText(1, Math.round(suggestion.getRelevance() * 100) + " %");
 			item.setImage(0, Img.FOLDER.get());
 			item.setData(suggestion.getFolder());
@@ -235,6 +245,44 @@ final class MoveToFolderDialog {
 		shell.layout();
 	}
 
+	/**
+	 * Formats a folder for display: the last few path segments (as configured
+	 * in the preferences) followed by the remaining leading part of the path
+	 * in parentheses, e.g. "Projects/Reports  (C:\\Users\\me\\Documents)".
+	 */
+	@NotNull
+	static String formatFolder(@NotNull File folder) {
+		int segments = Math.max(1, SettingsConf.Int.FolderPathSegments.get());
+		List<String> names = new ArrayList<String>();
+		File current = folder;
+		while (current != null && names.size() < segments && current.getName().length() > 0) {
+			names.add(0, current.getName());
+			current = current.getParentFile();
+		}
+		if (names.isEmpty())
+			return Util.getSystemAbsPath(folder);
+		String tail = Util.join(File.separator, names);
+		if (current == null)
+			return tail;
+		return tail + "  (" + Util.getSystemAbsPath(current) + ")";
+	}
+	
+	/**
+	 * Gives the match column a fixed width and lets the folder column fill
+	 * the rest of the table, so that long paths get as much room as possible.
+	 */
+	private void fitColumns() {
+		if (table.isDisposed())
+			return;
+		int available = table.getClientArea().width;
+		if (available <= 0)
+			return;
+		TableColumn[] columns = table.getColumns();
+		int matchWidth = 90;
+		columns[1].setWidth(matchWidth);
+		columns[0].setWidth(Math.max(100, available - matchWidth));
+	}
+	
 	private void setTarget(@Nullable File folder) {
 		targetField.setText(folder == null ? "" : Util.getSystemAbsPath(folder));
 		moveBt.setEnabled(folder != null);

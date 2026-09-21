@@ -45,7 +45,11 @@ import net.sourceforge.docfetcher.util.collect.ListMap;
  */
 public final class SearchSettingsDialog {
 
+	/** Fired when the 'match file names' option was toggled. */
+	public final net.sourceforge.docfetcher.util.Event<Void> evtMatchFilenamesChanged = new net.sourceforge.docfetcher.util.Event<Void>();
+	
 	private final Shell shell;
+	private final Shell mainShell;
 	private final FileTypePanel fileTypePanel;
 	private final IndexPanel indexPanel;
 	private final TwoFormExpander expander;
@@ -63,6 +67,7 @@ public final class SearchSettingsDialog {
 									@NotNull final IndexRegistry indexRegistry,
 									boolean indexRegistryLoaded) {
 		Util.checkNotNull(mainShell, indexRegistry);
+		this.mainShell = mainShell;
 
 		shell = new Shell(mainShell, SWT.DIALOG_TRIM | SWT.RESIZE | SWT.PRIMARY_MODAL);
 		shell.setText(Msg.search_settings_title.get());
@@ -74,10 +79,20 @@ public final class SearchSettingsDialog {
 		shell.addListener(SWT.Close, new Listener() {
 			public void handleEvent(Event e) {
 				e.doit = false;
-				shell.setVisible(false);
+				close();
 			}
 		});
 
+		final Button matchFilenamesBt = UtilGui.createCheckButton(shell, Msg.match_filenames.get());
+		matchFilenamesBt.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		matchFilenamesBt.setSelection(SettingsConf.Bool.MatchFilenames.get());
+		matchFilenamesBt.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				SettingsConf.Bool.MatchFilenames.set(matchFilenamesBt.getSelection());
+				evtMatchFilenamesChanged.fire(null);
+			}
+		});
+		
 		final FileTypePanel[] fileTypePanelHolder = new FileTypePanel[1];
 		final IndexPanel[] indexPanelHolder = new IndexPanel[1];
 
@@ -177,8 +192,16 @@ public final class SearchSettingsDialog {
 	 * Hides the dialog. The filter panels keep their state.
 	 */
 	public void close() {
-		if (!shell.isDisposed())
-			shell.setVisible(false);
+		if (shell.isDisposed())
+			return;
+		shell.setVisible(false);
+		/*
+		 * Hiding (rather than disposing) a modal shell doesn't hand the
+		 * keyboard focus back to the parent on all platforms (observed on
+		 * GTK), so activate the main window explicitly.
+		 */
+		if (!mainShell.isDisposed())
+			mainShell.setActive();
 	}
 
 	public boolean isOpen() {

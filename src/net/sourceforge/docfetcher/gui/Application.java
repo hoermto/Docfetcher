@@ -141,6 +141,14 @@ public final class Application {
 	private static boolean indexRegistryLoaded = false; // should only be accessed from SWT thread
 	
 	/*
+	 * True while background indexing tasks enqueued by the program itself
+	 * (startup updates, rebuilds of outdated indexes) are pending, so that the
+	 * indexing indicator in the status bar is only shown if the queue hasn't
+	 * already been emptied in the meantime.
+	 */
+	private static volatile boolean backgroundIndexingPending = false;
+	
+	/*
 	 * The index folder that is used if the user hasn't set a custom index
 	 * folder in the preferences, i.e. either the folder from paths.txt or the
 	 * built-in default.
@@ -343,8 +351,13 @@ public final class Application {
 			showDocFetcherProTip();
 		}
 		
-		new SearchQueue(
+		final SearchQueue searchQueue = new SearchQueue(
 			searchBar, fileTypePanel, indexPanel, resultPanel, statusBar);
+		searchSettingsDialog.evtMatchFilenamesChanged.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				searchQueue.rerunLastSearch();
+			}
+		});
 
 		FormDataFactory fdf = FormDataFactory.getInstance();
 		fdf.bottom().left().right().applyTo(statusBar);
@@ -700,6 +713,7 @@ public final class Application {
 		 */
 		queue.evtQueueEmpty.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
+				backgroundIndexingPending = false;
 				/*
 				 * Bug #3485598: The indexing status widget can be null at this
 				 * point. Possible explanation: An indexing update was issued by
@@ -879,16 +893,34 @@ public final class Application {
 				if (answer < 0)
 					SettingsConf.Bool.AskRebuildOutdatedIndexes.set(false);
 				rebuild[0] = answer > 0;
-				if (rebuild[0] && indexingStatus != null)
-					indexingStatus.setVisible(true);
 			}
 		});
 		
 		if (!rebuild[0])
 			return;
 		IndexingQueue queue = indexRegistry.getQueue();
+		int accepted = 0;
 		for (LuceneIndex index : outdated)
-			queue.addTask(index, IndexAction.REBUILD, true);
+			if (queue.addTask(index, IndexAction.REBUILD, true) == null)
+				accepted++;
+		if (accepted > 0)
+			showIndexingStatus(mainShell);
+	}
+	
+	/**
+	 * Shows the indexing indicator in the status bar for background tasks
+	 * that were just enqueued. The indicator is hidden again by the
+	 * queue-empty event; if that event has already fired by the time the
+	 * GUI thread gets around to showing the indicator, it stays hidden.
+	 */
+	private static void showIndexingStatus(@NotNull Shell mainShell) {
+		backgroundIndexingPending = true;
+		UtilGui.runAsyncExec(mainShell, new Runnable() {
+			public void run() {
+				if (backgroundIndexingPending && indexingStatus != null)
+					indexingStatus.setVisible(true);
+			}
+		});
 	}
 	
 	/**
@@ -905,21 +937,13 @@ public final class Application {
 		if (toUpdate.isEmpty())
 			return;
 		
-		/*
-		 * Show the indexing indicator in the status bar; it is hidden again
-		 * when the queue is empty. This must be posted *before* the tasks are
-		 * added, so that it is processed before the queue-empty event.
-		 */
-		UtilGui.runAsyncExec(mainShell, new Runnable() {
-			public void run() {
-				if (indexingStatus != null)
-					indexingStatus.setVisible(true);
-			}
-		});
-		
 		IndexingQueue queue = indexRegistry.getQueue();
+		int accepted = 0;
 		for (LuceneIndex index : toUpdate)
-			queue.addTask(index, IndexAction.UPDATE); // Rejected if already queued
+			if (queue.addTask(index, IndexAction.UPDATE) == null) // Rejected if already queued
+				accepted++;
+		if (accepted > 0)
+			showIndexingStatus(mainShell);
 	}
 	
 	private static void loadIndexRegistryHeadless(@NotNull File indexParentDir) {

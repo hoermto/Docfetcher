@@ -189,6 +189,12 @@ public final class PrefDialog {
 				Msg.pref_preview_bottom.get(),
 				Msg.pref_preview_right.get()),
 			
+			new DropdownOption(
+				Msg.pref_folder_path_segments.get(),
+				SettingsConf.Int.FolderPathSegments,
+				new String[] { "1", "2", "3", "4", "5" },
+				new int[] { 1, 2, 3, 4, 5 }),
+			
 			analyzerOption,
 
 			new ColorOption(

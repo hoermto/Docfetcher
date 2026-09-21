@@ -54,6 +54,8 @@ import net.sourceforge.docfetcher.util.annotations.VisibleForPackageGroup;
 import net.sourceforge.docfetcher.util.collect.AlphanumComparator;
 import net.sourceforge.docfetcher.util.collect.LazyList;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.queries.mlt.MoreLikeThis;
@@ -613,6 +615,15 @@ public final class Searcher {
 		try {
 			Query query = queryParser.parse(queryString);
 			boolean isPhraseQuery = queryParser.isPhraseQuery();
+			if (SettingsConf.Bool.MatchFilenames.get()) {
+				Query filenameQuery = createFilenameQuery(queryString);
+				if (filenameQuery != null) {
+					BooleanQuery.Builder builder = new BooleanQuery.Builder();
+					builder.add(query, BooleanClause.Occur.SHOULD);
+					builder.add(filenameQuery, BooleanClause.Occur.SHOULD);
+					query = builder.build();
+				}
+			}
 			return new QueryWrapper(query, isPhraseQuery);
 		}
 		catch (TooComplexToDeterminizeException e) {
@@ -707,6 +718,54 @@ public final class Searcher {
 		synchronized (this) {
 			deletionThread.interrupt();
 		}
+	}
+	
+	/**
+	 * Builds a query that matches the search terms as case-insensitive
+	 * substrings of the file names, so that e.g. "invoice" also finds
+	 * "myinvoice_2024.pdf". The terms are taken from the query string by
+	 * running it through the analyzer, which drops the query syntax. Returns
+	 * null if the query string yields no terms.
+	 */
+	@Nullable
+	private static Query createFilenameQuery(@NotNull String queryString) {
+		List<String> terms = new ArrayList<String>();
+		try {
+			TokenStream stream = IndexRegistry.getAnalyzer().tokenStream(
+				Fields.FILENAME.key(), new StringReader(queryString));
+			CharTermAttribute termAttr = stream.addAttribute(CharTermAttribute.class);
+			stream.reset();
+			while (stream.incrementToken()) {
+				String term = termAttr.toString().trim();
+				// Wildcard characters are query syntax, not part of the name
+				term = term.replace("*", "").replace("?", "");
+				if (!term.isEmpty() && !terms.contains(term))
+					terms.add(term);
+			}
+			stream.end();
+			stream.close();
+		}
+		catch (IOException e) {
+			return null;
+		}
+		if (terms.isEmpty())
+			return null;
+		
+		BooleanClause.Occur occur = SettingsConf.Bool.UseOrOperator.get()
+			? BooleanClause.Occur.SHOULD
+			: BooleanClause.Occur.MUST;
+		BooleanQuery.Builder builder = new BooleanQuery.Builder();
+		for (String term : terms) {
+			WildcardQuery wildcard = new WildcardQuery(
+				new Term(Fields.FILENAME.key(), "*" + term + "*"));
+			/*
+			 * Constant score rewriting avoids the boolean clause limit that
+			 * scoring rewrites can hit when a substring matches many names.
+			 */
+			wildcard.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+			builder.add(wildcard, occur);
+		}
+		return builder.build();
 	}
 	
 	private static final class QueryWrapper {

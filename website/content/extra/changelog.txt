@@ -4,6 +4,8 @@
   * Documents can be renamed directly from the result table (F2 or context menu).
   * Documents can be moved into another folder from the result table. The 'Move to Folder' dialog suggests target folders whose documents have similar content, based on the keywords in the indexes.
   * Files can be dragged from the result table into Windows Explorer and other programs: a plain drag moves the files, Ctrl+drag copies them (DocFetcher then asks whether to keep the originals).
+  * Search terms can also match any part of the file names ('Also match file names' in the search settings, on by default).
+  * The 'Move to Folder' dialog remembers its size, fits its columns to the width and shows a configurable number of path segments for the suggested folders.
 
 
 ==== 2026-09-21 - DocFetcher 2.1 ====
