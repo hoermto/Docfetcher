@@ -8,6 +8,10 @@
   * Files can be filed by dragging them onto a folder row of the folder browser; dropping moves them into that folder (Ctrl copies). Files dragged in from other programs are moved as well.
   * 'View > Folder panel' (F9) turns the folder browser into a panel of its own between the tabs and the preview, so documents can be dragged from an inbox tab or from the search results into a folder while both are visible.
   * The folder browser has a '..' row at the top; the left arrow key and backspace go to the parent folder.
+  * The folder browser is shown as a panel by default now, and has buttons for the root folder list and for creating a subfolder.
+  * 'Delete' in the context menu of any result table (or the Del key) moves the selected files to the recycle bin after a confirmation; without a recycle bin the files are deleted permanently, which the confirmation says.
+  * 'Show in Folder View' in the context menu opens a document's folder in the folder browser and selects the document there; optionally the browser follows the selected search result (on by default).
+  * Files dropped anywhere in the folder browser, not just on a folder row, are moved into the folder currently shown.
 
 ==== 2026-09-21 - DocFetcher 2.4 ====
 

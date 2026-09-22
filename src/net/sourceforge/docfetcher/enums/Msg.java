@@ -934,6 +934,35 @@ public enum Msg {
 		"Button label for permanently dismissing a question."),
 	
 	// Renaming and moving documents from the result table
+	show_in_folder_panel ("Show in Folder View",
+		"Context menu entry of the result table that opens the file's " +
+		"folder in the folder browser, in contrast to 'Open Parent Folder', " +
+		"which opens the system's file manager."),
+	pref_sync_folder_view (
+		"Show the folder of the selected search result in the folder view",
+		Comments.prefOption + "If checked, clicking a search result opens " +
+		"its folder in the folder browser."),
+	delete_document ("Delete...\tDel",
+		"Context menu entry of the result table for deleting the selected " +
+		"files. The '\tDel' is a keyboard shortcut."),
+	confirm_delete_trash (
+		"Move {0} file(s) to the recycle bin?\n\n{1}",
+		"Confirmation before deleting files. The number of files is " +
+		"inserted in the {0} slot, their names in the {1} slot."),
+	confirm_delete_permanently (
+		"Delete {0} file(s) permanently? This cannot be undone.\n\n{1}",
+		"Confirmation before deleting files on a system without a recycle " +
+		"bin. The number of files is inserted in the {0} slot, their names " +
+		"in the {1} slot."),
+	new_folder ("New Folder...",
+		"Button in the folder browser for creating a subfolder."),
+	new_folder_title ("New Folder",
+		"Title of the dialog asking for the name of a new folder."),
+	new_folder_msg ("Please enter the name of the new folder:",
+		"Message of the dialog asking for the name of a new folder."),
+	new_folder_failed ("The folder could not be created:\n{0}",
+		"Error message when a new folder couldn't be created. The path is " +
+		"inserted in the {0} slot."),
 	rename_document ("Rename...\tF2",
 		"Context menu entry of the result table for renaming the selected " +
 		"file. The '\tF2' is a keyboard shortcut."),
@@ -1061,6 +1090,9 @@ public enum Msg {
 		"missing. The path is inserted in the {0} slot."),
 	folders_tab ("Folders",
 		"Label of the main window tab that browses the indexed folders."),
+	folder_roots_bt ("Indexed folders",
+		"Tooltip of the button that returns to the list of root folders in " +
+		"the 'Folders' tab."),
 	folder_up ("Up",
 		"Tooltip of the button that goes to the parent folder in the " +
 		"'Folders' tab."),

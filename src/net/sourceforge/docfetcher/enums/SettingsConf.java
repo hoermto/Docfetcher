@@ -91,7 +91,8 @@ public final class SettingsConf {
 		KeepTiffAfterConversion (true), // Keep the TIFF renamed to .ocr instead of deleting it
 		DailyIndexUpdate (true), // Update all indexes once a day while running
 		ShowPathColumn (true), // Show the folder column in the result tables
-		ShowFolderPanel (false), // Show the folder browser as a panel of its own
+		ShowFolderPanel (true), // Show the folder browser as a panel of its own
+		SyncFolderView (true), // Folder view follows the selected search result
 
 		ShowPreviewPanel (true),
 		ShowPreviewPanelAtBottom (false),

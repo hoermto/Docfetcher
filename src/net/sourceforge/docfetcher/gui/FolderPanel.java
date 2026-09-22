@@ -31,6 +31,9 @@ import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.LuceneIndex;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.model.search.Searcher;
+import net.sourceforge.docfetcher.util.AppUtil;
+import net.sourceforge.docfetcher.util.UtilFile;
+import net.sourceforge.docfetcher.util.gui.dialog.InputDialog;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilGui;
@@ -54,6 +57,8 @@ public final class FolderPanel {
 	private final Composite comp;
 	private final Label pathLabel;
 	private final ToolItem upBt;
+	private final ToolItem rootBt;
+	private final ToolItem newFolderBt;
 	private final ResultPanel resultPanel;
 	private final IndexRegistry indexRegistry;
 
@@ -75,6 +80,12 @@ public final class FolderPanel {
 		ToolBar toolBar = new ToolBar(header, SWT.FLAT);
 		toolBar.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
 		ToolItemFactory tif = new ToolItemFactory(toolBar);
+		rootBt = tif.image(Img.FOLDER.get()).toolTip(Msg.folder_roots_bt.get())
+				.listener(new SelectionAdapter() {
+					public void widgetSelected(SelectionEvent e) {
+						setFolder(null); // Back to the list of root folders
+					}
+				}).create();
 		upBt = tif.image(Img.ARROW_UP.get()).toolTip(Msg.folder_up.get())
 				.listener(new SelectionAdapter() {
 					public void widgetSelected(SelectionEvent e) {
@@ -85,6 +96,12 @@ public final class FolderPanel {
 				.listener(new SelectionAdapter() {
 					public void widgetSelected(SelectionEvent e) {
 						refresh();
+					}
+				}).create();
+		newFolderBt = tif.image(Img.ADD.get()).toolTip(Msg.new_folder.get())
+				.listener(new SelectionAdapter() {
+					public void widgetSelected(SelectionEvent e) {
+						createFolder();
 					}
 				}).create();
 
@@ -169,11 +186,47 @@ public final class FolderPanel {
 		SettingsConf.Str.LastBrowsedFolder.set(
 			folder == null ? "" : Util.getSystemAbsPath(folder));
 		updatePathLabel();
+		resultPanel.setCurrentFolder(folder);
 		upBt.setEnabled(folder != null);
+		rootBt.setEnabled(folder != null);
+		newFolderBt.setEnabled(folder != null); // Not in the root list
 		evtFolderChanged.fire(null);
 		refresh();
 	}
 
+	/**
+	 * Shows the folder of the given file and selects the file in the list.
+	 */
+	public void showFile(@NotNull File file) {
+		Util.checkNotNull(file);
+		File parent = file.isDirectory() ? file : file.getParentFile();
+		if (parent == null)
+			return;
+		fileToSelect = file;
+		setFolder(parent);
+	}
+	
+	@Nullable private File fileToSelect;
+	
+	/** Asks for a name and creates a subfolder in the current folder. */
+	public void createFolder() {
+		File current = folder;
+		if (current == null)
+			return;
+		InputDialog dialog = new InputDialog(comp.getShell(),
+			Msg.new_folder_title.get(), Msg.new_folder_msg.get(), "");
+		String name = dialog.open();
+		if (name == null || name.trim().isEmpty())
+			return;
+		File created = UtilFile.createFolder(current, name);
+		if (created == null) {
+			AppUtil.showError(Msg.new_folder_failed.format(
+				new File(current, name.trim()).getPath()), true, true);
+			return;
+		}
+		refresh();
+	}
+	
 	/**
 	 * Goes to the parent folder, or back to the root list if the current
 	 * folder is one of the root folders.
@@ -249,6 +302,10 @@ public final class FolderPanel {
 						resultPanel.setResults(
 							new ArrayList<ResultDocument>(result), HeaderMode.FILES);
 						resultPanel.applyNameSorting();
+						if (fileToSelect != null) {
+							resultPanel.selectByFile(fileToSelect);
+							fileToSelect = null;
+						}
 					}
 				});
 			}

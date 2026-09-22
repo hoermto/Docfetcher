@@ -141,6 +141,10 @@ public final class PrefDialog {
 				SettingsConf.Bool.ShowPathColumn),
 
 			new CheckOption(
+				Msg.pref_sync_folder_view.get(),
+				SettingsConf.Bool.SyncFolderView),
+
+			new CheckOption(
 				Msg.pref_ocr.get(),
 				SettingsConf.Bool.OcrEnabled),
 

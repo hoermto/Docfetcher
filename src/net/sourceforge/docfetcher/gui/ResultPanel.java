@@ -47,6 +47,7 @@ import net.sourceforge.docfetcher.model.search.Searcher;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.Util;
+import net.sourceforge.docfetcher.util.UtilFile;
 import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.MutableCopy;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
@@ -139,6 +140,9 @@ public final class ResultPanel {
 	
 	/** Fired when the user asks to go to the parent folder (left arrow). */
 	public final Event<Void> evtGoUp = new Event<Void>();
+	
+	/** Fired when the user wants to see a file in the folder browser. */
+	public final Event<File> evtShowInFolder = new Event<File>();
 	public final Event<Void> evtHideInSystemTray = new Event<Void>();
 	
 	/** Fired after documents were renamed or moved, so that the preview can be refreshed. */
@@ -225,6 +229,8 @@ public final class ResultPanel {
 					copyToClipboard();
 				else if (e.stateMask == SWT.MOD1 && e.keyCode == 'a')
 					table.selectAll();
+				else if (e.keyCode == SWT.DEL)
+					deleteSelection();
 				else if (e.keyCode == SWT.F2)
 					renameSelection();
 			}
@@ -707,6 +713,33 @@ public final class ResultPanel {
 			}
 		});
 		
+		menuManager.add(new MenuAction(Msg.show_in_folder_panel.get()) {
+			public boolean isEnabled() {
+				List<ResultDocument> sel = viewer.getSelection();
+				return sel.size() == 1 && sel.get(0).isPlainFileOnDisk();
+			}
+			public void run() {
+				List<ResultDocument> sel = viewer.getSelection();
+				if (sel.size() == 1)
+					evtShowInFolder.fire(sel.get(0).getPath().getCanonicalFile());
+			}
+		});
+		
+		menuManager.add(new MenuAction(Msg.delete_document.get()) {
+			public boolean isEnabled() {
+				List<ResultDocument> sel = viewer.getSelection();
+				if (sel.isEmpty())
+					return false;
+				for (ResultDocument doc : sel)
+					if (!doc.isPlainFileOnDisk())
+						return false;
+				return true;
+			}
+			public void run() {
+				deleteSelection();
+			}
+		});
+		
 		menuManager.addSeparator();
 		
 		String label = Util.IS_MAC_OS_X ? Msg.copy_macosx.get() : Msg.copy.get();
@@ -1037,6 +1070,53 @@ public final class ResultPanel {
 	}
 	
 	/**
+	 * Deletes the files of the selected documents after a confirmation. The
+	 * files go to the recycle bin if the system has one, otherwise they are
+	 * deleted for good, which the confirmation says.
+	 */
+	private void deleteSelection() {
+		List<ResultDocument> sel = viewer.getSelection();
+		if (sel.isEmpty())
+			return;
+		for (ResultDocument doc : sel) {
+			if (!doc.isPlainFileOnDisk()) {
+				AppUtil.showError(Msg.only_plain_files.get(), true, true);
+				return;
+			}
+		}
+		
+		StringBuilder names = new StringBuilder();
+		for (ResultDocument doc : sel) {
+			if (names.length() > 0)
+				names.append("\n");
+			names.append(doc.getFilename());
+		}
+		String msg = UtilFile.isTrashSupported()
+			? Msg.confirm_delete_trash.format(sel.size(), names.toString())
+			: Msg.confirm_delete_permanently.format(sel.size(), names.toString());
+		if (!AppUtil.showConfirmation(msg, true))
+			return;
+		
+		List<File> affected = new ArrayList<File>();
+		List<ResultDocument> deleted = new ArrayList<ResultDocument>();
+		for (ResultDocument doc : sel) {
+			File file = doc.getPath().getCanonicalFile();
+			if (!UtilFile.delete(file)) {
+				AppUtil.showError(Msg.file_operation_failed.format(file.getPath()), true, true);
+				break;
+			}
+			affected.add(file);
+			deleted.add(doc);
+		}
+		if (deleted.isEmpty())
+			return;
+		viewer.removeElements(deleted);
+		viewer.refresh();
+		updateIndexesFor(affected);
+		evtDocumentsChanged.fire(null);
+	}
+	
+	/**
 	 * Moves or renames the given file. Returns true on success; on failure an
 	 * error message is shown and false is returned.
 	 */
@@ -1129,22 +1209,38 @@ public final class ResultPanel {
 				event.feedback = DND.FEEDBACK_SELECT | DND.FEEDBACK_SCROLL;
 			}
 			
-			/** Returns the folder of the row under the cursor, or null. */
+			/**
+			 * Returns the folder to drop into: the folder of the row under
+			 * the cursor, or the folder the table is showing, so that files
+			 * can also be dropped on a file row or on the free space below.
+			 */
 			@Nullable
 			private File getDropFolder(DropTargetEvent event) {
-				if (event.item == null || !(event.item instanceof TableItem))
-					return null;
-				Object data = ((TableItem) event.item).getData();
-				if (!(data instanceof ResultDocument))
-					return null;
-				ResultDocument doc = (ResultDocument) data;
-				if (!doc.isFolder())
-					return null;
-				File folder = doc.getPath().getCanonicalFile();
-				return folder.isDirectory() ? folder : null;
+				if (event.item instanceof TableItem) {
+					Object data = ((TableItem) event.item).getData();
+					if (data instanceof ResultDocument) {
+						ResultDocument doc = (ResultDocument) data;
+						if (doc.isFolder()) {
+							File folder = doc.getPath().getCanonicalFile();
+							return folder.isDirectory() ? folder : null;
+						}
+					}
+				}
+				File current = currentFolder;
+				return current != null && current.isDirectory() ? current : null;
 			}
 		});
 	}
+	
+	/**
+	 * Sets the folder the table is showing; files dropped next to a folder
+	 * row are moved into it. Null for tables that aren't a folder listing.
+	 */
+	public void setCurrentFolder(@Nullable File currentFolder) {
+		this.currentFolder = currentFolder;
+	}
+	
+	@Nullable private File currentFolder;
 	
 	/**
 	 * Moves the given files into the target folder and refreshes the view.
@@ -1451,6 +1547,15 @@ public final class ResultPanel {
 			if (uids.contains(doc.getUniqueId()))
 				toSelect.add(doc);
 		viewer.setSelection(toSelect);
+	}
+	
+	/** Selects the row of the given file, if it is in the table. */
+	public void selectByFile(@NotNull File file) {
+		ResultDocument doc = findDocument(file);
+		if (doc == null)
+			return;
+		viewer.setSelection(Collections.singletonList(doc));
+		evtSelection.fire(viewer.getSelection());
 	}
 	
 	public int getItemCount() {

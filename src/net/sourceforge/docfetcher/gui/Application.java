@@ -1541,6 +1541,25 @@ public final class Application {
 			inboxIndexRequests.add(folder);
 	}
 	
+	/**
+	 * Shows the given file in the folder browser: brings the browser up (as
+	 * a panel, or by switching to its tab) and selects the file there.
+	 */
+	private static void showInFolderView(@NotNull File file) {
+		if (folderPanel == null)
+			return;
+		if (!SettingsConf.Bool.ShowFolderPanel.get()) {
+			// The browser is a tab; bring it to the front
+			for (TabItem item : mainTabFolder.getItems()) {
+				if (item == foldersTab) {
+					mainTabFolder.setSelection(item);
+					break;
+				}
+			}
+		}
+		folderPanel.showFile(file);
+	}
+	
 	/** Creates the 'Folders' tab, which browses the indexed folders. */
 	@NotNull
 	private static Control createFolderPanel(@NotNull Composite parent) {
@@ -1575,6 +1594,11 @@ public final class Application {
 		Composite comp = new Composite(parent, SWT.NONE);
 		searchBar = new SearchBar(comp);
 		resultPanel = new ResultPanel(comp, indexRegistry);
+		resultPanel.evtShowInFolder.add(new Event.Listener<File>() {
+			public void update(File eventData) {
+				showInFolderView(eventData);
+			}
+		});
 
 		comp.setLayout(new FormLayout());
 		FormDataFactory fdf = FormDataFactory.getInstance();
@@ -1587,6 +1611,17 @@ public final class Application {
 			}
 		});
 
+		// Optionally let the folder view follow the selected result
+		resultPanel.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
+			public void update(List<ResultDocument> eventData) {
+				if (!SettingsConf.Bool.SyncFolderView.get() || eventData.size() != 1)
+					return;
+				ResultDocument doc = eventData.get(0);
+				if (doc.isPlainFileOnDisk() && folderPanel != null
+						&& SettingsConf.Bool.ShowFolderPanel.get())
+					folderPanel.showFile(doc.getPath().getCanonicalFile());
+			}
+		});
 		resultPanel.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
 			public void update(List<ResultDocument> eventData) {
 				if (!eventData.isEmpty())

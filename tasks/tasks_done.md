@@ -97,3 +97,13 @@
   - 'View > Folder panel' (F9, setting ShowFolderPanel) moves the folder browser out of its tab into a panel of its own between the tabs and the preview (SashForm, weights remembered in FolderSashWeights); the Folders tab disappears while it is shown. Dragging a document from an inbox tab onto a folder row of the panel moves it there (verified in the GUI), and the preview follows the last click in either panel. The folder column is hidden in the browser, since the path bar shows the folder.
 - when disabling the path column, consider this in the auto-size of the remaining columns
   - Root cause: the automatic column fitting wrote its computed widths back into the stored column widths (SettingsConf.ColumnWidths.bind), so the remembered widths collapsed to the minimum while the column was hidden. The result tables now restore the stored values themselves and save the column *weights* (only changed when the user drags a border); hidden columns keep their weight but are left out of the width distribution, so the freed space goes to the other columns.
+- in folder view, add "delete" and "add folder"; delete also in the inbox (with confirmation)
+  - 'Delete...' (Del key) in the context menu of every result table: confirmation naming the files, then UtilFile.delete moves them to the recycle bin (Desktop.moveToTrash) or, without one, deletes them permanently, which the confirmation says. 'New Folder...' button in the folder browser creates a subfolder; names are taken as typed and only rejected if they contain characters that are invalid in file names. Test UtilFileTest.
+- in search table, context menu "show in folder" and a setting for folder sync
+  - 'Show in Folder View' opens the document's folder in the folder browser and selects it there (switching to the Folders tab if the browser isn't shown as a panel); 'Open Parent Folder' still opens the system file manager. New option SyncFolderView (on by default) makes the browser follow the selected search result.
+- detached view to be default
+  - SettingsConf.Bool.ShowFolderPanel now defaults to true.
+- when drag/drop, allow dropping inside the current folder
+  - The drop target of the folder browser falls back to the folder currently shown, so files dropped on a file row or on the free space below are moved into it.
+- in folder pane, add icon to jump to root
+  - Toolbar button (folder icon) that returns to the list of indexed folders and fixed move targets.
