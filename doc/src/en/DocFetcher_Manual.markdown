@@ -19,6 +19,8 @@ DocFetcher is an Open Source desktop search application: It allows you to search
 
 One shortcut you might find useful: Press `Ctrl+F` or `Alt+F` to move the focus back to the search field. To open a file in an external program, double-click on it in the result pane.
 
+The `Folder` column shows the folder a document is in (the file name has its own column); the full path is shown as a tooltip and, for the selected document, in the status bar. The column can be turned off in the preferences.
+
 **Sorting**: You can change the sorting of the results by clicking on any of the result pane's column headers. For example, to sort the results by filename, click on the `Filename` header. Clicking the same header twice will sort by the corresponding criterion in reversed order. You can also change the order of the columns via drag and drop: For example, if you want `Filename` to be the first column, just drag the `Filename` column header to the left.
 
 **Filtering**: Click on the `Search Settings...` button next to the `Search` button to open the search filters: (1) The `Document Types` list allows you to filter the results by type. (2) By unchecking items in the `Search Scope` area, you can filter the results by location. (3) With `Also match file names` checked (the default), the search terms also match any part of the file names, so that e.g. "invoice" finds `myinvoice_2024.pdf` even if the word doesn't occur in the document. Filter changes take effect immediately.

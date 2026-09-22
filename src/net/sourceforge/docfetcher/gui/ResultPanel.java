@@ -66,6 +66,8 @@ import org.eclipse.swt.dnd.FileTransfer;
 import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.events.ControlAdapter;
 import org.eclipse.swt.events.ControlEvent;
+import org.eclipse.swt.events.DisposeEvent;
+import org.eclipse.swt.events.DisposeListener;
 import org.eclipse.swt.events.KeyAdapter;
 import org.eclipse.swt.events.KeyEvent;
 import org.eclipse.swt.events.MenuAdapter;
@@ -310,9 +312,11 @@ public final class ResultPanel {
 			}
 		});
 		
+		// The folder is enough here; the file name has its own column, and
+		// the full path is shown as tooltip and in the status bar
 		viewer.addColumn(new Column<ResultDocument>(Msg.path.get()) {
 			protected String getLabel(ResultDocument element) {
-				return element.getPath().getPath();
+				return element.getParentPath().getPath();
 			}
 			protected int compare(ResultDocument e1, ResultDocument e2) {
 				return compareAlphanum(getLabel(e1), getLabel(e2));
@@ -331,6 +335,61 @@ public final class ResultPanel {
 		}
 		
 		initColumnFitting(table);
+		initPathTooltip(table);
+		
+		// The folder column can be turned off in the settings
+		pathColumn = table.getColumn(table.getColumnCount() - 1);
+		applyPathColumnVisibility();
+		final Event.Listener<Boolean> pathColumnListener = new Event.Listener<Boolean>() {
+			public void update(Boolean eventData) {
+				UtilGui.runAsyncExec(table, new Runnable() {
+					public void run() {
+						applyPathColumnVisibility();
+					}
+				});
+			}
+		};
+		SettingsConf.Bool.ShowPathColumn.evtChanged.add(pathColumnListener);
+		table.addDisposeListener(new DisposeListener() {
+			public void widgetDisposed(DisposeEvent e) {
+				SettingsConf.Bool.ShowPathColumn.evtChanged.remove(pathColumnListener);
+			}
+		});
+	}
+	
+	@Nullable private TableColumn pathColumn;
+	
+	/** Hides or shows the folder column according to the settings. */
+	private void applyPathColumnVisibility() {
+		if (pathColumn == null || pathColumn.isDisposed())
+			return;
+		boolean visible = SettingsConf.Bool.ShowPathColumn.get();
+		int index = pathColumn.getParent().indexOf(pathColumn);
+		pathColumn.setResizable(visible);
+		// A weight of 0 keeps the column out of the width distribution
+		hiddenColumns[index] = !visible;
+		if (!visible)
+			columnWeights[index] = 0;
+		else if (columnWeights[index] <= 0)
+			columnWeights[index] = PATH_COLUMN_WEIGHT;
+		scheduleColumnFit();
+	}
+	
+	/** Shows the full path of the row under the mouse as a tooltip. */
+	private void initPathTooltip(@NotNull final Table table) {
+		table.addListener(SWT.MouseMove, new Listener() {
+			public void handleEvent(org.eclipse.swt.widgets.Event event) {
+				TableItem item = table.getItem(new Point(event.x, event.y));
+				String path = "";
+				if (item != null) {
+					Object data = item.getData();
+					if (data instanceof ResultDocument)
+						path = ((ResultDocument) data).getPath().getPath();
+				}
+				if (!path.equals(table.getToolTipText()))
+					table.setToolTipText(path);
+			}
+		});
 	}
 	
 	/*
@@ -342,6 +401,8 @@ public final class ResultPanel {
 	 * (GTK) automatically expand the last column to fill the table.
 	 */
 	private double[] columnWeights;
+	private boolean[] hiddenColumns;
+	private static final int PATH_COLUMN_WEIGHT = 350;
 	private boolean fittingColumns = false; // true while the fit sets widths
 	private boolean tableResizing = false; // true from table resize until fit
 	private boolean columnFitPending = false;
@@ -349,6 +410,7 @@ public final class ResultPanel {
 	private void initColumnFitting(@NotNull final Table table) {
 		final TableColumn[] columns = table.getColumns();
 		columnWeights = new double[columns.length];
+		hiddenColumns = new boolean[columns.length];
 		for (int i = 0; i < columns.length; i++) {
 			columnWeights[i] = Math.max(columns[i].getWidth(), MIN_COLUMN_WIDTH);
 			final int index = i;
@@ -356,7 +418,7 @@ public final class ResultPanel {
 				public void controlResized(ControlEvent e) {
 					// Only record widths set by the user, not by the fit or
 					// by the platform's automatic expansion during a resize
-					if (fittingColumns || tableResizing)
+					if (fittingColumns || tableResizing || hiddenColumns[index])
 						return;
 					columnWeights[index] = Math.max(columns[index].getWidth(), MIN_COLUMN_WIDTH);
 				}
@@ -415,16 +477,21 @@ public final class ResultPanel {
 				return;
 			fittingColumns = true;
 			try {
+				int lastVisible = columns.length - 1;
+				while (lastVisible > actionColumnCount && hiddenColumns[lastVisible])
+					lastVisible--;
 				int assigned = 0;
 				for (int i = 0; i < columns.length; i++) {
 					int width;
-					if (i < actionColumnCount)
+					if (hiddenColumns[i])
+						width = 0;
+					else if (i < actionColumnCount)
 						width = actionWidth;
-					else if (i == columns.length - 1)
+					else if (i == lastVisible)
 						width = available - assigned; // Absorb rounding errors
 					else
 						width = (int) Math.round(columnWeights[i] * available / totalWeight);
-					if (i >= actionColumnCount)
+					if (i >= actionColumnCount && !hiddenColumns[i])
 						width = Math.max(width, MIN_COLUMN_WIDTH);
 					if (columns[i].getWidth() != width)
 						columns[i].setWidth(width);

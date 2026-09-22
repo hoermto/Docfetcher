@@ -759,7 +759,9 @@ public enum Msg {
 	size ("Size"),
 	filename ("Filename"),
 	type ("Type"),
-	path ("Path"),
+	path ("Folder",
+		"Column header of the result tables showing the folder a document is " +
+		"in (the file name has its own column)."),
 	authors ("Authors"),
 	last_modified ("Last Modified"),
 	pages ("Pages",
@@ -843,6 +845,10 @@ public enum Msg {
 		Comments.prefOption + "If checked, all indexes whose folders are " +
 		"watched for changes are updated in the background when the program " +
 		"starts."),
+	pref_show_path_column (
+		"Show the folder of a document as a column in the result tables",
+		Comments.prefOption + "If unchecked, the folder is only shown as a " +
+		"tooltip and in the status bar."),
 	pref_daily_index_update (
 		"Update all indexes once a day in the background",
 		Comments.prefOption + "If checked, all indexes are updated once a " +

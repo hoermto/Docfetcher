@@ -137,6 +137,10 @@ public final class PrefDialog {
 				SettingsConf.Bool.DailyIndexUpdate),
 
 			new CheckOption(
+				Msg.pref_show_path_column.get(),
+				SettingsConf.Bool.ShowPathColumn),
+
+			new CheckOption(
 				Msg.pref_ocr.get(),
 				SettingsConf.Bool.OcrEnabled),
 

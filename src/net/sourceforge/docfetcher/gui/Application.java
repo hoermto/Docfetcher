@@ -1352,6 +1352,23 @@ public final class Application {
 		return null;
 	}
 
+	/**
+	 * Shows the path of the selected document in the status bar, or the
+	 * number of selected documents if there are several.
+	 */
+	private static void showSelectedPath(@NotNull List<ResultDocument> selection) {
+		if (statusBar == null)
+			return;
+		String msg;
+		if (selection.isEmpty())
+			msg = "";
+		else if (selection.size() > 1)
+			msg = Msg.num_sel_results.format(selection.size());
+		else
+			msg = selection.get(0).getPath().getPath();
+		statusBar.getLeftPart().setContents(msg.isEmpty() ? null : Img.INFO.get(), msg);
+	}
+	
 	/** Reloads the file lists of all inbox tabs. Safe to call from any thread. */
 	private static void refreshInboxTabs() {
 		for (InboxTab inboxTab : inboxTabs)
@@ -1414,6 +1431,7 @@ public final class Application {
 			public void update(List<ResultDocument> eventData) {
 				if (!eventData.isEmpty())
 					previewPanel.setPreview(eventData.get(0));
+				showSelectedPath(eventData);
 			}
 		});
 		inboxResults.evtHideInSystemTray.add(new Event.Listener<Void>() {

@@ -393,9 +393,11 @@ public final class SearchQueue {
 		String msg = Msg.num_results.format(resultCount);
 		if (resultCount >= Searcher.MAX_RESULTS)
 			msg += "+";
-		int selCount = resultPanel.getSelection().size();
-		if (selCount > 1)
-			msg += spaces + Msg.num_sel_results.format(selCount);
+		List<ResultDocument> selection = resultPanel.getSelection();
+		if (selection.size() > 1)
+			msg += spaces + Msg.num_sel_results.format(selection.size());
+		else if (selection.size() == 1)
+			msg += spaces + selection.get(0).getPath().getPath();
 		statusBar.getLeftPart().setContents(Img.INFO.get(), msg);
 	}
 

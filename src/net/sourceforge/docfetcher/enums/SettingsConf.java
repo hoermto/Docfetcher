@@ -89,6 +89,7 @@ public final class SettingsConf {
 		ConvertTiffToPdf (false), // Turn TIFF files into PDFs with a text layer while indexing
 		KeepTiffAfterConversion (true), // Keep the TIFF renamed to .ocr instead of deleting it
 		DailyIndexUpdate (true), // Update all indexes once a day while running
+		ShowPathColumn (true), // Show the folder column in the result tables
 
 		ShowPreviewPanel (true),
 		ShowPreviewPanelAtBottom (false),
@@ -391,8 +392,16 @@ public final class SettingsConf {
 			int columnCount = columns.length;
 			Util.checkThat(columnCount > 0);
 			if (columnCount != value.length) {
-				Util.checkThat(columnCount == defaultValue.length);
-				value = defaultValue;
+				/*
+				 * The number of columns can differ from the stored values,
+				 * e.g. after a program update or when a column is turned off
+				 * in the settings. Take the default widths, padded or cut to
+				 * the current number of columns.
+				 */
+				int[] widths = new int[columnCount];
+				for (int i = 0; i < columnCount; i++)
+					widths[i] = i < defaultValue.length ? defaultValue[i] : 100;
+				value = widths;
 			}
 
 			for (int i = 0; i < columnCount; i++) {
