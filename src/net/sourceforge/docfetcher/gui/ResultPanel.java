@@ -1622,13 +1622,17 @@ public final class ResultPanel {
 		viewer.setSelection(toSelect);
 	}
 	
-	/** Selects the row of the given file, if it is in the table. */
+	/**
+	 * Selects the row of the given file, if it is in the table. No selection
+	 * event is fired, so that showing a document in the folder view doesn't
+	 * replace the preview of the document the user clicked (which knows the
+	 * search terms).
+	 */
 	public void selectByFile(@NotNull File file) {
 		ResultDocument doc = findDocument(file);
 		if (doc == null)
 			return;
 		viewer.setSelection(Collections.singletonList(doc));
-		evtSelection.fire(viewer.getSelection());
 	}
 	
 	public int getItemCount() {

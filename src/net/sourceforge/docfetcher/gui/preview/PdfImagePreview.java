@@ -183,6 +183,16 @@ final class PdfImagePreview extends ToolBarForm {
 	 * thread. Errors are reported via the given handler.
 	 */
 	public void setFile(@NotNull final File file, @NotNull final ErrorHandler errorHandler) {
+		setFile(file, 0, errorHandler);
+	}
+	
+	/**
+	 * Opens the given PDF file and shows the given page (counted from 1; 0
+	 * for the first page), e.g. the page with the first search hit.
+	 */
+	public void setFile(	@NotNull final File file,
+							final int pageToShow,
+							@NotNull final ErrorHandler errorHandler) {
 		Util.checkNotNull(file, errorHandler);
 		UtilGui.assertSwtThread();
 		clear();
@@ -214,7 +224,7 @@ final class PdfImagePreview extends ToolBarForm {
 						pageCount = doc.getNumberOfPages();
 						pageIndex = 0;
 						scale = 0;
-						showPage(0);
+						showPage(Math.max(0, Math.min(pageToShow - 1, pageCount - 1)));
 					}
 				});
 				if (!accepted)

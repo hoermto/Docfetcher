@@ -12,7 +12,7 @@ DocFetcher ist ein Open Source Desktop-Suchprogramm: Es ermöglicht die Volltext
 
 **Ergebnis-Tabelle und Vorschau-Fenster**: Unterhalb der Ergebnis-Tabelle (oder rechts davon, je nach Layout der Benutzeroberfläche), findet sich das Vorschau-Fenster, welches eine Text-Vorschau für die Datei anzeigt, die in der Ergebnis-Tabelle selektiert wurde. Erwähnenswert sind folgende Features:
 
-* ***Hervorhebung***: Standardmäßig werden die eingegebenen Suchbegriffe in der Vorschau farblich hervorgehoben, und Sie können von einer Fundstelle zur vorherigen oder nächsten mittels der Hoch- und Runter-Buttons springen. Das gilt auch für die Word-, Excel- und RTF-Vorschau. Bei PDF-Dateien werden die Suchbegriffe an den eingebauten PDF-Betrachter des Browsers übergeben, der sie markiert und zur ersten Fundstelle springt.
+* ***Hervorhebung***: Standardmäßig werden die eingegebenen Suchbegriffe in der Vorschau farblich hervorgehoben, und Sie können von einer Fundstelle zur vorherigen oder nächsten mittels der Hoch- und Runter-Buttons springen. Das gilt auch für die Word-, Excel- und RTF-Vorschau. Bei PDF-Dateien werden die Fundstellen in einer Kopie des Dokuments markiert, die in der Vorschau angezeigt wird, und die Vorschau öffnet die Seite mit der ersten Fundstelle; die Datei auf der Festplatte bleibt unverändert.
 * ***Eingebauter Webbrowser***: Im Falle von HTML-Dateien können Sie die Vorschau zwischen einer Text-Vorschau und einem einfachen eingebauten Webbrowser umschalten. (Anm.: Letzterer ist auf manchen Linux-Distributionen nicht verfügbar.)
 * ***Bilder***: PNG-, JPEG-, GIF-, BMP- und TIFF-Dateien (z.&nbsp;B. Scans) werden als Bild angezeigt, an die Breite des Fensters angepasst; mit den Zoom-Buttons können Sie sie vergrößern oder verkleinern.
 

@@ -32,6 +32,7 @@ import net.sourceforge.docfetcher.model.MailResource;
 import net.sourceforge.docfetcher.model.parse.ParseException;
 import net.sourceforge.docfetcher.model.render.HtmlPage.Highlighting;
 import net.sourceforge.docfetcher.model.render.HtmlRenderService;
+import net.sourceforge.docfetcher.model.render.PdfHighlighter;
 import net.sourceforge.docfetcher.model.render.HtmlRenderService.Kind;
 import net.sourceforge.docfetcher.model.search.HighlightedString;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
@@ -495,6 +496,48 @@ public final class PreviewPanel extends Composite {
 	 * Displays a PDF file in the browser's built-in PDF viewer, or converts a
 	 * Word, Excel or RTF document to HTML and displays that.
 	 */
+	/** A copy of a PDF file with the search terms marked. */
+	private static final class Marked {
+		@Nullable final File file;
+		final int firstMatchPage;
+		
+		Marked(@Nullable File file, int firstMatchPage) {
+			this.file = file;
+			this.firstMatchPage = firstMatchPage;
+		}
+	}
+	
+	/**
+	 * Writes a copy of the given PDF file with the search terms of the given
+	 * document marked. Returns a result without a file if there is nothing
+	 * to mark or the marking failed; the original file is then displayed.
+	 */
+	@NotNull
+	private static Marked markSearchTerms(@NotNull ResultDocument doc, @NotNull File file) {
+		if (!SettingsConf.Bool.HighlightingEnabled.get())
+			return new Marked(null, 0);
+		List<String> terms = doc.getQueryTerms();
+		if (terms.isEmpty())
+			return new Marked(null, 0);
+		File tempFile = null;
+		try {
+			tempFile = File.createTempFile("docfetcher-preview-", ".pdf");
+			PdfHighlighter.Result result = PdfHighlighter.highlight(
+				file, tempFile, terms, SettingsConf.IntArray.PreviewHighlighting.get());
+			if (result != null)
+				return new Marked(result.getFile(), result.getFirstMatchPage());
+		}
+		catch (IOException e) {
+			Util.printErr("Marking the search terms failed: " + e);
+		}
+		catch (OutOfMemoryError e) {
+			Util.printErr("Marking the search terms failed: " + e);
+		}
+		if (tempFile != null)
+			tempFile.delete();
+		return new Marked(null, 0);
+	}
+	
 	private class RichDocThread extends PreviewThread {
 		public RichDocThread(@NotNull ResultDocument doc, long startCount) {
 			super(doc, startCount);
@@ -509,16 +552,29 @@ public final class PreviewPanel extends Composite {
 				final String displayPath = doc.getPath().getPath();
 				
 				if (doc.isPdfFile()) {
-					// The browser's PDF viewer marks the search terms itself
+					/*
+					 * The browser's PDF viewer has no interface for marking
+					 * the search terms, so they are marked in a copy of the
+					 * document, which is then displayed.
+					 */
 					final List<String> terms = SettingsConf.Bool.HighlightingEnabled.get()
 						? doc.getQueryTerms()
 						: Collections.<String> emptyList();
+					final Marked marked = markSearchTerms(doc, file);
+					final File fileToShow = marked.file == null ? file : marked.file;
+					final File tempToDelete = marked.file;
+					final int firstMatchPage = marked.firstMatchPage;
 					keepResource = runSafely(startCount, stackComp, new Runnable() {
 						public void run() {
-							htmlPreview.setDocument(file, file, displayPath, terms);
+							deleteTempHtmlFile();
+							lastTempHtmlFile = tempToDelete;
+							htmlPreview.setDocument(
+								fileToShow, file, displayPath, terms, firstMatchPage);
 							lastHtmlResource = resource; // Keep the file alive while displayed
 						}
 					});
+					if (!keepResource && tempToDelete != null)
+						tempToDelete.delete();
 					return;
 				}
 				
@@ -573,9 +629,17 @@ public final class PreviewPanel extends Composite {
 				FileNotFoundException, CheckedOutOfMemoryError {
 			final FileResource resource = doc.getFileResource();
 			final File file = resource.getFile();
+			
+			// Show the copy with the marked search terms, if there is one
+			final Marked marked = markSearchTerms(doc, file);
+			final File fileToShow = marked.file == null ? file : marked.file;
+			final int firstMatchPage = marked.firstMatchPage;
 			boolean success = runSafely(startCount, stackComp, new Runnable() {
 				public void run() {
-					pdfImagePreview.setFile(file, new PdfImagePreview.ErrorHandler() {
+					deleteTempHtmlFile();
+					lastTempHtmlFile = marked.file;
+					pdfImagePreview.setFile(fileToShow, firstMatchPage,
+						new PdfImagePreview.ErrorHandler() {
 						public void handleError(String message) {
 							setError(Msg.preview_render_failed.format(message), startCount);
 						}
@@ -583,8 +647,11 @@ public final class PreviewPanel extends Composite {
 					lastHtmlResource = resource; // Keep the file alive while displayed
 				}
 			});
-			if (!success)
+			if (!success) {
 				resource.dispose();
+				if (marked.file != null)
+					marked.file.delete();
+			}
 		}
 	}
 	

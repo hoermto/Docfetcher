@@ -13,7 +13,7 @@ DocFetcher is an Open Source desktop search application: It allows you to search
 
 **Result pane and preview pane**: Below the result pane (or to the right of it, depending on the current GUI layout), you can find the preview pane. If you select a file on the result pane, the preview pane will show a text-only preview of the file's contents. Notable features:
 
-* ***Highlighting***: By default, the search terms you've entered will be highlighted, and you can jump from one occurrence to the previous or next using the up and down buttons. This also applies to the Word, Excel and RTF preview. For PDF files the search terms are handed to the browser's built-in PDF viewer, which marks them and jumps to the first one.
+* ***Highlighting***: By default, the search terms you've entered will be highlighted, and you can jump from one occurrence to the previous or next using the up and down buttons. This also applies to the Word, Excel and RTF preview. For PDF files the matches are marked in a copy of the document, which is what the preview shows, and the preview opens on the page with the first match; the file on disk is not touched.
 * ***Built-in web browser***: In case of HTML files, you can switch between the text-only view and a simple built-in web browser. (Note: The latter is not available on some Linux variants.)
 * ***Images***: PNG, JPEG, GIF, BMP and TIFF files (e.g. scans) are shown as pictures, fitted to the width of the pane; use the zoom buttons to enlarge or shrink them.
 

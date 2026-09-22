@@ -33,6 +33,20 @@ final class PdfViewerParams {
 	 * characters are left out, since the viewer would search for them
 	 * literally.
 	 */
+	/**
+	 * Returns the URL fragment for the given search terms and page (counted
+	 * from 1; 0 for the first page), e.g. {@code #page=3&search=invoice}.
+	 */
+	@NotNull
+	public static String createFragment(@NotNull Collection<String> searchTerms, int page) {
+		String search = createSearchFragment(searchTerms);
+		if (page <= 1)
+			return search;
+		return search.isEmpty()
+			? "#page=" + page
+			: "#page=" + page + "&" + search.substring(1);
+	}
+	
 	@NotNull
 	public static String createSearchFragment(@NotNull Collection<String> searchTerms) {
 		StringBuilder sb = new StringBuilder();

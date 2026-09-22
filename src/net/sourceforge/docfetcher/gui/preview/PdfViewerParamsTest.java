@@ -50,6 +50,19 @@ public final class PdfViewerParamsTest {
 	}
 
 	@Test
+	public void addsThePageOfTheFirstMatch() {
+		assertEquals("#page=3&search=invoice",
+			PdfViewerParams.createFragment(Arrays.asList("invoice"), 3));
+		assertEquals("#page=2", PdfViewerParams.createFragment(
+			Collections.<String> emptyList(), 2));
+		// The first page needs no parameter
+		assertEquals("#search=invoice",
+			PdfViewerParams.createFragment(Arrays.asList("invoice"), 1));
+		assertEquals("", PdfViewerParams.createFragment(
+			Collections.<String> emptyList(), 0));
+	}
+
+	@Test
 	public void keepsTheFragmentShort() {
 		List<String> terms = new ArrayList<String>();
 		for (int i = 0; i < 50; i++)

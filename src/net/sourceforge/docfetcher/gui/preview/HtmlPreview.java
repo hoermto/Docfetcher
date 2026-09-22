@@ -297,6 +297,19 @@ abstract class HtmlPreview extends ToolBarForm {
 							@NotNull File originalDocument,
 							@NotNull String displayPath,
 							@NotNull Collection<String> searchTerms) {
+		setDocument(fileToLoad, originalDocument, displayPath, searchTerms, 0);
+	}
+	
+	/**
+	 * Shows the given document, scrolled to the given page (counted from 1;
+	 * 0 for the first page). The search terms are passed to the browser's
+	 * PDF viewer, which may search for them itself.
+	 */
+	public void setDocument(@NotNull File fileToLoad,
+							@NotNull File originalDocument,
+							@NotNull String displayPath,
+							@NotNull Collection<String> searchTerms,
+							int page) {
 		Util.checkNotNull(fileToLoad, originalDocument, displayPath, searchTerms);
 		displayPathOverride = displayPath;
 		externalLaunchFile = originalDocument;
@@ -304,7 +317,7 @@ abstract class HtmlPreview extends ToolBarForm {
 			// Path.toUri() yields "file:///C:/..." on Windows, which all
 			// browser backends accept, whereas File.toURI() yields "file:/C:/..."
 			browser.setUrl(fileToLoad.toPath().toUri().toString()
-				+ PdfViewerParams.createSearchFragment(searchTerms));
+				+ PdfViewerParams.createFragment(searchTerms, page));
 		}
 		catch (SWTException e) {
 			// Bug #2428: Ignore SWTException when setting URL
