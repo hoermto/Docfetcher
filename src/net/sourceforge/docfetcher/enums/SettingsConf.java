@@ -93,6 +93,7 @@ public final class SettingsConf {
 		ShowPathColumn (true), // Show the folder column in the result tables
 		ShowFolderPanel (true), // Show the folder browser as a panel of its own
 		SyncFolderView (true), // Folder view follows the selected search result
+		FolderSortAscending (false), // Sort order of the folder view
 
 		ShowPreviewPanel (true),
 		ShowPreviewPanelAtBottom (false),
@@ -141,6 +142,8 @@ public final class SettingsConf {
 
 	@Description("# Integer entries.")
 	public enum Int implements Storable {
+		/* Column the folder view is sorted by; -1 means by date, newest first. */
+		FolderSortColumn (-1),
 		LuceneAnalyzer (getDefaultAnalyzer()),
 		
 		/*

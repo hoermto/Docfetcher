@@ -13,6 +13,8 @@ package net.sourceforge.docfetcher.gui.preview;
 
 import java.io.File;
 import java.net.MalformedURLException;
+import java.util.Collections;
+import java.util.Collection;
 import java.net.URI;
 
 import net.sourceforge.docfetcher.enums.Img;
@@ -281,13 +283,28 @@ abstract class HtmlPreview extends ToolBarForm {
 	public void setDocument(@NotNull File fileToLoad,
 							@NotNull File originalDocument,
 							@NotNull String displayPath) {
-		Util.checkNotNull(fileToLoad, originalDocument, displayPath);
+		setDocument(fileToLoad, originalDocument, displayPath,
+			Collections.<String> emptyList());
+	}
+	
+	/**
+	 * Shows the given document. The search terms, if any, are passed to the
+	 * browser's built-in PDF viewer, which marks them in the document and
+	 * jumps to the first one; viewers that don't know the parameter simply
+	 * show the document.
+	 */
+	public void setDocument(@NotNull File fileToLoad,
+							@NotNull File originalDocument,
+							@NotNull String displayPath,
+							@NotNull Collection<String> searchTerms) {
+		Util.checkNotNull(fileToLoad, originalDocument, displayPath, searchTerms);
 		displayPathOverride = displayPath;
 		externalLaunchFile = originalDocument;
 		try {
 			// Path.toUri() yields "file:///C:/..." on Windows, which all
 			// browser backends accept, whereas File.toURI() yields "file:/C:/..."
-			browser.setUrl(fileToLoad.toPath().toUri().toString());
+			browser.setUrl(fileToLoad.toPath().toUri().toString()
+				+ PdfViewerParams.createSearchFragment(searchTerms));
 		}
 		catch (SWTException e) {
 			// Bug #2428: Ignore SWTException when setting URL

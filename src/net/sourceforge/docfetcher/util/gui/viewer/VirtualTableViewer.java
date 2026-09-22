@@ -159,6 +159,20 @@ public abstract class VirtualTableViewer<E> {
 	
 	@Nullable private Comparator<E> groupComparator;
 	
+	/** Fired when the elements have been sorted by a column. */
+	public final Event<Column<E>> evtSorted = new Event<Column<E>>();
+	
+	/** Returns the column the elements are sorted by, or null. */
+	@Nullable
+	public final Column<E> getSortColumn() {
+		return lastSortColumn;
+	}
+	
+	/** Returns true if the last sorting was in ascending order. */
+	public final boolean isSortAscending() {
+		return lastSortColumn == null || lastSortColumn.lastSortDirection > 0;
+	}
+	
 	private void sort(@NotNull final Column<E> column, final int direction) {
 		Collections.sort(elements, new Comparator<E>() {
 			public int compare(E e1, E e2) {
@@ -177,6 +191,7 @@ public abstract class VirtualTableViewer<E> {
 		// Show sort indicator in the column header
 		table.setSortColumn(column.tableColumn);
 		table.setSortDirection(direction > 0 ? SWT.UP : SWT.DOWN);
+		evtSorted.fire(column);
 	}
 	
 	@Immutable

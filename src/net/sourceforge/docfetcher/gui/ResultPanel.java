@@ -383,6 +383,11 @@ public final class ResultPanel {
 		
 		initColumnFitting(table);
 		initPathTooltip(table);
+		viewer.evtSorted.add(new Event.Listener<Column<ResultDocument>>() {
+			public void update(Column<ResultDocument> eventData) {
+				evtSorted.fire(null);
+			}
+		});
 		
 		// The folder column can be turned off in the settings
 		pathColumn = table.getColumn(table.getColumnCount() - 1);
@@ -1690,7 +1695,36 @@ public final class ResultPanel {
 	 */
 	/** Sorts by file name, ascending, with the folders on top. */
 	public void applyNameSorting() {
-		viewer.sortByColumn(viewer.getColumns().get(actionColumnCount), true);
+		sortBy(actionColumnCount, true);
+	}
+	
+	/**
+	 * Sorts by the column with the given creation index, ascending or
+	 * descending. Out-of-range indexes are ignored.
+	 */
+	public void sortBy(int columnIndex, boolean ascending) {
+		List<Column<ResultDocument>> columns = viewer.getColumns();
+		if (columnIndex < 0 || columnIndex >= columns.size())
+			return;
+		viewer.sortByColumn(columns.get(columnIndex), ascending);
+	}
+	
+	/** Returns the index of the column the table is sorted by, or -1. */
+	public int getSortColumnIndex() {
+		Column<ResultDocument> column = viewer.getSortColumn();
+		return column == null ? -1 : viewer.getColumns().indexOf(column);
+	}
+	
+	public boolean isSortAscending() {
+		return viewer.isSortAscending();
+	}
+	
+	/** Fired when the user sorts the table by clicking a column header. */
+	public final Event<Void> evtSorted = new Event<Void>();
+	
+	/** Index of the 'Last Modified' column, for the default sorting. */
+	public int getDateColumnIndex() {
+		return viewer.getColumns().indexOf(dateColumn);
 	}
 	
 	public void applyDefaultSorting() {

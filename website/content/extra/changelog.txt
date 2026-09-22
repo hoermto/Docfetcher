@@ -14,6 +14,8 @@
   * Files dropped anywhere in the folder browser, not just on a folder row, are moved into the folder currently shown.
   * Renaming and moving files can be undone with Ctrl+Z (File > Undo file operation), for the last 20 operations of the running program; for deleted files the undo points to the recycle bin.
   * Confirmation dialogs now have 'Yes' and 'No' buttons instead of 'OK' and 'Cancel'.
+  * The folder view is sorted by date (newest first) by default; another sort order chosen in the column header is kept across folders and restarts.
+  * Search terms are passed to the browser's built-in PDF viewer, which marks them in the PDF preview and jumps to the first match (Word, Excel and RTF previews highlighted them already).
 
 ==== 2026-09-21 - DocFetcher 2.4 ====
 

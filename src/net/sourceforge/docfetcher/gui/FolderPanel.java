@@ -113,6 +113,16 @@ public final class FolderPanel {
 		// The path bar already says which folder the files are in
 		resultPanel.setPathColumnAllowed(false);
 
+		// Keep the sort order when the user switches to another folder
+		resultPanel.evtSorted.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				int column = resultPanel.getSortColumnIndex();
+				if (column < 0)
+					return;
+				SettingsConf.Int.FolderSortColumn.set(column);
+				SettingsConf.Bool.FolderSortAscending.set(resultPanel.isSortAscending());
+			}
+		});
 		resultPanel.evtFolderOpened.add(new Event.Listener<File>() {
 			public void update(File eventData) {
 				setFolder(eventData);
@@ -132,6 +142,17 @@ public final class FolderPanel {
 		setFolder(getStartFolder());
 	}
 
+	/**
+	 * Sorts the listing the way the user last sorted it, by default by date
+	 * with the newest documents on top.
+	 */
+	private void applySorting() {
+		int column = SettingsConf.Int.FolderSortColumn.get();
+		if (column < 0)
+			column = resultPanel.getDateColumnIndex();
+		resultPanel.sortBy(column, SettingsConf.Bool.FolderSortAscending.get());
+	}
+	
 	/** Returns the folder shown at startup: the last one, if it still exists. */
 	@Nullable
 	private static File getStartFolder() {
@@ -301,7 +322,7 @@ public final class FolderPanel {
 							return; // A newer refresh is on its way
 						resultPanel.setResults(
 							new ArrayList<ResultDocument>(result), HeaderMode.FILES);
-						resultPanel.applyNameSorting();
+						applySorting();
 						if (fileToSelect != null) {
 							resultPanel.selectByFile(fileToSelect);
 							fileToSelect = null;

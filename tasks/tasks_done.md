@@ -109,3 +109,7 @@
   - Toolbar button (folder icon) that returns to the list of indexed folders and fixed move targets.
 - change confirmation to buttons yes / no; add Ctrl+Z (undo) for disaster recovery
   - AppUtil.showConfirmation uses SWT.YES | SWT.NO. New FileOperationHistory (max 20 operations of the running program) records renames, moves (menu, drag and drop, files dragged in from other programs) and deletions; Ctrl+Z or 'File > Undo file operation' moves the files back after a confirmation and refreshes the inbox and folder views. Deletions can't be undone automatically (the files are in the recycle bin), so the undo says so and drops the entry. Tests: FileOperationHistoryTest; verified in the GUI (move undone, delete message, Yes/No buttons).
+- folder view: default sort "date desc", remember the chosen sort across folders
+  - The folder view sorts by 'Last Modified' descending by default; sorting by a column header is stored (SettingsConf.Int.FolderSortColumn, Bool.FolderSortAscending) and re-applied on every folder change and after a restart. VirtualTableViewer got evtSorted plus getters for the sort state.
+- highlight the search terms in the preview pane for docx, pdf etc.
+  - Word, Excel and RTF previews already highlighted the terms. PDFs are shown by the browser's own viewer, which now receives the terms as a '#search=' open parameter (Edge/Chrome/Acrobat), so it marks them and jumps to the first match; terms with wildcards or spaces are left out. Test PdfViewerParamsTest. Only testable on Windows, since Linux uses the PDFBox fallback viewer.

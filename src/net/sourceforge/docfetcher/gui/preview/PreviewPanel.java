@@ -12,6 +12,7 @@
 package net.sourceforge.docfetcher.gui.preview;
 
 import java.io.File;
+import java.util.Collections;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -508,9 +509,13 @@ public final class PreviewPanel extends Composite {
 				final String displayPath = doc.getPath().getPath();
 				
 				if (doc.isPdfFile()) {
+					// The browser's PDF viewer marks the search terms itself
+					final List<String> terms = SettingsConf.Bool.HighlightingEnabled.get()
+						? doc.getQueryTerms()
+						: Collections.<String> emptyList();
 					keepResource = runSafely(startCount, stackComp, new Runnable() {
 						public void run() {
-							htmlPreview.setDocument(file, file, displayPath);
+							htmlPreview.setDocument(file, file, displayPath, terms);
 							lastHtmlResource = resource; // Keep the file alive while displayed
 						}
 					});
