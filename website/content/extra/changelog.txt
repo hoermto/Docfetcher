@@ -16,6 +16,7 @@
   * Files whose names contain accented characters in decomposed form (e.g. synced from macOS or written by some apps) were reported as "File not found" in the preview and couldn't be renamed or moved.
   * The preview of Word documents saved by newer Word versions failed with "string value 'start' is not a valid enumeration value for ST_Jc".
   * Text recognition of some archive TIFF files (fax compression) threw an ArrayIndexOutOfBoundsException; such files are now decoded with the bundled Leptonica library, and recognition errors no longer interrupt indexing.
+  * The preview of TIFF files failed for many files; TIFFs are now decoded like in text recognition, and multi-page TIFFs can be browsed page by page.
 
 ==== 2026-09-21 - DocFetcher 2.3 ====
 

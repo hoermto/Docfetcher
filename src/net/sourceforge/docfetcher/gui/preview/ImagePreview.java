@@ -11,8 +11,9 @@ package net.sourceforge.docfetcher.gui.preview;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-
-import javax.imageio.ImageIO;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.SWTException;
@@ -30,6 +31,7 @@ import org.eclipse.swt.graphics.ImageData;
 import org.eclipse.swt.graphics.ImageLoader;
 import org.eclipse.swt.graphics.PaletteData;
 import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.widgets.Canvas;
@@ -43,6 +45,7 @@ import net.sourceforge.docfetcher.enums.Img;
 import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.gui.CustomBorderComposite;
+import net.sourceforge.docfetcher.model.ocr.ImagePages;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilGui;
@@ -63,6 +66,8 @@ final class ImagePreview extends ToolBarForm {
 	private static final double MIN_SCALE = 0.05;
 	private static final double MAX_SCALE = 8.0;
 
+	@NotNull private ToolItem prevBt;
+	@NotNull private ToolItem nextBt;
 	@NotNull private ToolItem zoomInBt;
 	@NotNull private ToolItem zoomOutBt;
 	@NotNull private ToolItem launchBt;
@@ -73,6 +78,10 @@ final class ImagePreview extends ToolBarForm {
 	// GUI thread only
 	@Nullable private File imageFile;
 	@Nullable private Image image;
+	// The loaded pages (converted to SWT image data on demand)
+	private List<BufferedImage> pages = Collections.emptyList();
+	@Nullable private ImageData swtPage; // Single page loaded by SWT itself
+	private int pageIndex = 0;
 	private double scale = 0; // 0 = fit to width
 	private long loadRequest = 0;
 
@@ -96,6 +105,18 @@ final class ImagePreview extends ToolBarForm {
 		ToolItemFactory tif = new ToolItemFactory(toolBar);
 		tif.enabled(false);
 
+		prevBt = tif.image(Img.ARROW_LEFT.get()).toolTip(Msg.prev_page.get())
+				.listener(new SelectionAdapter() {
+					public void widgetSelected(SelectionEvent e) {
+						showPage(pageIndex - 1);
+					}
+				}).create();
+		nextBt = tif.image(Img.ARROW_RIGHT.get()).toolTip(Msg.next_page.get())
+				.listener(new SelectionAdapter() {
+					public void widgetSelected(SelectionEvent e) {
+						showPage(pageIndex + 1);
+					}
+				}).create();
 		zoomInBt = tif.image(Img.MAXIMIZE.get()).toolTip(Msg.zoom_in.get())
 				.listener(new SelectionAdapter() {
 					public void widgetSelected(SelectionEvent e) {
@@ -174,24 +195,24 @@ final class ImagePreview extends ToolBarForm {
 
 		Thread thread = new Thread(ImagePreview.class.getName() + " (loader)") {
 			public void run() {
-				final ImageData data;
+				final Loaded data;
 				try {
-					data = loadImageData(file);
+					data = load(file);
 				}
 				catch (Throwable e) {
-					errorHandler.handleError(e.toString());
+					if (e instanceof OutOfMemoryError)
+						errorHandler.handleError(Msg.out_of_memory.get());
+					else
+						errorHandler.handleError(e.toString());
 					return;
 				}
 				UtilGui.runSwtSafe(ImagePreview.this, new Runnable() {
 					public void run() {
 						if (request != loadRequest)
 							return;
-						image = new Image(getDisplay(), data);
-						scale = 0;
-						infoLabel.setText(Msg.image_dimensions.format(
-							String.valueOf(data.width), String.valueOf(data.height)));
-						updateButtons();
-						updateSize();
+						pages = data.pages;
+						swtPage = data.swtPage;
+						showPage(0);
 					}
 				});
 			}
@@ -206,6 +227,9 @@ final class ImagePreview extends ToolBarForm {
 		loadRequest++;
 		imageFile = null;
 		scale = 0;
+		pages = Collections.emptyList();
+		swtPage = null;
+		pageIndex = 0;
 		if (image != null) {
 			image.dispose();
 			image = null;
@@ -216,6 +240,29 @@ final class ImagePreview extends ToolBarForm {
 			scrollComp.setMinSize(0, 0);
 			canvas.redraw();
 		}
+	}
+
+	private int getPageCount() {
+		return swtPage != null ? 1 : pages.size();
+	}
+
+	/** Shows the given page of the loaded file, fitted to the width. */
+	private void showPage(int index) {
+		if (index < 0 || index >= getPageCount())
+			return;
+		pageIndex = index;
+		if (image != null)
+			image.dispose();
+		ImageData data = swtPage != null ? swtPage : toImageData(pages.get(index));
+		image = new Image(getDisplay(), data);
+		scale = 0;
+		String info = Msg.image_dimensions.format(
+			String.valueOf(data.width), String.valueOf(data.height));
+		if (getPageCount() > 1)
+			info += "   " + Msg.page_of.format(pageIndex + 1, getPageCount());
+		infoLabel.setText(info);
+		updateButtons();
+		updateSize();
 	}
 
 	private void zoom(double factor) {
@@ -259,27 +306,48 @@ final class ImagePreview extends ToolBarForm {
 		boolean hasImage = image != null;
 		zoomInBt.setEnabled(hasImage);
 		zoomOutBt.setEnabled(hasImage);
+		prevBt.setEnabled(hasImage && pageIndex > 0);
+		nextBt.setEnabled(hasImage && pageIndex < getPageCount() - 1);
 		launchBt.setEnabled(imageFile != null);
 	}
 
 	/**
-	 * Loads the image data of the given file with SWT's image loader, falling
-	 * back to ImageIO for formats the former doesn't understand.
+	 * Loads the pages of the given file. TIFF files go through the shared
+	 * image reader (ImageIO with Leptonica as fallback, all pages); the other
+	 * formats through SWT's image loader, which keeps colors and
+	 * transparency, with the shared reader as fallback.
 	 */
+	/** The result of loading a file: one SWT image, or pages to convert. */
+	private static final class Loaded {
+		@Nullable final ImageData swtPage;
+		final List<BufferedImage> pages;
+
+		Loaded(@Nullable ImageData swtPage, @NotNull List<BufferedImage> pages) {
+			this.swtPage = swtPage;
+			this.pages = pages;
+		}
+	}
+
 	@NotNull
-	private static ImageData loadImageData(@NotNull File file) throws IOException {
-		try {
-			ImageData[] data = new ImageLoader().load(file.getPath());
-			if (data.length > 0)
-				return data[0];
+	private static Loaded load(@NotNull File file) throws IOException {
+		String ext = Util.getExtension(file.getName()).toLowerCase();
+		boolean tiff = ext.equals("tif") || ext.equals("tiff");
+		if (!tiff) {
+			try {
+				ImageData[] data = new ImageLoader().load(file.getPath());
+				if (data.length > 0)
+					return new Loaded(data[0], Collections.<BufferedImage> emptyList());
+			}
+			catch (SWTException e) {
+				// Try the shared reader below
+			}
 		}
-		catch (SWTException e) {
-			// Try ImageIO below
-		}
-		BufferedImage image = ImageIO.read(file);
-		if (image == null)
+		List<BufferedImage> pages = new ArrayList<BufferedImage>();
+		for (ImagePages.Page page : ImagePages.read(file))
+			pages.add(page.image);
+		if (pages.isEmpty())
 			throw new IOException(Msg.unsupported_image_format.get());
-		return toImageData(image);
+		return new Loaded(null, pages);
 	}
 
 	/**
@@ -289,6 +357,19 @@ final class ImagePreview extends ToolBarForm {
 	static ImageData toImageData(@NotNull BufferedImage image) {
 		int width = image.getWidth();
 		int height = image.getHeight();
+		if (image.getType() == BufferedImage.TYPE_BYTE_GRAY) {
+			// Copy the raster directly with a gray palette
+			RGB[] grays = new RGB[256];
+			for (int i = 0; i < 256; i++)
+				grays[i] = new RGB(i, i, i);
+			ImageData data = new ImageData(width, height, 8, new PaletteData(grays));
+			byte[] row = new byte[width];
+			for (int y = 0; y < height; y++) {
+				image.getRaster().getDataElements(0, y, width, 1, row);
+				data.setPixels(0, y, width, toInts(row), 0);
+			}
+			return data;
+		}
 		PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
 		ImageData data = new ImageData(width, height, 24, palette);
 		int[] row = new int[width];
@@ -299,6 +380,14 @@ final class ImagePreview extends ToolBarForm {
 			data.setPixels(0, y, width, row, 0);
 		}
 		return data;
+	}
+
+	@NotNull
+	private static int[] toInts(@NotNull byte[] bytes) {
+		int[] ints = new int[bytes.length];
+		for (int i = 0; i < bytes.length; i++)
+			ints[i] = bytes[i] & 0xFF;
+		return ints;
 	}
 
 	/** Receives error messages from the background loading thread. */
