@@ -835,6 +835,8 @@ public final class ResultPanel {
 			}
 			viewer.refresh();
 			updateIndexesFor(Arrays.asList(file, target));
+			FileOperationHistory.getInstance().add(FileOperationHistory.Kind.RENAME,
+				Collections.singletonList(file), Collections.singletonList(target));
 			evtDocumentsChanged.fire(null);
 		}
 	}
@@ -1040,6 +1042,8 @@ public final class ResultPanel {
 		}
 		
 		List<File> affected = new ArrayList<File>();
+		List<File> movedFrom = new ArrayList<File>();
+		List<File> movedTo = new ArrayList<File>();
 		List<ResultDocument> moved = new ArrayList<ResultDocument>();
 		for (ResultDocument doc : sel) {
 			File file = doc.getPath().getCanonicalFile();
@@ -1050,6 +1054,8 @@ public final class ResultPanel {
 				break; // Error already shown
 			affected.add(file);
 			affected.add(target);
+			movedFrom.add(file);
+			movedTo.add(target);
 			doc.setPathAfterFileOperation(target);
 			moved.add(doc);
 		}
@@ -1065,6 +1071,8 @@ public final class ResultPanel {
 		viewer.removeElements(outside);
 		viewer.refresh();
 		updateIndexesFor(affected);
+		FileOperationHistory.getInstance().add(
+			FileOperationHistory.Kind.MOVE, movedFrom, movedTo);
 		evtDocumentsChanged.fire(null);
 		MoveTargets.addRecent(targetDir);
 	}
@@ -1113,8 +1121,62 @@ public final class ResultPanel {
 		viewer.removeElements(deleted);
 		viewer.refresh();
 		updateIndexesFor(affected);
+		FileOperationHistory.getInstance().add(FileOperationHistory.Kind.DELETE,
+			affected, Collections.<File> emptyList());
 		evtDocumentsChanged.fire(null);
 	}
+	
+	/**
+	 * Undoes the last file operation: renames and moves are reverted by
+	 * moving the files back, deleted files can only be restored from the
+	 * recycle bin, which is reported. Returns false if there is nothing to
+	 * undo.
+	 */
+	public static boolean undoLastFileOperation() {
+		FileOperationHistory history = FileOperationHistory.getInstance();
+		FileOperationHistory.Entry entry = history.peek();
+		if (entry == null) {
+			AppUtil.showInfo(Msg.undo_nothing.get());
+			return false;
+		}
+		if (entry.getKind() == FileOperationHistory.Kind.DELETE) {
+			history.pop();
+			AppUtil.showInfo(Msg.undo_delete_in_trash.format(
+				entry.getFileCount(), entry.getFirstName()));
+			return false;
+		}
+		
+		String what = entry.getKind() == FileOperationHistory.Kind.RENAME
+			? Msg.undo_rename.format(entry.getFirstName())
+			: Msg.undo_move.format(entry.getFileCount(), entry.getFirstName());
+		if (!AppUtil.showConfirmation(what, false))
+			return false;
+		
+		history.pop();
+		List<File> affected = new ArrayList<File>();
+		List<File> sources = entry.getSources();
+		List<File> targets = entry.getTargets();
+		for (int i = 0; i < targets.size() && i < sources.size(); i++) {
+			File from = targets.get(i);
+			File to = sources.get(i);
+			if (!from.isFile())
+				continue; // Already gone, e.g. moved again in the meantime
+			File parent = to.getParentFile();
+			if (parent != null && !parent.isDirectory() && !parent.mkdirs())
+				continue;
+			if (!moveFile(from, to))
+				break; // Error already shown
+			affected.add(from);
+			affected.add(to);
+		}
+		if (affected.isEmpty())
+			return false;
+		evtFilesRestored.fire(affected);
+		return true;
+	}
+	
+	/** Fired after an undo, with the files that were moved back. */
+	public static final Event<List<File>> evtFilesRestored = new Event<List<File>>();
 	
 	/**
 	 * Moves or renames the given file. Returns true on success; on failure an
@@ -1262,6 +1324,8 @@ public final class ResultPanel {
 		
 		// Files from other programs are moved without touching the table
 		List<File> affected = new ArrayList<File>();
+		List<File> externalFrom = new ArrayList<File>();
+		List<File> externalTo = new ArrayList<File>();
 		boolean moved = false;
 		for (File file : others) {
 			File target = new File(targetDir, file.getName());
@@ -1271,10 +1335,14 @@ public final class ResultPanel {
 				break; // Error already shown
 			affected.add(file);
 			affected.add(target);
+			externalFrom.add(file);
+			externalTo.add(target);
 			moved = true;
 		}
 		if (moved) {
 			updateIndexesFor(affected);
+			FileOperationHistory.getInstance().add(
+				FileOperationHistory.Kind.MOVE, externalFrom, externalTo);
 			evtDocumentsChanged.fire(null);
 			MoveTargets.addRecent(targetDir);
 		}

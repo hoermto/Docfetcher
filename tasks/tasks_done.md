@@ -107,3 +107,5 @@
   - The drop target of the folder browser falls back to the folder currently shown, so files dropped on a file row or on the free space below are moved into it.
 - in folder pane, add icon to jump to root
   - Toolbar button (folder icon) that returns to the list of indexed folders and fixed move targets.
+- change confirmation to buttons yes / no; add Ctrl+Z (undo) for disaster recovery
+  - AppUtil.showConfirmation uses SWT.YES | SWT.NO. New FileOperationHistory (max 20 operations of the running program) records renames, moves (menu, drag and drop, files dragged in from other programs) and deletions; Ctrl+Z or 'File > Undo file operation' moves the files back after a confirmation and refreshes the inbox and folder views. Deletions can't be undone automatically (the files are in the recycle bin), so the undo says so and drops the entry. Tests: FileOperationHistoryTest; verified in the GUI (move undone, delete message, Yes/No buttons).

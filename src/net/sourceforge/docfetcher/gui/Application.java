@@ -592,6 +592,9 @@ public final class Application {
 				else if (k == SWT.F9) {
 					toggleFolderPanel();
 				}
+				else if (m == SWT.MOD1 && k == 'z') {
+					undoFileOperation();
+				}
 				else {
 					e.doit = true;
 				}
@@ -1542,6 +1545,18 @@ public final class Application {
 	}
 	
 	/**
+	 * Undoes the last renaming or moving of files and refreshes the views
+	 * that may show them.
+	 */
+	private static void undoFileOperation() {
+		if (!ResultPanel.undoLastFileOperation())
+			return;
+		refreshInboxTabs();
+		if (folderPanel != null)
+			folderPanel.refresh();
+	}
+	
+	/**
 	 * Shows the given file in the folder browser: brings the browser up (as
 	 * a panel, or by switching to its tab) and selects the file there.
 	 */
@@ -1730,6 +1745,12 @@ public final class Application {
 		shell.setMenuBar(menuBar);
 
 		Menu fileMenu = createMenu(menuBar, Msg.menu_file.get());
+		createMenuItem(fileMenu, Msg.menu_undo.get(), Img.ARROW_LEFT.get(), new Runnable() {
+			public void run() {
+				undoFileOperation();
+			}
+		});
+		new MenuItem(fileMenu, SWT.SEPARATOR);
 		createMenuItem(fileMenu, Msg.menu_preferences.get(), Img.PREFERENCES.get(), new Runnable() {
 			public void run() {
 				openPrefDialog(false);

@@ -934,6 +934,24 @@ public enum Msg {
 		"Button label for permanently dismissing a question."),
 	
 	// Renaming and moving documents from the result table
+	undo_nothing ("There is nothing to undo.",
+		"Message shown when Ctrl+Z is pressed but no file operation has " +
+		"been carried out yet."),
+	undo_rename ("Undo the renaming of ''{0}''?",
+		"Confirmation before undoing a renaming. The file name is inserted " +
+		"in the {0} slot."),
+	undo_move ("Move {0} file(s) back? ({1})",
+		"Confirmation before undoing a move. The number of files is " +
+		"inserted in the {0} slot, the first file name in the {1} slot."),
+	undo_delete_in_trash (
+		"The last operation deleted {0} file(s), starting with ''{1}''. " +
+		"Deleted files are in the recycle bin and can be restored from " +
+		"there.",
+		"Message shown when the user tries to undo a deletion. The number " +
+		"of files is inserted in the {0} slot, the first file name in the " +
+		"{1} slot."),
+	menu_undo ("&Undo file operation\tCtrl+Z",
+		"Menu entry that undoes the last renaming or moving of files."),
 	show_in_folder_panel ("Show in Folder View",
 		"Context menu entry of the result table that opens the file's " +
 		"folder in the folder browser, in contrast to 'Open Parent Folder', " +

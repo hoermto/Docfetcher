@@ -12,6 +12,8 @@
   * 'Delete' in the context menu of any result table (or the Del key) moves the selected files to the recycle bin after a confirmation; without a recycle bin the files are deleted permanently, which the confirmation says.
   * 'Show in Folder View' in the context menu opens a document's folder in the folder browser and selects the document there; optionally the browser follows the selected search result (on by default).
   * Files dropped anywhere in the folder browser, not just on a folder row, are moved into the folder currently shown.
+  * Renaming and moving files can be undone with Ctrl+Z (File > Undo file operation), for the last 20 operations of the running program; for deleted files the undo points to the recycle bin.
+  * Confirmation dialogs now have 'Yes' and 'No' buttons instead of 'OK' and 'Cancel'.
 
 ==== 2026-09-21 - DocFetcher 2.4 ====
 

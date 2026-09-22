@@ -439,8 +439,8 @@ public final class AppUtil {
 	}
 
 	/**
-	 * Shows the given message in a confirmation message box and returns the
-	 * user's answer, either <tt>SWT.OK</tt> or <tt>SWT.CANCEL</tt>. If
+	 * Shows the given message in a confirmation message box with 'Yes' and
+	 * 'No' buttons and returns true if the user confirmed. If
 	 * <tt>isSevere</tt> is true, a warning icon is shown, otherwise a question
 	 * icon.
 	 * <p>
@@ -453,12 +453,12 @@ public final class AppUtil {
 		class MyRunnable implements Runnable {
 			private boolean answer;
 			public void run() {
-				int style = SWT.OK | SWT.CANCEL;
+				int style = SWT.YES | SWT.NO;
 				style |= warningNotQuestion ? SWT.ICON_WARNING : SWT.ICON_QUESTION;
 				MessageBox msgBox = new MessageBox(getActiveShell(), style);
 				msgBox.setText(Messages.confirm_operation.value);
 				msgBox.setMessage(message);
-				answer = msgBox.open() == SWT.OK;
+				answer = msgBox.open() == SWT.YES;
 			}
 		}
 		MyRunnable myRunnable = new MyRunnable();
