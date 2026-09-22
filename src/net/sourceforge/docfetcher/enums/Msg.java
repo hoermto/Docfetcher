@@ -778,6 +778,9 @@ public enum Msg {
 	pref_tab_indexes ("Indexes",
 		"Label of the 'Indexes' tab on the preferences dialog, which contains " +
 		"the index management controls and the index folder setting."),
+	pref_tab_folders ("Folders",
+		"Label of the preferences tab with the inbox folders and the fixed " +
+		"move targets."),
 	pref_preview_position ("Preview position:",
 		Comments.prefOption + "Where the preview pane is placed relative to " +
 		"the result table."),
@@ -999,6 +1002,17 @@ public enum Msg {
 		"after the last part of the folder path unless a name is set.",
 		"Explanatory text below the 'Inbox folders' list on the preferences " +
 		"dialog."),
+	pref_move_targets ("Fixed move targets:",
+		Comments.prefOption + "List of folders that are always offered at " +
+		"the top of the 'Move To' menu and of the move dialog."),
+	pref_move_targets_hint (
+		"These folders are always listed first in the 'Move To' menu and in " +
+		"the move dialog, above the folders suggested by content.",
+		"Explanatory text below the 'Fixed move targets' list on the " +
+		"preferences dialog."),
+	move_target_fixed ("fixed",
+		"Shown in the 'Match' column of the move dialog for a fixed move " +
+		"target instead of a percentage."),
 	inbox_col_tab_name ("Tab Name",
 		"Column header of the inbox folder list on the preferences dialog: " +
 		"the name of the tab in the main window."),

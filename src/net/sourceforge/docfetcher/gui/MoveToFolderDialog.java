@@ -225,27 +225,39 @@ final class MoveToFolderDialog {
 	private void showSuggestions(	@NotNull List<FolderSuggestion> suggestions,
 									@Nullable String error) {
 		table.removeAll();
+		// Fixed targets first, then the folders suggested by content
+		List<File> fixedTargets = MoveTargets.loadFolders();
+		for (File target : fixedTargets)
+			addRow(target, Msg.move_target_fixed.get());
 		for (FolderSuggestion suggestion : suggestions) {
-			TableItem item = new TableItem(table, SWT.NONE);
-			String[] parts = splitFolder(suggestion.getFolder());
-			item.setText(0, parts[0]);
-			item.setText(1, parts[1]);
-			item.setText(2, Math.round(suggestion.getRelevance() * 100) + " %");
-			item.setImage(0, Img.FOLDER.get());
-			item.setData(suggestion.getFolder());
+			boolean fixed = false;
+			for (File target : fixedTargets)
+				if (Util.isCanonicallyEqual(target, suggestion.getFolder()))
+					fixed = true;
+			if (!fixed)
+				addRow(suggestion.getFolder(), Math.round(suggestion.getRelevance() * 100) + " %");
 		}
 		if (error != null) {
 			statusLabel.setText(error);
 		}
-		else if (suggestions.isEmpty()) {
+		else if (suggestions.isEmpty() && fixedTargets.isEmpty()) {
 			statusLabel.setText(Msg.no_suggestions.get());
 		}
 		else {
 			statusLabel.setText("");
-			// Preselect the best match, unless the user already browsed
+			// Preselect the best match (or the first fixed target), unless
+			// the user already browsed
 			if (getTarget() == null) {
-				table.setSelection(0);
-				setTarget(suggestions.get(0).getFolder());
+				File best = suggestions.isEmpty()
+					? fixedTargets.get(0)
+					: suggestions.get(0).getFolder();
+				for (int i = 0; i < table.getItemCount(); i++) {
+					if (Util.isCanonicallyEqual((File) table.getItem(i).getData(), best)) {
+						table.setSelection(i);
+						break;
+					}
+				}
+				setTarget(best);
 			}
 		}
 		// Size the folder column to its contents, the location column gets the rest
@@ -253,6 +265,16 @@ final class MoveToFolderDialog {
 		folderPreferredWidth = table.getColumn(0).getWidth();
 		fitColumns();
 		shell.layout();
+	}
+
+	private void addRow(@NotNull File folder, @NotNull String match) {
+		TableItem item = new TableItem(table, SWT.NONE);
+		String[] parts = splitFolder(folder);
+		item.setText(0, parts[0]);
+		item.setText(1, parts[1]);
+		item.setText(2, match);
+		item.setImage(0, Img.FOLDER.get());
+		item.setData(folder);
 	}
 
 	private int folderPreferredWidth = 200;

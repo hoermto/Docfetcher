@@ -1060,6 +1060,28 @@ public final class ResultPanel {
 	 * Fills the 'Move To' submenu with the suggested target folders for the
 	 * first selected document, plus an entry for choosing any other folder.
 	 */
+	/** Adds a menu item that moves the selected documents into the folder. */
+	private void addMoveToItem(@NotNull Menu menu, @NotNull final File folder) {
+		String[] parts = MoveToFolderDialog.splitFolder(folder);
+		String label = parts[1].isEmpty()
+			? parts[0]
+			: parts[0] + "  (" + parts[1] + ")";
+		final MenuAction action = new MenuAction(Img.FOLDER.get(), label.replace("&", "&&")) {
+			public void run() {
+				moveTo(viewer.getSelection(), folder);
+			}
+		};
+		MenuItem item = new MenuItem(menu, SWT.PUSH);
+		item.setText(action.getLabel());
+		item.setImage(action.getImage());
+		item.setData(action);
+		item.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				action.run();
+			}
+		});
+	}
+	
 	private void fillMoveToMenu(@NotNull Menu menu) {
 		for (MenuItem item : menu.getItems())
 			item.dispose();
@@ -1068,6 +1090,17 @@ public final class ResultPanel {
 			return;
 		final ResultDocument doc = sel.get(0);
 		Suggestions suggestions = getSuggestions(doc);
+		
+		// Fixed targets first, except the folder the document is already in
+		File parent = Util.getParentFile(doc.getPath().getCanonicalFile());
+		List<File> fixedTargets = new ArrayList<File>();
+		for (File target : MoveTargets.loadFolders())
+			if (!Util.isCanonicallyEqual(target, parent))
+				fixedTargets.add(target);
+		for (File target : fixedTargets)
+			addMoveToItem(menu, target);
+		if (!fixedTargets.isEmpty())
+			new MenuItem(menu, SWT.SEPARATOR);
 		
 		if (suggestions == null) {
 			boolean failed;
@@ -1093,25 +1126,12 @@ public final class ResultPanel {
 		}
 		else {
 			for (FolderSuggestion suggestion : suggestions.folders) {
-				final File folder = suggestion.getFolder();
-				String[] parts = MoveToFolderDialog.splitFolder(folder);
-				String label = parts[1].isEmpty()
-					? parts[0]
-					: parts[0] + "  (" + parts[1] + ")";
-				final MenuAction action = new MenuAction(Img.FOLDER.get(), label.replace("&", "&&")) {
-					public void run() {
-						moveTo(viewer.getSelection(), folder);
-					}
-				};
-				MenuItem item = new MenuItem(menu, SWT.PUSH);
-				item.setText(action.getLabel());
-				item.setImage(action.getImage());
-				item.setData(action);
-				item.addSelectionListener(new SelectionAdapter() {
-					public void widgetSelected(SelectionEvent e) {
-						action.run();
-					}
-				});
+				boolean fixed = false;
+				for (File target : fixedTargets)
+					if (Util.isCanonicallyEqual(target, suggestion.getFolder()))
+						fixed = true;
+				if (!fixed)
+					addMoveToItem(menu, suggestion.getFolder());
 			}
 		}
 		

@@ -1,6 +1,6 @@
 Programm-Einstellungen
 ======================
-Der Einstellungen-Dialog wird über `Datei > Einstellungen...` in der Menüleiste geöffnet und hat zwei Reiter: `Allgemein` und `Indizes`.
+Der Einstellungen-Dialog wird über `Datei > Einstellungen...` in der Menüleiste geöffnet und hat drei Reiter: `Allgemein`, `Indizes` und `Ordner`.
 
 Reiter „Allgemein“
 ------------------
@@ -39,4 +39,10 @@ Umbenennen...  |  Ändert den angezeigten Namen des selektierten Index.
 Entfernen  |  Entfernt die selektierten Indizes.
 Verwaiste entfernen  |  Entfernt alle Indizes, deren Dokument-Ordner nicht mehr existieren.
 Index-Ordner  |  Der Ordner, in dem DocFetcher seine Index-Dateien ablegt. Leer lassen, um den Standardordner zu verwenden. Eine Änderung wird erst nach einem Neustart von DocFetcher wirksam; Sie werden gefragt, ob die vorhandenen Indizes beim nächsten Start in den neuen Ordner verschoben werden sollen.
+
+Reiter „Ordner“
+---------------
+Option  |  Anmerkungen
+--------|-------------
 Postbox-Ordner  |  Ordner, die jeweils in einem eigenen Reiter des Hauptfensters aufgelistet werden, z.&nbsp;B. der Ablageordner Ihres Scanners. `Hinzufügen...` fügt einen Ordner hinzu, `Umbenennen...` legt den Namen seines Reiters fest (leer: der letzte Teil des Ordnerpfads). Die Ordner werden automatisch indiziert, falls sie noch kein Index abdeckt.
+Feste Verschiebe-Ziele  |  Ordner, die im Kontextmenü `Verschieben nach` und im Verschieben-Dialog immer ganz oben stehen, vor den anhand des Inhalts vorgeschlagenen Ordnern, z.&nbsp;B. Ihre üblichen Ablageordner.

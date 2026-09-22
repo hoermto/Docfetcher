@@ -279,6 +279,7 @@ public final class SettingsConf {
 	public enum StrList implements Storable {
 		SearchHistory,
 		InboxFolders,
+		MoveTargets, // Folders always offered at the top of the 'Move To' menu
 		;
 
 		public final Event<List<String>> evtChanged = new Event<List<String>> ();

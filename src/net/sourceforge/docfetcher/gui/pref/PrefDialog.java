@@ -69,6 +69,7 @@ public final class PrefDialog {
 	private final int oldAnalyzer;
 	@NotNull private TabFolder tabFolder;
 	@NotNull private IndexManagementPanel indexManagementPanel;
+	@NotNull private FoldersPanel foldersPanel;
 
 	/**
 	 * @param indexPanel
@@ -264,6 +265,11 @@ public final class PrefDialog {
 			tabFolder, indexPanel, defaultIndexDir);
 		indexesTab.setControl(indexManagementPanel.getControl());
 		
+		TabItem foldersTab = new TabItem(tabFolder, SWT.NONE);
+		foldersTab.setText(Msg.pref_tab_folders.get());
+		foldersPanel = new FoldersPanel(tabFolder);
+		foldersTab.setControl(foldersPanel.getControl());
+		
 		return tabFolder;
 	}
 	
@@ -333,6 +339,7 @@ public final class PrefDialog {
 				for (PrefOption fieldOption : fieldOptions)
 					fieldOption.restoreDefault();
 				indexManagementPanel.restoreDefaultFolder();
+				foldersPanel.restoreDefaults();
 			}
 		});
 		
@@ -358,9 +365,12 @@ public final class PrefDialog {
 
 		okBt = UtilGui.createPushButton(comp, Msg.ok.get(), new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				if (!indexManagementPanel.validateFolder()
-						|| !indexManagementPanel.saveInboxFolders()) {
+				if (!indexManagementPanel.validateFolder()) {
 					tabFolder.setSelection(1);
+					return;
+				}
+				if (!foldersPanel.save()) {
+					tabFolder.setSelection(2);
 					return;
 				}
 				for (PrefOption checkOption : checkOptions)

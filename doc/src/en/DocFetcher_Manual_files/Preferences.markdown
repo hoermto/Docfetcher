@@ -1,6 +1,6 @@
 Preferences
 ===========
-The preferences dialog is opened via `File > Preferences...` in the menu bar and has two tabs: `General` and `Indexes`.
+The preferences dialog is opened via `File > Preferences...` in the menu bar and has three tabs: `General`, `Indexes` and `Folders`.
 
 General tab
 -----------
@@ -39,4 +39,10 @@ Rename...  |  Changes the display name of the selected index.
 Remove  |  Removes the selected indexes.
 Remove Orphaned  |  Removes all indexes whose document folders no longer exist.
 Index folder  |  The folder where DocFetcher stores its index files. Leave it empty to use the default location. Changing the folder takes effect after DocFetcher is restarted; you will be asked whether the existing indexes should be moved to the new folder on the next start.
+
+Folders tab
+-----------
+Option  |  Comment
+--------|---------
 Inbox folders  |  Folders each of which is listed on its own tab of the main window, e.g. where a scanner saves new documents. `Add...` adds a folder, `Rename...` sets the name of its tab (empty: the last part of the folder path). The folders are indexed automatically if no index covers them yet.
+Fixed move targets  |  Folders that are always listed first in the `Move To` context menu and in the move dialog, above the folders suggested by content, e.g. your usual filing folders.

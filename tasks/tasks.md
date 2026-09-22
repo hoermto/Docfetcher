@@ -12,7 +12,6 @@
 
 
 ## features
-[] add configuration to define fixed move targets, which always show in move and context menus on top
 
 ## collection, wait until confirmd
 [] v2.4 UI style follow W11 on Windows (keep open)
