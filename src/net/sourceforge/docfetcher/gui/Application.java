@@ -136,6 +136,7 @@ public final class Application {
 	private static TabFolder mainTabFolder;
 	private static final List<InboxTab> inboxTabs = new ArrayList<InboxTab>();
 	private static final Set<File> inboxIndexRequests = new HashSet<File>();
+	@Nullable private static FolderPanel folderPanel;
 	private static PreviewPanel previewPanel;
 	private static volatile StatusBarPart indexingStatus;
 	// Tasks of the current batch of indexing jobs, for the overall progress
@@ -1315,14 +1316,23 @@ public final class Application {
 
 	private static Control createRightTopPanel(Composite parent) {
 		mainTabFolder = new TabFolder(parent, SWT.TOP);
+		TabItem foldersTab = new TabItem(mainTabFolder, SWT.NONE);
+		foldersTab.setText(Msg.folders_tab.get());
+		foldersTab.setControl(createFolderPanel(mainTabFolder));
 		TabItem searchTab = new TabItem(mainTabFolder, SWT.NONE);
 		searchTab.setText(Msg.search_tab.get());
 		searchTab.setControl(createSearchPanel(mainTabFolder));
+		mainTabFolder.setSelection(searchTab);
 		mainTabFolder.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
 				InboxTab selected = getSelectedInboxTab();
 				if (selected != null)
 					selected.panel.refresh();
+				else if (folderPanel != null
+						&& mainTabFolder.getSelection().length > 0
+						&& mainTabFolder.getSelection()[0].getControl()
+							== folderPanel.getControl())
+					folderPanel.refresh();
 			}
 		});
 		return mainTabFolder;
@@ -1465,6 +1475,35 @@ public final class Application {
 			return;
 		if (indexPanel.createIndexForFolder(folder))
 			inboxIndexRequests.add(folder);
+	}
+	
+	/** Creates the 'Folders' tab, which browses the indexed folders. */
+	@NotNull
+	private static Control createFolderPanel(@NotNull Composite parent) {
+		folderPanel = new FolderPanel(parent, indexRegistry);
+		final ResultPanel folderResults = folderPanel.getResultPanel();
+		folderResults.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
+			public void update(List<ResultDocument> eventData) {
+				// Folder rows have nothing to preview
+				if (!eventData.isEmpty() && !eventData.get(0).isFolder())
+					previewPanel.setPreview(eventData.get(0));
+				else
+					previewPanel.clear();
+				showSelectedPath(eventData);
+			}
+		});
+		folderResults.evtHideInSystemTray.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				systemTrayHider.hide();
+			}
+		});
+		folderPanel.evtFolderChanged.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				previewPanel.clear();
+				showSelectedPath(Collections.<ResultDocument> emptyList());
+			}
+		});
+		return folderPanel.getControl();
 	}
 	
 	private static Control createSearchPanel(Composite parent) {

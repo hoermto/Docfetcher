@@ -480,6 +480,63 @@ public final class Searcher {
 		return results;
 	}
 	
+	/**
+	 * Lists the subfolders and the files of the given folder, for the folder
+	 * browser: the subfolders come first (as folder rows), then the files as
+	 * returned by {@link #listFolder}. {@code index} is the index covering
+	 * the folder, or null if there is none.
+	 */
+	@ImmutableCopy
+	@NotNull
+	@ThreadSafe
+	public List<ResultDocument> listFolderEntries(	@Nullable LuceneIndex index,
+													@NotNull File folder)
+			throws SearchException, CheckedOutOfMemoryError {
+		Util.checkNotNull(folder);
+		IndexingConfig config = index != null ? index.getConfig() : new IndexingConfig();
+		List<ResultDocument> entries = new ArrayList<ResultDocument>();
+		File[] children = folder.listFiles();
+		if (children != null) {
+			for (File child : children)
+				if (child.isDirectory() && !child.isHidden())
+					entries.add(createFolderDocument(config, child));
+		}
+		entries.addAll(listFolder(index, folder));
+		return entries;
+	}
+	
+	/**
+	 * Creates a folder row for the folder browser. {@code index} is the
+	 * index covering the folder, or null if there is none.
+	 */
+	@NotNull
+	@ThreadSafe
+	public ResultDocument createFolderRow(	@Nullable LuceneIndex index,
+											@NotNull File folder) {
+		return createFolderDocument(
+			index != null ? index.getConfig() : new IndexingConfig(), folder);
+	}
+	
+	/** Creates a folder row for the folder browser. */
+	@NotNull
+	private ResultDocument createFolderDocument(@NotNull IndexingConfig config,
+												@NotNull File folder) {
+		String name = folder.getName().isEmpty() ? folder.getPath() : folder.getName();
+		Document doc = new Document();
+		doc.add(Fields.UID.create(DocumentType.FILE.createUniqueId(config.getStorablePath(folder))));
+		doc.add(Fields.FILENAME.create(name));
+		doc.add(Fields.TYPE.create(""));
+		doc.add(Fields.PARSER.create(""));
+		doc.add(Fields.TITLE.create(name));
+		doc.add(Fields.SIZE.create(0L));
+		doc.add(Fields.LAST_MODIFIED.create(String.valueOf(folder.lastModified())));
+		ResultDocument result = new ResultDocument(
+			doc, 0, new MatchAllDocsQuery(), false, config, fileFactory,
+			outlookMailFactory);
+		result.setFolder(true);
+		return result;
+	}
+	
 	@NotNull
 	private static String normalize(@NotNull String path) {
 		return Normalizer.normalize(path, Normalizer.Form.NFC);

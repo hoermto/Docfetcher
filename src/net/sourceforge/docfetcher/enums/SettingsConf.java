@@ -209,6 +209,8 @@ public final class SettingsConf {
 		 * startup.
 		 */
 		InboxFolder (""),
+		/* Folder shown on the 'Folders' tab when the program was closed. */
+		LastBrowsedFolder (""),
 		;
 
 		public final Event<String> evtChanged = new Event<String> ();

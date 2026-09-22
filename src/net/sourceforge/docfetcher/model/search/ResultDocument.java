@@ -254,6 +254,21 @@ public final class ResultDocument {
 		}
 	}
 	
+	private boolean folder = false;
+	
+	/**
+	 * Marks this document as a folder row, which is shown in the folder
+	 * browser instead of a document.
+	 */
+	public void setFolder(boolean folder) {
+		this.folder = folder;
+	}
+	
+	/** Returns true if this row stands for a folder, not for a document. */
+	public boolean isFolder() {
+		return folder;
+	}
+	
 	/**
 	 * Returns true if the file of this document (or the archive containing
 	 * it) still exists. Always true for e-mails.
@@ -276,7 +291,7 @@ public final class ResultDocument {
 	 * renamed or moved.
 	 */
 	public boolean isPlainFileOnDisk() {
-		if (isEmail)
+		if (isEmail || folder)
 			return false;
 		try {
 			return getPath().splitAtExistingFile().getRight().isEmpty();

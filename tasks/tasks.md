@@ -22,8 +22,6 @@
 
 ## features
 
-[] add tab "Folders", which has top level the configured index folders, and a click jumps into this folder, listing all sub folders on top and then files (norton commander style). A file selected shows in right panel, the current path in a status line. jump forward into any sub folder, also possible to go up in parent folder. Per file offer same "rename, move" options like in scan box
-[] as user, I want to move a doc from a folder (the preconfigured or from folders view) into another folder. somethink like on left side I see my search/folder and the doc, and on the right side I have the target folder I can move by drag and drop. Suggest a user friendly way
 
 
 ## collection, wait until confirmd

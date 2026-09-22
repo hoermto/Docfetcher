@@ -1,6 +1,8 @@
 ==== 2026-09-22 - DocFetcher 2.5 ====
 
 === Features ===
+  * New 'Folders' tab: a file browser over the folders of your indexes and your fixed move targets. Subfolders come first, then all files of the folder (indexed or not), with preview, rename and move like on the inbox tabs; the last folder is restored on the next start.
+  * Files can be filed by dragging them onto a folder row in the 'Folders' tab; dropping moves them into that folder (Ctrl copies). Files dragged in from other programs are moved as well.
 
 ==== 2026-09-21 - DocFetcher 2.4 ====
 

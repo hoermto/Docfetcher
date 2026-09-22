@@ -87,3 +87,7 @@
   - It did always write into the files. New option 'Store the recognized text in the files' (default on); with it off, OcrPreprocessor leaves files untouched and the parsers recognize on the fly (PdfParser now OCRs text-less PDFs itself), so the text only goes into the index. Verified: files stay byte-identical, search still finds the scans.
 - when tiff convert is enabled, make sure the PDF is not larger than the tiff
   - Black and white pages are embedded with their original CCITT (fax) compression via CCITTFactory instead of being re-encoded (Flate); other pages use JPEG at 0.7. Test SearchablePdfTest checks text and PDF size against the TIFF size.
+- v2.5: add tab "Folders" (norton commander style browser over the index folders)
+  - FolderPanel with path bar, Up/Refresh and the shared ResultPanel; root level lists index roots + fixed move targets; Searcher.listFolderEntries returns folder rows (ResultDocument.isFolder) followed by all files of the folder. Folders sort above files via a new group comparator in VirtualTableViewer, double-click enters a folder, rename/move are disabled for folder rows, last folder is remembered (SettingsConf.Str.LastBrowsedFolder). Test FolderBrowsingTest.
+- v2.5: move a doc into another folder by drag and drop
+  - Drop target on the result table: files dropped on a folder row are moved there (Ctrl copies), including files dragged in from other programs; the target becomes the newest recent move target. Verified in the GUI by dragging a file onto a folder row.

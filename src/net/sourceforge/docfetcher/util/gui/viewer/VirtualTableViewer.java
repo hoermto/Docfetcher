@@ -148,9 +148,25 @@ public abstract class VirtualTableViewer<E> {
 		sort(column, up ? 1 : -1);
 	}
 	
+	/**
+	 * Sets a comparator that groups the elements before the column
+	 * comparison is applied, e.g. to keep folders above files no matter
+	 * which column is sorted by. May be null.
+	 */
+	public final void setGroupComparator(@Nullable Comparator<E> groupComparator) {
+		this.groupComparator = groupComparator;
+	}
+	
+	@Nullable private Comparator<E> groupComparator;
+	
 	private void sort(@NotNull final Column<E> column, final int direction) {
 		Collections.sort(elements, new Comparator<E>() {
 			public int compare(E e1, E e2) {
+				if (groupComparator != null) {
+					int group = groupComparator.compare(e1, e2);
+					if (group != 0)
+						return group;
+				}
 				return column.compare(e1, e2) * direction;
 			};
 		});

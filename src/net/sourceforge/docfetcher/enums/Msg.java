@@ -1053,6 +1053,14 @@ public enum Msg {
 		"The inbox folder does not exist:\n{0}",
 		"Message shown on the 'Inbox' tab when the configured folder is " +
 		"missing. The path is inserted in the {0} slot."),
+	folders_tab ("Folders",
+		"Label of the main window tab that browses the indexed folders."),
+	folder_up ("Up",
+		"Tooltip of the button that goes to the parent folder in the " +
+		"'Folders' tab."),
+	folder_roots ("Indexed folders and fixed move targets",
+		"Shown instead of a path on the 'Folders' tab while the list of " +
+		"root folders is displayed."),
 	refresh ("Refresh",
 		"Label of the button that reloads the file list on the 'Inbox' tab."),
 	rename_to_submenu ("Rename To",

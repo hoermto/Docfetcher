@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -62,6 +63,9 @@ import org.eclipse.swt.dnd.DND;
 import org.eclipse.swt.dnd.DragSource;
 import org.eclipse.swt.dnd.DragSourceAdapter;
 import org.eclipse.swt.dnd.DragSourceEvent;
+import org.eclipse.swt.dnd.DropTarget;
+import org.eclipse.swt.dnd.DropTargetAdapter;
+import org.eclipse.swt.dnd.DropTargetEvent;
 import org.eclipse.swt.dnd.FileTransfer;
 import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.events.ControlAdapter;
@@ -129,6 +133,9 @@ public final class ResultPanel {
 	private static final int MIN_COLUMN_WIDTH = 30;
 	
 	public final Event<List<ResultDocument>> evtSelection = new Event<List<ResultDocument>> ();
+	
+	/** Fired when the user opens a folder row (folder browser). */
+	public final Event<File> evtFolderOpened = new Event<File>();
 	public final Event<Void> evtHideInSystemTray = new Event<Void>();
 	
 	/** Fired after documents were renamed or moved, so that the preview can be refreshed. */
@@ -218,6 +225,7 @@ public final class ResultPanel {
 		});
 		
 		initDragSource(table);
+		initDropTarget(table);
 		
 		viewer.setSortingEnabled(true);
 		initContextMenu();
@@ -237,7 +245,7 @@ public final class ResultPanel {
 					return "";
 				}
 				protected Image getImage(ResultDocument element) {
-					return element.isEmail() ? null : Img.PEN.get();
+					return element.isEmail() || element.isFolder() ? null : Img.PEN.get();
 				}
 				protected String getToolTipText() {
 					return Msg.rename_document_title.get();
@@ -248,7 +256,7 @@ public final class ResultPanel {
 					return "";
 				}
 				protected Image getImage(ResultDocument element) {
-					return element.isEmail() ? null : Img.MOVE.get();
+					return element.isEmail() || element.isFolder() ? null : Img.MOVE.get();
 				}
 				protected String getToolTipText() {
 					return Msg.move_to_folder_title.get();
@@ -265,8 +273,20 @@ public final class ResultPanel {
 					return element.getTitle(); // Subject
 				return element.getFilename();
 			}
+			protected Image getImage(ResultDocument element) {
+				return element.isFolder() ? Img.FOLDER.get() : null;
+			}
 			protected int compare(ResultDocument e1, ResultDocument e2) {
 				return compareAlphanum(getLabel(e1), getLabel(e2));
+			}
+		});
+		
+		// In the folder browser, folders stay above the files
+		viewer.setGroupComparator(new Comparator<ResultDocument>() {
+			public int compare(ResultDocument e1, ResultDocument e2) {
+				if (e1.isFolder() == e2.isFolder())
+					return 0;
+				return e1.isFolder() ? -1 : 1;
 			}
 		});
 		
@@ -513,6 +533,10 @@ public final class ResultPanel {
 		if (selection.isEmpty())
 			return;
 		ResultDocument doc = selection.get(0);
+		if (doc.isFolder()) {
+			evtFolderOpened.fire(doc.getPath().getCanonicalFile());
+			return;
+		}
 		if (!doc.isEmail())
 			launchFiles(Collections.singletonList(doc));
 	}
@@ -595,7 +619,7 @@ public final class ResultPanel {
 		menuManager.add(new MenuAction(Msg.rename_document.get()) {
 			public boolean isEnabled() {
 				List<ResultDocument> sel = viewer.getSelection();
-				return sel.size() == 1 && !sel.get(0).isEmail();
+				return sel.size() == 1 && sel.get(0).isPlainFileOnDisk();
 			}
 			public void run() {
 				renameSelection();
@@ -605,7 +629,7 @@ public final class ResultPanel {
 		final Menu renameToMenu = menuManager.addSubmenu(new MenuAction(Msg.rename_to_submenu.get()) {
 			public boolean isEnabled() {
 				List<ResultDocument> sel = viewer.getSelection();
-				return sel.size() == 1 && !sel.get(0).isEmail();
+				return sel.size() == 1 && sel.get(0).isPlainFileOnDisk();
 			}
 		});
 		renameToMenu.addMenuListener(new MenuAdapter() {
@@ -620,7 +644,7 @@ public final class ResultPanel {
 				if (sel.isEmpty())
 					return false;
 				for (ResultDocument doc : sel)
-					if (doc.isEmail())
+					if (!doc.isPlainFileOnDisk())
 						return false;
 				return true;
 			}
@@ -657,6 +681,9 @@ public final class ResultPanel {
 				TableItem item = table.getItem(pt);
 				if (item == null)
 					return;
+				if (item.getData() instanceof ResultDocument
+						&& ((ResultDocument) item.getData()).isFolder())
+					return; // Folder rows have no action icons
 				for (int col = 0; col < actionColumnCount; col++) {
 					if (!item.getBounds(col).contains(pt))
 						continue;
@@ -1011,6 +1038,112 @@ public final class ResultPanel {
 	 * source's operations can't be changed while dragging.
 	 */
 	
+	/**
+	 * Files dropped on a folder row are moved into that folder. This is how
+	 * files are filed in the folder browser; other tables have no folder
+	 * rows, so nothing is accepted there.
+	 */
+	private void initDropTarget(@NotNull final Table table) {
+		DropTarget dropTarget = new DropTarget(table, DND.DROP_MOVE | DND.DROP_COPY | DND.DROP_DEFAULT);
+		dropTarget.setTransfer(new Transfer[] { FileTransfer.getInstance() });
+		dropTarget.addDropListener(new DropTargetAdapter() {
+			public void dragEnter(DropTargetEvent event) {
+				updateFeedback(event);
+			}
+			public void dragOver(DropTargetEvent event) {
+				updateFeedback(event);
+			}
+			public void dragOperationChanged(DropTargetEvent event) {
+				updateFeedback(event);
+			}
+			public void drop(DropTargetEvent event) {
+				File target = getDropFolder(event);
+				if (target == null || !(event.data instanceof String[]))
+					return;
+				List<File> files = new ArrayList<File>();
+				for (String path : (String[]) event.data)
+					files.add(new File(path));
+				moveFilesTo(files, target);
+			}
+			
+			/** Accepts the drop only over a folder row. */
+			private void updateFeedback(DropTargetEvent event) {
+				if (getDropFolder(event) == null) {
+					event.detail = DND.DROP_NONE;
+					return;
+				}
+				if (event.detail == DND.DROP_NONE || event.detail == DND.DROP_DEFAULT)
+					event.detail = DND.DROP_MOVE;
+				event.feedback = DND.FEEDBACK_SELECT | DND.FEEDBACK_SCROLL;
+			}
+			
+			/** Returns the folder of the row under the cursor, or null. */
+			@Nullable
+			private File getDropFolder(DropTargetEvent event) {
+				if (event.item == null || !(event.item instanceof TableItem))
+					return null;
+				Object data = ((TableItem) event.item).getData();
+				if (!(data instanceof ResultDocument))
+					return null;
+				ResultDocument doc = (ResultDocument) data;
+				if (!doc.isFolder())
+					return null;
+				File folder = doc.getPath().getCanonicalFile();
+				return folder.isDirectory() ? folder : null;
+			}
+		});
+	}
+	
+	/**
+	 * Moves the given files into the target folder and refreshes the view.
+	 * Used for files dropped on a folder row, which may come from this table
+	 * or from another program.
+	 */
+	private void moveFilesTo(@NotNull List<File> files, @NotNull File targetDir) {
+		List<ResultDocument> docs = new ArrayList<ResultDocument>();
+		List<File> others = new ArrayList<File>();
+		for (File file : files) {
+			ResultDocument doc = findDocument(file);
+			if (doc != null)
+				docs.add(doc);
+			else
+				others.add(file);
+		}
+		if (!docs.isEmpty())
+			moveTo(docs, targetDir);
+		
+		// Files from other programs are moved without touching the table
+		List<File> affected = new ArrayList<File>();
+		boolean moved = false;
+		for (File file : others) {
+			File target = new File(targetDir, file.getName());
+			if (Util.isCanonicallyEqual(file, target) || !file.isFile())
+				continue;
+			if (!moveFile(file, target))
+				break; // Error already shown
+			affected.add(file);
+			affected.add(target);
+			moved = true;
+		}
+		if (moved) {
+			updateIndexesFor(affected);
+			evtDocumentsChanged.fire(null);
+			MoveTargets.addRecent(targetDir);
+		}
+	}
+	
+	/** Returns the row of the given file, or null if it isn't in the table. */
+	@Nullable
+	private ResultDocument findDocument(@NotNull File file) {
+		for (ResultDocument doc : viewer.getElements()) {
+			if (doc.isFolder() || !doc.isPlainFileOnDisk())
+				continue;
+			if (Util.isCanonicallyEqual(doc.getPath().getCanonicalFile(), file))
+				return doc;
+		}
+		return null;
+	}
+	
 	private void initDragSource(@NotNull final Table table) {
 		table.addListener(SWT.MouseDown, new Listener() {
 			public void handleEvent(org.eclipse.swt.widgets.Event e) {
@@ -1330,6 +1463,11 @@ public final class ResultPanel {
 	 * sorted by last-modified date (or send date for emails), newest first.
 	 * This can be overridden via {@link ProgramConf.Int#InitialSorting}.
 	 */
+	/** Sorts by file name, ascending, with the folders on top. */
+	public void applyNameSorting() {
+		viewer.sortByColumn(viewer.getColumns().get(actionColumnCount), true);
+	}
+	
 	public void applyDefaultSorting() {
 		int initialSorting = ProgramConf.Int.InitialSorting.get();
 		if (initialSorting == 0)
