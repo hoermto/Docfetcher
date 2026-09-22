@@ -24,6 +24,8 @@ final class ParseContext {
 	private final String filename;
 	private final IndexingReporter reporter;
 	private final Cancelable cancelable;
+	private boolean ocrAllowed = true;
+	private boolean ocrSkipped = false;
 
 	public ParseContext(@NotNull String filename) {
 		this(filename, IndexingReporter.nullReporter, Cancelable.nullCancelable);
@@ -51,6 +53,27 @@ final class ParseContext {
 	@NotNull
 	public Cancelable getCancelable() {
 		return cancelable;
+	}
+	
+	/**
+	 * Whether parsers may run text recognition now. The indexer disables it
+	 * in its first pass and recognizes the deferred files at the end.
+	 */
+	public boolean isOcrAllowed() {
+		return ocrAllowed;
+	}
+	
+	public void setOcrAllowed(boolean ocrAllowed) {
+		this.ocrAllowed = ocrAllowed;
+	}
+	
+	/** Set by a parser that would have run text recognition if allowed. */
+	public boolean isOcrSkipped() {
+		return ocrSkipped;
+	}
+	
+	public void setOcrSkipped(boolean ocrSkipped) {
+		this.ocrSkipped = ocrSkipped;
 	}
 
 }

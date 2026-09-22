@@ -203,7 +203,25 @@ public final class ParseService {
 	                                @NotNull IndexingReporter reporter,
 	                                @NotNull Cancelable cancelable)
 			throws ParseException, CheckedOutOfMemoryError {
+		return parse(config, file, filename, filepath, reporter, cancelable, true);
+	}
+	
+	/**
+	 * Parses the given file; with {@code ocrAllowed} false, text recognition
+	 * is skipped and {@link ParseResult#isOcrSkipped()} tells whether it
+	 * would have been needed.
+	 */
+	@NotNull
+	public static ParseResult parse(@NotNull IndexingConfig config,
+	                                @NotNull File file,
+	                                @NotNull String filename,
+	                                @NotNull Path filepath,
+	                                @NotNull IndexingReporter reporter,
+	                                @NotNull Cancelable cancelable,
+	                                boolean ocrAllowed)
+			throws ParseException, CheckedOutOfMemoryError {
 		ParseContext context = new ParseContext(filename, reporter, cancelable);
+		context.setOcrAllowed(ocrAllowed);
 		
 		// Search for appropriate parser by mimetype
 		for (PatternAction patternAction : config.getPatternActions()) {
@@ -318,6 +336,7 @@ public final class ParseService {
 				throw new IllegalStateException();
 			}
 			String parserName = parser.getClass().getSimpleName();
+			result.setOcrSkipped(context.isOcrSkipped());
 			return result.setParserName(parserName);
 		}
 		catch (final RuntimeException e) {

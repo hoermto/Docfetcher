@@ -9,7 +9,6 @@
 
 
 ## changes
-[] if OCR is enabled, reorder the processing to queue these at the end of the process to import the others first
 
 
 ## features

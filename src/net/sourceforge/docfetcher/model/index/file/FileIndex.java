@@ -17,6 +17,7 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -160,6 +161,41 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 		return cancelable.isCanceled() ? -1 : count[0];
 	}
 	
+	/**
+	 * Recognizes the text of the files collected during the walk and
+	 * re-indexes them. A TIFF converted to PDF is replaced by the PDF in the
+	 * index and in the tree.
+	 */
+	private void processDeferredOcr(@NotNull FileContext context,
+									@NotNull Cancelable cancelable)
+			throws IndexingException {
+		List<FileContext.DeferredFile> deferred =
+			new ArrayList<FileContext.DeferredFile>(context.getDeferredFiles());
+		context.getDeferredFiles().clear();
+		for (FileContext.DeferredFile entry : deferred) {
+			if (cancelable.isCanceled())
+				return;
+			File prepared = OcrPreprocessor.prepare(entry.file, cancelable);
+			FileFolder folder = entry.doc.getParent();
+			if (prepared.equals(entry.file)) {
+				entry.doc.setLastModified(prepared.lastModified());
+				if (!context.index(entry.doc, prepared, false))
+					context.deleteFromIndex(entry.doc.getUniqueId());
+			}
+			else {
+				// TIFF converted to PDF: the TIFF entry goes, the PDF comes
+				context.deleteFromIndex(entry.doc.getUniqueId());
+				folder.removeDocument(entry.doc);
+				File file = entry.file instanceof TFile
+					? new TFile(prepared, ((TFile) entry.file).getArchiveDetector())
+					: prepared;
+				FileDocument doc = createFileDoc(folder, file);
+				context.index(doc, file, true);
+			}
+			context.fileVisited();
+		}
+	}
+	
 	public IndexingResult doUpdate(	@NotNull IndexingReporter reporter,
 									@NotNull Cancelable cancelable) {
 		reporter.setStartTime(System.currentTimeMillis());
@@ -203,7 +239,12 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 				// Count the files first so that progress can be shown
 				context.setProgressTotal(countFiles(getCanonicalRootFile(), cancelable));
 				
+				// Recognize text at the end, so that the other documents
+				// become searchable first
+				context.setDeferOcr(true);
 				visitDirOrZip(context, rootFolder, rootFile);
+				context.setDeferOcr(false);
+				processDeferredOcr(context, cancelable);
 			}
 			else {
 				// Return immediately if the root file wasn't modified
@@ -346,9 +387,10 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 					/*
 					 * Text recognition may replace the file (TIFF -> PDF), in
 					 * which case the new file is indexed and the entry of the
-					 * old one is treated as deleted.
+					 * old one is treated as deleted. With deferred recognition
+					 * this happens in the deferred pass instead.
 					 */
-					if ((added || modified) && OcrPreprocessor.isEnabled()) {
+					if ((added || modified) && OcrPreprocessor.isEnabled() && !context.isDeferOcr()) {
 						File prepared = OcrPreprocessor.prepare(file, context.getStopper());
 						if (!prepared.equals(file)) {
 							if (doc != null)

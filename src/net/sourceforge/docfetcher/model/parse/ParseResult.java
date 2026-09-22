@@ -137,4 +137,15 @@ public final class ParseResult {
 		return this;
 	}
 	
+	private boolean ocrSkipped = false;
+	
+	/** True if the parser would have run text recognition but wasn't allowed to. */
+	public boolean isOcrSkipped() {
+		return ocrSkipped;
+	}
+	
+	public void setOcrSkipped(boolean ocrSkipped) {
+		this.ocrSkipped = ocrSkipped;
+	}
+
 }

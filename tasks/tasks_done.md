@@ -73,3 +73,5 @@
   - Settings ConvertTiffToPdf (off) and KeepTiffAfterConversion (on) with two General-tab checkboxes; without conversion, TIFFs are OCR-read at parse time like other images.
 - bug: tiff ocr crashes app (ArrayIndexOutOfBoundsException on an archive TIFF), does not continue
   - ImageIO's TIFF decoder fails on some fax-compressed archive files. ImagePages now falls back to the bundled Leptonica library (JNA: pixReadTiff/pixRead, pixels unpacked to 8-bit gray), and ImageParser turns any decoder/OCR RuntimeException into a ParseException, so the file lands in the indexing error list instead of a stack-trace window and indexing continues.
+- if OCR is enabled, reorder the processing to queue these at the end of the process to import the others first
+  - Indexing runs in two passes: the walk indexes everything with recognition disabled (ParseContext.ocrAllowed=false; images without embedded text and PDFs without text are collected as deferred files), then FileIndex.processDeferredOcr recognizes/writes back and re-indexes them (TIFF->PDF replacement included). Archive entries are recognized inline. Progress counts deferred files in the second pass.

@@ -49,9 +49,11 @@ public final class ImageParser extends FileParser {
 	protected ParseResult parse(@NotNull File file, @NotNull ParseContext context)
 			throws ParseException {
 		StringBuilder sb = new StringBuilder();
-		String ocrText = getOcrText(file, context.getCancelable());
+		String ocrText = getOcrText(file, context.getCancelable(), context.isOcrAllowed());
 		if (ocrText != null)
 			sb.append(ocrText);
+		else if (!context.isOcrAllowed() && OcrPreprocessor.isEnabled())
+			context.setOcrSkipped(true); // Recognized later in the deferred pass
 		if (isJpeg(context.getFilename())) {
 			String exif = getExifText(file, context);
 			if (exif != null && !exif.isEmpty())
@@ -63,7 +65,7 @@ public final class ImageParser extends FileParser {
 	@Override
 	protected String renderText(@NotNull File file, @NotNull String filename)
 			throws ParseException {
-		String ocrText = getOcrText(file, Cancelable.nullCancelable);
+		String ocrText = getOcrText(file, Cancelable.nullCancelable, true);
 		return ocrText == null ? "" : ocrText;
 	}
 
@@ -72,8 +74,9 @@ public final class ImageParser extends FileParser {
 	 * enabled. Returns null if no text is available.
 	 */
 	@Nullable
-	private static String getOcrText(@NotNull File file, @NotNull Cancelable cancelable)
-			throws ParseException {
+	private static String getOcrText(	@NotNull File file,
+										@NotNull Cancelable cancelable,
+										boolean ocrAllowed) throws ParseException {
 		file = new File(file.getPath()); // TrueZIP files don't support java.nio
 		try {
 			if (OcrTextEmbedding.supports(Util.getExtension(file.getName()))) {
@@ -81,7 +84,7 @@ public final class ImageParser extends FileParser {
 				if (embedded != null)
 					return embedded;
 			}
-			if (!OcrPreprocessor.isEnabled())
+			if (!ocrAllowed || !OcrPreprocessor.isEnabled())
 				return null;
 			return OcrPreprocessor.recognize(file, OcrEngine.getInstance(), cancelable);
 		}

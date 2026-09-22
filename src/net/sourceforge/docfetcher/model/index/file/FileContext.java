@@ -14,6 +14,8 @@ package net.sourceforge.docfetcher.model.index.file;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 import net.sourceforge.docfetcher.model.Cancelable;
 import net.sourceforge.docfetcher.model.Path;
@@ -27,6 +29,7 @@ import net.sourceforge.docfetcher.model.index.IndexingInfo.InfoType;
 import net.sourceforge.docfetcher.model.index.IndexingReporter;
 import net.sourceforge.docfetcher.model.index.MutableInt;
 import net.sourceforge.docfetcher.model.index.PatternAction;
+import net.sourceforge.docfetcher.model.ocr.OcrPreprocessor;
 import net.sourceforge.docfetcher.model.parse.ParseException;
 import net.sourceforge.docfetcher.model.parse.ParseResult;
 import net.sourceforge.docfetcher.model.parse.ParseService;
@@ -50,6 +53,25 @@ class FileContext {
 	private final Cancelable cancelable;
 	private final MutableInt fileCount;
 	private Progress progress = new Progress(); // shared with sub-contexts
+	
+	/*
+	 * Text recognition is deferred: in the first pass, files needing it are
+	 * indexed without recognized text and collected; the indexer recognizes
+	 * them at the end, so that all other documents become searchable first.
+	 */
+	private boolean deferOcr = false;
+	private List<DeferredFile> deferredFiles = new ArrayList<DeferredFile>(); // shared
+	
+	/** A file whose text recognition was deferred to the end of the task. */
+	public static final class DeferredFile {
+		public final FileDocument doc;
+		public final File file;
+		
+		DeferredFile(@NotNull FileDocument doc, @NotNull File file) {
+			this.doc = doc;
+			this.file = file;
+		}
+	}
 	@Nullable private final File indexParentDir; // null if index only exists in RAM
 
 	protected FileContext(	@NotNull IndexingConfig config,
@@ -84,6 +106,23 @@ class FileContext {
 				superContext.indexParentDir
 		);
 		progress = superContext.progress;
+		deferOcr = superContext.deferOcr;
+		deferredFiles = superContext.deferredFiles;
+	}
+	
+	/** Enables deferring text recognition to the end of the task. */
+	public final void setDeferOcr(boolean deferOcr) {
+		this.deferOcr = deferOcr;
+	}
+	
+	public final boolean isDeferOcr() {
+		return deferOcr;
+	}
+	
+	/** The files whose text recognition was deferred, in indexing order. */
+	@NotNull
+	public final List<DeferredFile> getDeferredFiles() {
+		return deferredFiles;
 	}
 	
 	/** Progress of the whole indexing task: files visited so far and total. */
@@ -181,9 +220,20 @@ class FileContext {
 
 		info(InfoType.EXTRACTING, doc);
 		try {
-			// Text extraction; may throw OutOfMemoryErrors
+			/*
+			 * Text extraction; may throw OutOfMemoryErrors. Recognition is
+			 * deferred for plain files on disk only; archive entries are
+			 * recognized right away since they may be gone after the walk.
+			 */
+			boolean deferrable = deferOcr && OcrPreprocessor.isEnabled()
+				&& !(file instanceof TFile && ((TFile) file).isEntry());
 			ParseResult parseResult = ParseService.parse(
-				config, file, doc.getName(), doc.getPath(), reporter, cancelable);
+				config, file, doc.getName(), doc.getPath(), reporter, cancelable,
+				!deferrable);
+			if (deferrable && needsDeferredOcr(file, parseResult)) {
+				deferredFiles.add(new DeferredFile(doc, file));
+				progress.visited--; // Counted again in the deferred pass
+			}
 
 			/*
 			 * If we detect a cancel request at this point, the request probably
@@ -280,6 +330,24 @@ class FileContext {
 		catch (IOException e) {
 			throw new IndexingException(e);
 		}
+	}
+	
+	/**
+	 * Returns true if the file should go through text recognition at the
+	 * end of the task: an image whose parser skipped recognition, or a PDF
+	 * without extractable text.
+	 */
+	private static boolean needsDeferredOcr(@NotNull File file, @NotNull ParseResult result) {
+		if (result.isOcrSkipped())
+			return true;
+		String ext = Util.getExtension(file.getName()).toLowerCase();
+		if (!ext.equals("pdf"))
+			return false;
+		CharSequence content = result.getContent();
+		for (int i = 0; i < content.length(); i++)
+			if (!Character.isWhitespace(content.charAt(i)))
+				return false;
+		return true;
 	}
 	
 	public void info(@NotNull InfoType type, @NotNull TreeNode treeNode) {
