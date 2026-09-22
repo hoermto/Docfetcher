@@ -230,7 +230,12 @@ class FileContext {
 			ParseResult parseResult = ParseService.parse(
 				config, file, doc.getName(), doc.getPath(), reporter, cancelable,
 				!deferrable);
-			if (deferrable && needsDeferredOcr(file, parseResult)) {
+			/*
+			 * The file is indexed without the recognized text now and again
+			 * after recognition, so that it is in the index even if the
+			 * program is closed before the deferred pass.
+			 */
+			if (deferrable && parseResult.isOcrSkipped()) {
 				deferredFiles.add(new DeferredFile(doc, file));
 				progress.visited--; // Counted again in the deferred pass
 			}
@@ -330,24 +335,6 @@ class FileContext {
 		catch (IOException e) {
 			throw new IndexingException(e);
 		}
-	}
-	
-	/**
-	 * Returns true if the file should go through text recognition at the
-	 * end of the task: an image whose parser skipped recognition, or a PDF
-	 * without extractable text.
-	 */
-	private static boolean needsDeferredOcr(@NotNull File file, @NotNull ParseResult result) {
-		if (result.isOcrSkipped())
-			return true;
-		String ext = Util.getExtension(file.getName()).toLowerCase();
-		if (!ext.equals("pdf"))
-			return false;
-		CharSequence content = result.getContent();
-		for (int i = 0; i < content.length(); i++)
-			if (!Character.isWhitespace(content.charAt(i)))
-				return false;
-		return true;
 	}
 	
 	public void info(@NotNull InfoType type, @NotNull TreeNode treeNode) {

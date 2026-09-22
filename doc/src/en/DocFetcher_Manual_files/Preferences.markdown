@@ -17,6 +17,7 @@ Update indexes on startup  |  If checked, all indexes whose folders are watched 
 Show the folder of a document as a column in the result tables  |  If unchecked, the folder column is hidden; the full path is still shown as a tooltip and in the status bar.
 Update all indexes once a day in the background  |  If checked, all indexes are updated once a day while DocFetcher runs, so that deleted or changed files are picked up even in folders that aren't watched. Independently of this option, search results whose files no longer exist are dropped and the affected index is updated.
 Recognize text in images and scanned PDFs (OCR)  |  If checked, the text of image files and of PDF files without text is recognized while indexing and stored in the files (see the manual's section on text recognition). Uncheck it if files must not be modified or recognition takes too long.
+Store the recognized text in the files  |  If unchecked, recognized text is only put into the index and no file is modified.
 Convert TIFF files to PDF files with a text layer  |  If checked (off by default), TIFF files are replaced while indexing by PDF files containing the scanned pages and the recognized text.
 Keep the original TIFF file, renamed to '.tif.ocr'  |  If checked, a converted TIFF file is renamed instead of deleted, so that it can be checked later.
 Preview position  |  Whether the preview pane is shown to the right of or below the result table.

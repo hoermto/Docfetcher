@@ -145,6 +145,10 @@ public final class PrefDialog {
 				SettingsConf.Bool.OcrEnabled),
 
 			new CheckOption(
+				Msg.pref_store_ocr_text.get(),
+				SettingsConf.Bool.StoreOcrTextInFiles),
+
+			new CheckOption(
 				Msg.pref_convert_tiff.get(),
 				SettingsConf.Bool.ConvertTiffToPdf),
 

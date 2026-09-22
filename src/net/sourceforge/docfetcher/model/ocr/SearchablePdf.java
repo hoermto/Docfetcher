@@ -23,6 +23,7 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream.AppendMode;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.graphics.image.CCITTFactory;
 import org.apache.pdfbox.pdmodel.graphics.image.JPEGFactory;
 import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
@@ -60,6 +61,9 @@ public final class SearchablePdf {
 
 	private static final PDFont FONT = PDType1Font.HELVETICA;
 
+	/** JPEG quality for scanned pages that aren't black and white. */
+	private static final float JPEG_QUALITY = 0.7f;
+
 	private SearchablePdf() {}
 
 	/**
@@ -75,6 +79,32 @@ public final class SearchablePdf {
 		if (doc.getDocumentInformation().getCustomMetadataValue(INFO_KEY) != null)
 			return false;
 		return !hasText(doc);
+	}
+
+	/**
+	 * Recognizes the text of all pages of the given document and returns it,
+	 * without changing the document. Returns null if cancelled.
+	 */
+	@Nullable
+	public static String recognizeText(	@NotNull PDDocument doc,
+										@NotNull OcrEngine engine,
+										@NotNull Cancelable cancelable) throws IOException {
+		Util.checkNotNull(doc, engine, cancelable);
+		int pageCount = doc.getNumberOfPages();
+		if (pageCount == 0 || pageCount > MAX_PAGES)
+			return "";
+		PDFRenderer renderer = new PDFRenderer(doc);
+		StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < pageCount; i++) {
+			if (cancelable.isCanceled())
+				return null;
+			int dpi = renderDpi(doc.getPage(i));
+			BufferedImage image = renderer.renderImageWithDPI(i, dpi, ImageType.GRAY);
+			if (sb.length() > 0)
+				sb.append("\n\n");
+			sb.append(engine.recognize(image, dpi).text.trim());
+		}
+		return sb.toString();
 	}
 
 	/** Returns true if any page of the document has extractable text. */
@@ -153,17 +183,16 @@ public final class SearchablePdf {
 			List<ImagePages.Page> pages = ImagePages.read(tiffFile);
 			if (pages.isEmpty())
 				return null;
-			for (ImagePages.Page tiffPage : pages) {
+			for (int pageIndex = 0; pageIndex < pages.size(); pageIndex++) {
 				if (cancelable.isCanceled())
 					return null;
+				ImagePages.Page tiffPage = pages.get(pageIndex);
 				BufferedImage image = tiffPage.image;
 				float widthPt = image.getWidth() * 72f / tiffPage.dpi;
 				float heightPt = image.getHeight() * 72f / tiffPage.dpi;
 				PDPage page = new PDPage(new PDRectangle(widthPt, heightPt));
 				doc.addPage(page);
-				PDImageXObject imageObject = isBilevel(image)
-					? LosslessFactory.createFromImage(doc, image)
-					: JPEGFactory.createFromImage(doc, image, 0.85f);
+				PDImageXObject imageObject = createImage(doc, tiffFile, pageIndex, image);
 				PDPageContentStream cs = new PDPageContentStream(doc, page);
 				try {
 					cs.drawImage(imageObject, 0, 0, widthPt, heightPt);
@@ -335,6 +364,32 @@ public final class SearchablePdf {
 		return sb.toString();
 	}
 
+	/**
+	 * Creates the PDF image for a TIFF page. Black and white pages keep
+	 * their original CCITT (fax) compression, so that the PDF doesn't grow
+	 * beyond the size of the TIFF file; other pages are stored as JPEG, or
+	 * losslessly if that turns out to be smaller.
+	 */
+	@NotNull
+	private static PDImageXObject createImage(	@NotNull PDDocument doc,
+												@NotNull File tiffFile,
+												int pageIndex,
+												@NotNull BufferedImage image) throws IOException {
+		if (isBilevel(image)) {
+			try {
+				return CCITTFactory.createFromFile(doc, tiffFile, pageIndex);
+			}
+			catch (IOException e) {
+				// Not CCITT compressed, fall through
+			}
+			catch (RuntimeException e) {
+				// Malformed TIFF structure, fall through
+			}
+			return LosslessFactory.createFromImage(doc, image);
+		}
+		return JPEGFactory.createFromImage(doc, image, JPEG_QUALITY);
+	}
+	
 	private static boolean isBilevel(@NotNull BufferedImage image) {
 		return image.getType() == BufferedImage.TYPE_BYTE_BINARY
 			&& image.getColorModel().getPixelSize() == 1;

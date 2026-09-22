@@ -35,6 +35,7 @@ import org.apache.xmpbox.xml.XmpParsingException;
 import com.google.common.io.Closeables;
 
 import net.sourceforge.docfetcher.enums.Msg;
+import net.sourceforge.docfetcher.model.ocr.OcrPreprocessor;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 
 /**
@@ -270,6 +271,23 @@ public final class PdfParser extends StreamParser {
 			writer.write(" ");
 			writer.write(annotations.toString());
 			
+			/*
+			 * Scanned documents contain no text; recognize it if allowed.
+			 * During indexing the first pass defers this to the end, so that
+			 * the other documents are searchable sooner.
+			 */
+			if (isBlank(writer.getBuffer()) && OcrPreprocessor.isEnabled()) {
+				if (!context.isOcrAllowed()) {
+					context.setOcrSkipped(true);
+				}
+				else {
+					String ocrText = OcrPreprocessor.recognizePdf(
+						pdfDoc, context.getCancelable());
+					if (ocrText != null)
+						writer.write(ocrText);
+				}
+			}
+			
 			ParseResult result = new ParseResult(writer.getBuffer());
 			result.setPageCount(pageCount);
 			extractMetadata(pdfDoc, result);
@@ -281,6 +299,13 @@ public final class PdfParser extends StreamParser {
 		finally {
 			Closeables.closeQuietly(pdfDoc);
 		}
+	}
+	
+	private static boolean isBlank(@NotNull CharSequence text) {
+		for (int i = 0; i < text.length(); i++)
+			if (!Character.isWhitespace(text.charAt(i)))
+				return false;
+		return true;
 	}
 	
 	protected Collection<String> getExtensions() {

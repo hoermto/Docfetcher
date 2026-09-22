@@ -859,6 +859,12 @@ public enum Msg {
 		Comments.prefOption + "If checked, the text of image files and " +
 		"PDF files without text is recognized with the bundled Tesseract " +
 		"engine and stored in the files."),
+	pref_store_ocr_text (
+		"Store the recognized text in the files (text layer in PDFs, " +
+		"metadata in images)",
+		Comments.prefOption + "If unchecked, the recognized text is only " +
+		"put into the index, and files are never modified; recognition then " +
+		"has to be repeated whenever an index is rebuilt."),
 	pref_convert_tiff (
 		"Convert TIFF files to PDF files with a text layer (requires OCR)",
 		Comments.prefOption + "If checked, TIFF files are replaced by PDF " +

@@ -83,3 +83,7 @@
   - MoveTargets.addRecent/loadRecent (setting StrList.RecentMoveTargets, newest first, max 5, fixed targets and vanished folders skipped); recorded on every successful move. Menu and dialog list fixed > recent > content suggestions without duplicates ('recently used' in the Match column). Unit test MoveTargetsTest.
 - in search and folder list table, remove the path as col, add hover info and show it in the app frame bottom when a line is selected
   - The column shows the folder only (header 'Folder'/'Ordner'), full path as table tooltip and in the status bar (search and inbox tabs). New option 'Show the folder of a document as a column' (default on) hides it live via a zero column weight; stored column widths now tolerate a changed column count.
+- if "ocr enabled", will it write the OCRd text into the original PDF, or only to index? add option
+  - It did always write into the files. New option 'Store the recognized text in the files' (default on); with it off, OcrPreprocessor leaves files untouched and the parsers recognize on the fly (PdfParser now OCRs text-less PDFs itself), so the text only goes into the index. Verified: files stay byte-identical, search still finds the scans.
+- when tiff convert is enabled, make sure the PDF is not larger than the tiff
+  - Black and white pages are embedded with their original CCITT (fax) compression via CCITTFactory instead of being re-encoded (Flate); other pages use JPEG at 0.7. Test SearchablePdfTest checks text and PDF size against the TIFF size.

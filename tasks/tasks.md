@@ -19,8 +19,6 @@
 
 
 ## changes
-[] if "ocr enabled", will it write the OCRd text into the original PDF, or only to index? In case, add option to add OCRd text into files (pdf, png, jpg).
-[] when tiff convert is enabled, make sure the PDF uses compression etc, so the PDF is not really larger than the tiff. found it ~1.5 times larger than PDF
 
 ## features
 

@@ -19,8 +19,9 @@ import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 
 /**
- * Runs text recognition on files before they are indexed, and stores the
- * result in the files so that it doesn't have to be repeated:
+ * Runs text recognition on files before they are indexed, and (unless
+ * {@link SettingsConf.Bool#StoreOcrTextInFiles} is off) stores the result in
+ * the files so that it doesn't have to be repeated:
  * <ul>
  * <li>PDF files without text get an invisible text layer,</li>
  * <li>TIFF files are converted into PDF files with a text layer if enabled
@@ -49,6 +50,10 @@ public final class OcrPreprocessor {
 	public static File prepare(@NotNull File file, @NotNull Cancelable cancelable) {
 		Util.checkNotNull(file, cancelable);
 		if (!isEnabled() || !file.isFile())
+			return file;
+		// Without this option the files are left untouched; the parsers
+		// recognize the text on the fly and it goes into the index only
+		if (!SettingsConf.Bool.StoreOcrTextInFiles.get())
 			return file;
 		if (file instanceof TFile && ((TFile) file).isEntry())
 			return file;
@@ -82,6 +87,19 @@ public final class OcrPreprocessor {
 			Util.printErr("Text recognition failed for " + file + ": " + e);
 		}
 		return file;
+	}
+
+	/**
+	 * Recognizes the text of a PDF document that contains no text, without
+	 * modifying it. Returns an empty string if recognition is switched off,
+	 * null if it was cancelled.
+	 */
+	@Nullable
+	public static String recognizePdf(	@NotNull org.apache.pdfbox.pdmodel.PDDocument doc,
+										@NotNull Cancelable cancelable) throws java.io.IOException {
+		if (!isEnabled())
+			return "";
+		return SearchablePdf.recognizeText(doc, OcrEngine.getInstance(), cancelable);
 	}
 
 	/**
