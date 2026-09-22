@@ -91,6 +91,13 @@ public final class ImageParser extends FileParser {
 		catch (OutOfMemoryError e) {
 			throw new ParseException(new IOException(e.toString()));
 		}
+		catch (RuntimeException e) {
+			// Decoder bugs etc. must not abort the indexing of other files
+			throw new ParseException(new IOException(Msg.ocr_failed.format(e.toString())));
+		}
+		catch (LinkageError e) {
+			throw new ParseException(new IOException(Msg.ocr_failed.format(e.toString())));
+		}
 	}
 
 	@Nullable

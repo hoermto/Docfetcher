@@ -190,6 +190,30 @@ public final class OcrEngine {
 		return (TessAPI) Native.loadLibrary("tesseract", TessAPI.class);
 	}
 
+	/** Returns the bundled Leptonica library, or null if it isn't there. */
+	@Nullable
+	static File findLeptonicaLibrary() {
+		String platformDir;
+		String name;
+		if (Util.IS_WINDOWS) {
+			platformDir = "win32-x86-64";
+			name = "libleptonica1841.dll";
+		}
+		else if (Util.IS_LINUX) {
+			platformDir = "linux-x86-64";
+			name = "libleptonica-37b8efd2.so.6.0.0";
+		}
+		else {
+			return null;
+		}
+		for (File dir : Arrays.asList(new File("lib"), new File("lib/tesseract", platformDir))) {
+			File lib = new File(dir, name);
+			if (lib.isFile())
+				return lib;
+		}
+		return null;
+	}
+
 	/** Returns the folder containing the trained data, or null. */
 	@Nullable
 	public static File findTessdataDir() {

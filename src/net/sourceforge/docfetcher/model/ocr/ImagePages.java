@@ -48,11 +48,33 @@ public final class ImagePages {
 	private ImagePages() {}
 
 	/**
-	 * Reads all pages of the given image file. Throws an IOException if the
-	 * format is not supported or the file is damaged.
+	 * Reads all pages of the given image file, with ImageIO or, if that
+	 * fails, with Leptonica. Throws an IOException if the format is not
+	 * supported or the file is damaged.
 	 */
 	@NotNull
 	public static List<Page> read(@NotNull File file) throws IOException {
+		try {
+			return readWithImageIO(file);
+		}
+		catch (Throwable e) {
+			// ImageIO's TIFF decoder throws on some archive files (e.g.
+			// ArrayIndexOutOfBoundsException); Leptonica may still read them
+			if (e instanceof OutOfMemoryError)
+				throw (OutOfMemoryError) e;
+			if (!LeptonicaImages.isAvailable())
+				throw e instanceof IOException ? (IOException) e : new IOException(e.toString(), e);
+			try {
+				return LeptonicaImages.read(file);
+			}
+			catch (IOException e2) {
+				throw new IOException(e.toString() + " / " + e2.getMessage(), e);
+			}
+		}
+	}
+
+	@NotNull
+	private static List<Page> readWithImageIO(@NotNull File file) throws IOException {
 		List<Page> pages = new ArrayList<Page>();
 		ImageInputStream in = ImageIO.createImageInputStream(file);
 		if (in == null)

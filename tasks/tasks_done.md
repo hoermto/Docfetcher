@@ -71,3 +71,5 @@
   - The state means the 'Run' button of the indexing window hasn't been pressed (window was minimized). Status text now says so; the status-bar progress indicator is clickable again and shows the indexing window (queue/config/errors, not settings), and double-clicking an index with a task on the Indexes tab does the same.
 - add an option to enable the TIFF to PDF conversion (disabled by default); when enabled, option to rename the TIFF to .tif.ocr instead of deleting it
   - Settings ConvertTiffToPdf (off) and KeepTiffAfterConversion (on) with two General-tab checkboxes; without conversion, TIFFs are OCR-read at parse time like other images.
+- bug: tiff ocr crashes app (ArrayIndexOutOfBoundsException on an archive TIFF), does not continue
+  - ImageIO's TIFF decoder fails on some fax-compressed archive files. ImagePages now falls back to the bundled Leptonica library (JNA: pixReadTiff/pixRead, pixels unpacked to 8-bit gray), and ImageParser turns any decoder/OCR RuntimeException into a ParseException, so the file lands in the indexing error list instead of a stack-trace window and indexing continues.

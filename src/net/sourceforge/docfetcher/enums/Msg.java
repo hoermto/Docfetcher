@@ -859,6 +859,10 @@ public enum Msg {
 		"Keep the original TIFF file, renamed to '.tif.ocr'",
 		Comments.prefOption + "If checked, a converted TIFF file is not " +
 		"deleted but renamed, so that it can be checked later."),
+	ocr_failed (
+		"Text recognition failed: {0}",
+		"Error message for a file whose text could not be recognized. The " +
+		"reason is inserted in the {0} slot."),
 	ocr_unavailable (
 		"Text recognition is not available: {0}",
 		"Message shown in the preferences dialog when the OCR engine could " +
