@@ -357,14 +357,23 @@ public final class ResultPanel {
 		
 		
 		
+		/*
+		 * The column widths are managed by the fit below, which would
+		 * overwrite the stored widths with its own values; the stored values
+		 * therefore hold the column weights, which only change when the user
+		 * drags a column border.
+		 */
 		if (actionColumns) {
-			SettingsConf.ColumnWidths.InboxPanel.bind(table);
+			columnWidths = SettingsConf.ColumnWidths.InboxPanel;
 			SettingsConf.ColumnOrder.InboxPanelColumnOrder.bind(table);
 		}
 		else {
-			SettingsConf.ColumnWidths.ResultPanel.bind(table);
+			columnWidths = SettingsConf.ColumnWidths.ResultPanel;
 			SettingsConf.ColumnOrder.ResultPanelColumnOrder.bind(table);
 		}
+		int[] storedWidths = columnWidths.get(table.getColumnCount());
+		for (int i = 0; i < storedWidths.length; i++)
+			table.getColumn(i).setWidth(storedWidths[i]);
 		
 		initColumnFitting(table);
 		initPathTooltip(table);
@@ -410,10 +419,13 @@ public final class ResultPanel {
 		int index = pathColumn.getParent().indexOf(pathColumn);
 		pathColumn.setResizable(visible);
 		// A weight of 0 keeps the column out of the width distribution
+		/*
+		 * The weight of a hidden column is kept, so that the column gets its
+		 * old width back when it is shown again; the fit leaves hidden
+		 * columns out of the width distribution.
+		 */
 		hiddenColumns[index] = !visible;
-		if (!visible)
-			columnWeights[index] = 0;
-		else if (columnWeights[index] <= 0)
+		if (columnWeights[index] <= 0)
 			columnWeights[index] = PATH_COLUMN_WEIGHT;
 		scheduleColumnFit();
 	}
@@ -445,6 +457,7 @@ public final class ResultPanel {
 	 */
 	private double[] columnWeights;
 	private boolean[] hiddenColumns;
+	@Nullable private SettingsConf.ColumnWidths columnWidths;
 	private static final int PATH_COLUMN_WEIGHT = 350;
 	private boolean fittingColumns = false; // true while the fit sets widths
 	private boolean tableResizing = false; // true from table resize until fit
@@ -464,6 +477,7 @@ public final class ResultPanel {
 					if (fittingColumns || tableResizing || hiddenColumns[index])
 						return;
 					columnWeights[index] = Math.max(columns[index].getWidth(), MIN_COLUMN_WIDTH);
+					storeColumnWeights();
 				}
 			});
 		}
@@ -473,6 +487,16 @@ public final class ResultPanel {
 				scheduleColumnFit();
 			}
 		});
+	}
+	
+	/** Saves the column weights, so that they survive a program restart. */
+	private void storeColumnWeights() {
+		if (columnWidths == null)
+			return;
+		int[] widths = new int[columnWeights.length];
+		for (int i = 0; i < widths.length; i++)
+			widths[i] = (int) Math.round(columnWeights[i]);
+		columnWidths.set(widths);
 	}
 	
 	/**
@@ -515,7 +539,8 @@ public final class ResultPanel {
 			
 			double totalWeight = 0;
 			for (int i = actionColumnCount; i < columnWeights.length; i++)
-				totalWeight += columnWeights[i];
+				if (!hiddenColumns[i])
+					totalWeight += columnWeights[i];
 			if (totalWeight <= 0)
 				return;
 			fittingColumns = true;

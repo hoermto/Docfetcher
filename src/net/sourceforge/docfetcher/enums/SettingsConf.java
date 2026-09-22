@@ -382,6 +382,27 @@ public final class SettingsConf {
 		ColumnWidths(int... defaultValue) {
 			value = this.defaultValue = defaultValue;
 		}
+		
+		/**
+		 * Returns the stored widths, or the default widths if the stored
+		 * ones don't match the given number of columns (e.g. after a program
+		 * update or when a column was turned off).
+		 */
+		@NotNull
+		public int[] get(int columnCount) {
+			int[] widths = new int[columnCount];
+			for (int i = 0; i < columnCount; i++) {
+				if (value.length == columnCount)
+					widths[i] = value[i];
+				else
+					widths[i] = i < defaultValue.length ? defaultValue[i] : 100;
+			}
+			return widths;
+		}
+		
+		public void set(@NotNull int[] widths) {
+			value = widths;
+		}
 
 		/**
 		 * Binds the enumeration's values to the column widths of the given

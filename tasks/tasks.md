@@ -20,6 +20,14 @@
 
 ## changes
 
+
+- in folder view, add "delete", "add folder". ask when delete is used. in inbox as well offer "delete"
+- in search table, offer context menu "show in folder" -> show the folder in folder panel. the existing open in parent folder still opens the windows explorer. also add a check box in settings to enable folder sync with search table, so a click on search file automatically opens the folder in folder pane.
+- detached view to be default
+- when drag/drop, allow also dropping inside the folder. currently drop works on the folder name itself. but if te folder content is listed, i also want to drop in that current folder
+- in folder pane, add icon to jump to root (where all indexed folderaa are)
+
+
 ## features
 
 

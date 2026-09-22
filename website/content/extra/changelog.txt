@@ -1,5 +1,8 @@
 ==== 2026-09-22 - DocFetcher 2.5 ====
 
+=== Bugfixes ===
+  * With the folder column turned off, the freed space is now used by the other columns, and the stored column widths are no longer overwritten by the automatic column fitting.
+
 === Features ===
   * New 'Folders' tab: a file browser over the folders of your indexes and your fixed move targets. Subfolders come first, then all files of the folder (indexed or not), with preview, rename and move like on the inbox tabs; the last folder is restored on the next start.
   * Files can be filed by dragging them onto a folder row of the folder browser; dropping moves them into that folder (Ctrl copies). Files dragged in from other programs are moved as well.
