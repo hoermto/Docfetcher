@@ -1013,6 +1013,9 @@ public enum Msg {
 	move_target_fixed ("fixed",
 		"Shown in the 'Match' column of the move dialog for a fixed move " +
 		"target instead of a percentage."),
+	move_target_recent ("recently used",
+		"Shown in the 'Match' column of the move dialog for a recently used " +
+		"move target instead of a percentage."),
 	inbox_col_tab_name ("Tab Name",
 		"Column header of the inbox folder list on the preferences dialog: " +
 		"the name of the tab in the main window."),

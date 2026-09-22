@@ -887,6 +887,7 @@ public final class ResultPanel {
 		viewer.refresh();
 		updateIndexesFor(affected);
 		evtDocumentsChanged.fire(null);
+		MoveTargets.addRecent(targetDir);
 	}
 	
 	/**
@@ -1060,6 +1061,29 @@ public final class ResultPanel {
 	 * Fills the 'Move To' submenu with the suggested target folders for the
 	 * first selected document, plus an entry for choosing any other folder.
 	 */
+	/**
+	 * Adds menu items for the given folders, skipping those already listed,
+	 * and returns the folders that were added.
+	 */
+	@NotNull
+	private List<File> addMoveToItems(	@NotNull Menu menu,
+										@NotNull List<File> folders,
+										@NotNull List<File> listed) {
+		List<File> added = new ArrayList<File>();
+		for (File folder : folders) {
+			boolean known = false;
+			for (File other : listed)
+				if (Util.isCanonicallyEqual(other, folder))
+					known = true;
+			if (known)
+				continue;
+			addMoveToItem(menu, folder);
+			listed.add(folder);
+			added.add(folder);
+		}
+		return added;
+	}
+	
 	/** Adds a menu item that moves the selected documents into the folder. */
 	private void addMoveToItem(@NotNull Menu menu, @NotNull final File folder) {
 		String[] parts = MoveToFolderDialog.splitFolder(folder);
@@ -1091,15 +1115,19 @@ public final class ResultPanel {
 		final ResultDocument doc = sel.get(0);
 		Suggestions suggestions = getSuggestions(doc);
 		
-		// Fixed targets first, except the folder the document is already in
+		/*
+		 * Fixed targets first, then the recently used folders, then the
+		 * folders suggested by content; the folder the document is already
+		 * in and duplicates are left out.
+		 */
 		File parent = Util.getParentFile(doc.getPath().getCanonicalFile());
-		List<File> fixedTargets = new ArrayList<File>();
-		for (File target : MoveTargets.loadFolders())
-			if (!Util.isCanonicallyEqual(target, parent))
-				fixedTargets.add(target);
-		for (File target : fixedTargets)
-			addMoveToItem(menu, target);
+		List<File> listed = new ArrayList<File>();
+		listed.add(parent);
+		List<File> fixedTargets = addMoveToItems(menu, MoveTargets.loadFolders(), listed);
 		if (!fixedTargets.isEmpty())
+			new MenuItem(menu, SWT.SEPARATOR);
+		List<File> recentTargets = addMoveToItems(menu, MoveTargets.loadRecent(), listed);
+		if (!recentTargets.isEmpty())
 			new MenuItem(menu, SWT.SEPARATOR);
 		
 		if (suggestions == null) {
@@ -1125,14 +1153,10 @@ public final class ResultPanel {
 			item.setData(new MenuAction(infoText));
 		}
 		else {
-			for (FolderSuggestion suggestion : suggestions.folders) {
-				boolean fixed = false;
-				for (File target : fixedTargets)
-					if (Util.isCanonicallyEqual(target, suggestion.getFolder()))
-						fixed = true;
-				if (!fixed)
-					addMoveToItem(menu, suggestion.getFolder());
-			}
+			List<File> folders = new ArrayList<File>();
+			for (FolderSuggestion suggestion : suggestions.folders)
+				folders.add(suggestion.getFolder());
+			addMoveToItems(menu, folders, listed);
 		}
 		
 		new MenuItem(menu, SWT.SEPARATOR);

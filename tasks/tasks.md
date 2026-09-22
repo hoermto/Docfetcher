@@ -19,8 +19,10 @@
 
 
 ## changes
-[] remember last 5 folders used to move as offer
 [] in search and folder list table, remove the path as col, and add this as hoover info and show in app frame bottom when a line was selected.
+[] if "ocr enabled", will it write the OCRd text into the original PDF, or only to index? In case, add option to add OCRd text into files (pdf, png, jpg).
+[] when tiff convert is enabled, make sure the PDF uses compression etc, so the PDF is not really larger than the tiff. found it ~1.5 times larger than PDF
+
 ## features
 
 [] add tab "Folders", which has top level the configured index folders, and a click jumps into this folder, listing all sub folders on top and then files (norton commander style). A file selected shows in right panel, the current path in a status line. jump forward into any sub folder, also possible to go up in parent folder. Per file offer same "rename, move" options like in scan box

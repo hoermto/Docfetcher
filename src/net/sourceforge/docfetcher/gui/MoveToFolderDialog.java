@@ -225,22 +225,21 @@ final class MoveToFolderDialog {
 	private void showSuggestions(	@NotNull List<FolderSuggestion> suggestions,
 									@Nullable String error) {
 		table.removeAll();
-		// Fixed targets first, then the folders suggested by content
+		// Fixed targets first, then the recently used folders, then the
+		// folders suggested by content
+		List<File> listed = new ArrayList<File>();
 		List<File> fixedTargets = MoveTargets.loadFolders();
 		for (File target : fixedTargets)
-			addRow(target, Msg.move_target_fixed.get());
-		for (FolderSuggestion suggestion : suggestions) {
-			boolean fixed = false;
-			for (File target : fixedTargets)
-				if (Util.isCanonicallyEqual(target, suggestion.getFolder()))
-					fixed = true;
-			if (!fixed)
-				addRow(suggestion.getFolder(), Math.round(suggestion.getRelevance() * 100) + " %");
-		}
+			addRow(target, Msg.move_target_fixed.get(), listed);
+		for (File target : MoveTargets.loadRecent())
+			addRow(target, Msg.move_target_recent.get(), listed);
+		for (FolderSuggestion suggestion : suggestions)
+			addRow(suggestion.getFolder(),
+				Math.round(suggestion.getRelevance() * 100) + " %", listed);
 		if (error != null) {
 			statusLabel.setText(error);
 		}
-		else if (suggestions.isEmpty() && fixedTargets.isEmpty()) {
+		else if (table.getItemCount() == 0) {
 			statusLabel.setText(Msg.no_suggestions.get());
 		}
 		else {
@@ -249,7 +248,7 @@ final class MoveToFolderDialog {
 			// the user already browsed
 			if (getTarget() == null) {
 				File best = suggestions.isEmpty()
-					? fixedTargets.get(0)
+					? (File) table.getItem(0).getData()
 					: suggestions.get(0).getFolder();
 				for (int i = 0; i < table.getItemCount(); i++) {
 					if (Util.isCanonicallyEqual((File) table.getItem(i).getData(), best)) {
@@ -267,7 +266,14 @@ final class MoveToFolderDialog {
 		shell.layout();
 	}
 
-	private void addRow(@NotNull File folder, @NotNull String match) {
+	/** Adds a row for the folder, unless it is already listed. */
+	private void addRow(@NotNull File folder,
+						@NotNull String match,
+						@NotNull List<File> listed) {
+		for (File other : listed)
+			if (Util.isCanonicallyEqual(other, folder))
+				return;
+		listed.add(folder);
 		TableItem item = new TableItem(table, SWT.NONE);
 		String[] parts = splitFolder(folder);
 		item.setText(0, parts[0]);

@@ -280,6 +280,7 @@ public final class SettingsConf {
 		SearchHistory,
 		InboxFolders,
 		MoveTargets, // Folders always offered at the top of the 'Move To' menu
+		RecentMoveTargets, // Folders recently used as move targets, newest first
 		;
 
 		public final Event<List<String>> evtChanged = new Event<List<String>> ();

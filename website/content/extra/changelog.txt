@@ -5,6 +5,7 @@
   * Existing indexes are offered for a one-time rebuild so that scans get recognized.
   * Text recognition runs at the end of an indexing task, after all other documents have been indexed, so they become searchable first.
   * Fixed move targets: folders configured on the new 'Folders' tab of the preferences (which also holds the inbox folders) are always listed first in the 'Move To' menu and in the move dialog.
+  * The last five folders you moved files into are offered in the 'Move To' menu and in the move dialog, below the fixed targets.
 
 === Changes ===
   * The result and inbox tables show the file name in the first column instead of the title; the separate 'Filename' column is gone.

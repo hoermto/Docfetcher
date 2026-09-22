@@ -48,4 +48,45 @@ public final class MoveTargets {
 		SettingsConf.StrList.MoveTargets.set(new ArrayList<String>(paths));
 	}
 
+	/** How many recently used target folders are remembered. */
+	public static final int MAX_RECENT = 5;
+
+	/**
+	 * Returns the folders the user moved files into most recently, newest
+	 * first. Folders that no longer exist are left out.
+	 */
+	@NotNull
+	public static List<File> loadRecent() {
+		List<File> folders = new ArrayList<File>();
+		for (String path : SettingsConf.StrList.RecentMoveTargets.get()) {
+			if (path.trim().isEmpty())
+				continue;
+			File folder = Util.getCanonicalFile(path.trim());
+			if (folder.isDirectory())
+				folders.add(folder);
+		}
+		return folders;
+	}
+
+	/**
+	 * Remembers the given folder as the most recently used move target.
+	 * Fixed targets are not remembered, since they are listed anyway.
+	 */
+	public static void addRecent(@NotNull File folder) {
+		Util.checkNotNull(folder);
+		for (File fixed : loadFolders())
+			if (Util.isCanonicallyEqual(fixed, folder))
+				return;
+		List<String> paths = new ArrayList<String>();
+		paths.add(Util.getSystemAbsPath(folder));
+		for (File recent : loadRecent()) {
+			if (Util.isCanonicallyEqual(recent, folder))
+				continue;
+			if (paths.size() >= MAX_RECENT)
+				break;
+			paths.add(Util.getSystemAbsPath(recent));
+		}
+		SettingsConf.StrList.RecentMoveTargets.set(paths);
+	}
+
 }

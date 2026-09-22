@@ -79,3 +79,5 @@
   - New preferences tab 'Folders' (inbox folders moved there from the Indexes tab, plus 'Fixed move targets' with Add/Remove; setting StrList.MoveTargets). The 'Move To' submenu lists them first (separator, then suggestions minus duplicates, then 'Other Folder...'); the move dialog lists them on top with 'fixed' in the Match column and preselects the best content match.
 - bug: tiff file viewer not available
   - The image preview used SWT's limited TIFF loader and then ImageIO (which fails on archive TIFFs). TIFFs now go through the shared ImagePages reader (ImageIO, Leptonica fallback), all pages are loaded with Prev/Next page buttons and "Page x of y"; pages are converted on demand with a fast path for gray images. Unit tests: ImagePagesTest, OcrTextEmbeddingTest.
+- remember last 5 folders used to move as offer
+  - MoveTargets.addRecent/loadRecent (setting StrList.RecentMoveTargets, newest first, max 5, fixed targets and vanished folders skipped); recorded on every successful move. Menu and dialog list fixed > recent > content suggestions without duplicates ('recently used' in the Match column). Unit test MoveTargetsTest.
