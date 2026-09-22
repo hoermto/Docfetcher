@@ -136,6 +136,9 @@ public final class ResultPanel {
 	
 	/** Fired when the user opens a folder row (folder browser). */
 	public final Event<File> evtFolderOpened = new Event<File>();
+	
+	/** Fired when the user asks to go to the parent folder (left arrow). */
+	public final Event<Void> evtGoUp = new Event<Void>();
 	public final Event<Void> evtHideInSystemTray = new Event<Void>();
 	
 	/** Fired after documents were renamed or moved, so that the preview can be refreshed. */
@@ -215,6 +218,9 @@ public final class ResultPanel {
 			public void keyReleased(KeyEvent e) {
 				if (UtilGui.isEnterKey(e.keyCode))
 					launchSelection();
+				// Go to the parent folder, like in a file manager
+				else if (e.keyCode == SWT.ARROW_LEFT || e.keyCode == SWT.BS)
+					evtGoUp.fire(null);
 				else if (e.stateMask == SWT.MOD1 && e.keyCode == 'c')
 					copyToClipboard();
 				else if (e.stateMask == SWT.MOD1 && e.keyCode == 'a')
@@ -281,12 +287,18 @@ public final class ResultPanel {
 			}
 		});
 		
-		// In the folder browser, folders stay above the files
+		/*
+		 * In the folder browser, the '..' entry stays at the top and the
+		 * folders stay above the files, no matter how the table is sorted.
+		 */
 		viewer.setGroupComparator(new Comparator<ResultDocument>() {
 			public int compare(ResultDocument e1, ResultDocument e2) {
-				if (e1.isFolder() == e2.isFolder())
+				return rank(e1) - rank(e2);
+			}
+			private int rank(ResultDocument doc) {
+				if (doc.isParentRow())
 					return 0;
-				return e1.isFolder() ? -1 : 1;
+				return doc.isFolder() ? 1 : 2;
 			}
 		});
 		
@@ -379,11 +391,22 @@ public final class ResultPanel {
 	
 	@Nullable private TableColumn pathColumn;
 	
+	/**
+	 * Suppresses the folder column, e.g. in the folder browser, where all
+	 * files are in the folder shown in the path bar anyway.
+	 */
+	public void setPathColumnAllowed(boolean pathColumnAllowed) {
+		this.pathColumnAllowed = pathColumnAllowed;
+		applyPathColumnVisibility();
+	}
+	
+	private boolean pathColumnAllowed = true;
+	
 	/** Hides or shows the folder column according to the settings. */
 	private void applyPathColumnVisibility() {
 		if (pathColumn == null || pathColumn.isDisposed())
 			return;
-		boolean visible = SettingsConf.Bool.ShowPathColumn.get();
+		boolean visible = pathColumnAllowed && SettingsConf.Bool.ShowPathColumn.get();
 		int index = pathColumn.getParent().indexOf(pathColumn);
 		pathColumn.setResizable(visible);
 		// A weight of 0 keeps the column out of the width distribution
@@ -533,6 +556,10 @@ public final class ResultPanel {
 		if (selection.isEmpty())
 			return;
 		ResultDocument doc = selection.get(0);
+		if (doc.isParentRow()) {
+			evtGoUp.fire(null); // May lead back to the list of root folders
+			return;
+		}
 		if (doc.isFolder()) {
 			evtFolderOpened.fire(doc.getPath().getCanonicalFile());
 			return;

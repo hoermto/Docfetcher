@@ -91,6 +91,7 @@ public final class SettingsConf {
 		KeepTiffAfterConversion (true), // Keep the TIFF renamed to .ocr instead of deleting it
 		DailyIndexUpdate (true), // Update all indexes once a day while running
 		ShowPathColumn (true), // Show the folder column in the result tables
+		ShowFolderPanel (false), // Show the folder browser as a panel of its own
 
 		ShowPreviewPanel (true),
 		ShowPreviewPanelAtBottom (false),
@@ -238,6 +239,7 @@ public final class SettingsConf {
 
 	@Description("# Comma-separated lists of integers.")
 	public enum IntArray implements Storable {
+		FolderSashWeights (3, 2), // Tabs and folder panel
 		PreviewHighlighting (255, 255, 0),
 		Hotkey (SWT.CTRL, SWT.F8),
 

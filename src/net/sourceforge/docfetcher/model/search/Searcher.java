@@ -513,15 +513,36 @@ public final class Searcher {
 	@ThreadSafe
 	public ResultDocument createFolderRow(	@Nullable LuceneIndex index,
 											@NotNull File folder) {
-		return createFolderDocument(
-			index != null ? index.getConfig() : new IndexingConfig(), folder);
+		return createFolderRow(index, folder, null);
+	}
+	
+	/**
+	 * Creates a folder row for the folder browser, optionally with a display
+	 * name of its own (used for the '..' entry).
+	 */
+	@NotNull
+	@ThreadSafe
+	public ResultDocument createFolderRow(	@Nullable LuceneIndex index,
+											@NotNull File folder,
+											@Nullable String displayName) {
+		IndexingConfig config = index != null ? index.getConfig() : new IndexingConfig();
+		return createFolderDocument(config, folder, displayName);
 	}
 	
 	/** Creates a folder row for the folder browser. */
 	@NotNull
 	private ResultDocument createFolderDocument(@NotNull IndexingConfig config,
 												@NotNull File folder) {
-		String name = folder.getName().isEmpty() ? folder.getPath() : folder.getName();
+		return createFolderDocument(config, folder, null);
+	}
+	
+	@NotNull
+	private ResultDocument createFolderDocument(@NotNull IndexingConfig config,
+												@NotNull File folder,
+												@Nullable String displayName) {
+		String name = displayName != null
+			? displayName
+			: (folder.getName().isEmpty() ? folder.getPath() : folder.getName());
 		Document doc = new Document();
 		doc.add(Fields.UID.create(DocumentType.FILE.createUniqueId(config.getStorablePath(folder))));
 		doc.add(Fields.FILENAME.create(name));

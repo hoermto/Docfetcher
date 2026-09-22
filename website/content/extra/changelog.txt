@@ -2,7 +2,9 @@
 
 === Features ===
   * New 'Folders' tab: a file browser over the folders of your indexes and your fixed move targets. Subfolders come first, then all files of the folder (indexed or not), with preview, rename and move like on the inbox tabs; the last folder is restored on the next start.
-  * Files can be filed by dragging them onto a folder row in the 'Folders' tab; dropping moves them into that folder (Ctrl copies). Files dragged in from other programs are moved as well.
+  * Files can be filed by dragging them onto a folder row of the folder browser; dropping moves them into that folder (Ctrl copies). Files dragged in from other programs are moved as well.
+  * 'View > Folder panel' (F9) turns the folder browser into a panel of its own between the tabs and the preview, so documents can be dragged from an inbox tab or from the search results into a folder while both are visible.
+  * The folder browser has a '..' row at the top; the left arrow key and backspace go to the parent folder.
 
 ==== 2026-09-21 - DocFetcher 2.4 ====
 

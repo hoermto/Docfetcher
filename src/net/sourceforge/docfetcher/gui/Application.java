@@ -48,6 +48,8 @@ import org.eclipse.swt.events.ShellAdapter;
 import org.eclipse.swt.events.ShellEvent;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.Rectangle;
+import org.eclipse.swt.custom.SashForm;
+import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.layout.FormLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
@@ -137,6 +139,9 @@ public final class Application {
 	private static final List<InboxTab> inboxTabs = new ArrayList<InboxTab>();
 	private static final Set<File> inboxIndexRequests = new HashSet<File>();
 	@Nullable private static FolderPanel folderPanel;
+	@Nullable private static TabItem foldersTab;
+	private static SashForm folderSash;
+	private static Composite folderPanelHolder;
 	private static PreviewPanel previewPanel;
 	private static volatile StatusBarPart indexingStatus;
 	// Tasks of the current batch of indexing jobs, for the overall progress
@@ -583,6 +588,9 @@ public final class Application {
 				}
 				else if (m == SWT.MOD1 && k == 'q') {
 					requestExit();
+				}
+				else if (k == SWT.F9) {
+					toggleFolderPanel();
 				}
 				else {
 					e.doit = true;
@@ -1315,10 +1323,17 @@ public final class Application {
 	}
 
 	private static Control createRightTopPanel(Composite parent) {
-		mainTabFolder = new TabFolder(parent, SWT.TOP);
-		TabItem foldersTab = new TabItem(mainTabFolder, SWT.NONE);
-		foldersTab.setText(Msg.folders_tab.get());
-		foldersTab.setControl(createFolderPanel(mainTabFolder));
+		/*
+		 * The folder browser is either a tab of the main tab folder or a
+		 * panel of its own next to it, so that documents can be dragged from
+		 * another tab into a folder.
+		 */
+		folderSash = new SashForm(parent, SWT.HORIZONTAL);
+		folderSash.setSashWidth(sashWidth);
+		mainTabFolder = new TabFolder(folderSash, SWT.TOP);
+		folderPanelHolder = new Composite(folderSash, SWT.NONE);
+		folderPanelHolder.setLayout(new FillLayout());
+		
 		TabItem searchTab = new TabItem(mainTabFolder, SWT.NONE);
 		searchTab.setText(Msg.search_tab.get());
 		searchTab.setControl(createSearchPanel(mainTabFolder));
@@ -1335,7 +1350,52 @@ public final class Application {
 					folderPanel.refresh();
 			}
 		});
-		return mainTabFolder;
+		applyFolderPanelMode();
+		folderSash.setWeights(SettingsConf.IntArray.FolderSashWeights.get());
+		folderSash.addControlListener(new ControlAdapter() {
+			public void controlResized(ControlEvent e) {
+				if (folderSash.getMaximizedControl() == null)
+					SettingsConf.IntArray.FolderSashWeights.set(folderSash.getWeights());
+			}
+		});
+		return folderSash;
+	}
+	
+	/**
+	 * Shows the folder browser either as a tab or as a panel of its own,
+	 * according to the settings.
+	 */
+	private static void applyFolderPanelMode() {
+		boolean asPanel = SettingsConf.Bool.ShowFolderPanel.get();
+		
+		// Dispose the browser in its old place, the folder is remembered
+		if (folderPanel != null) {
+			folderPanel.getControl().dispose();
+			folderPanel = null;
+		}
+		if (foldersTab != null) {
+			foldersTab.dispose();
+			foldersTab = null;
+		}
+		
+		if (asPanel) {
+			createFolderPanel(folderPanelHolder);
+			folderPanelHolder.layout();
+			folderSash.setMaximizedControl(null);
+		}
+		else {
+			folderSash.setMaximizedControl(mainTabFolder);
+			// After the inbox tabs, before the search tab
+			foldersTab = new TabItem(mainTabFolder, SWT.NONE, inboxTabs.size());
+			foldersTab.setText(Msg.folders_tab.get());
+			foldersTab.setControl(createFolderPanel(mainTabFolder));
+		}
+	}
+	
+	/** Toggles the folder browser between a tab and a panel of its own. */
+	private static void toggleFolderPanel() {
+		SettingsConf.Bool.ShowFolderPanel.set(!SettingsConf.Bool.ShowFolderPanel.get());
+		applyFolderPanelMode();
 	}
 	
 	/** An inbox tab of the main window. */
@@ -1426,6 +1486,10 @@ public final class Application {
 			inboxTab.panel.setFolder(inboxTab.entry.getFolder());
 			ensureIndexed(inboxTab.entry.getFolder());
 		}
+		
+		// The folders tab belongs after the inbox tabs
+		if (foldersTab != null && mainTabFolder.indexOf(foldersTab) != inboxTabs.size())
+			applyFolderPanelMode();
 	}
 
 	@NotNull
@@ -1481,6 +1545,7 @@ public final class Application {
 	@NotNull
 	private static Control createFolderPanel(@NotNull Composite parent) {
 		folderPanel = new FolderPanel(parent, indexRegistry);
+		folderPanel.setShowLabel(SettingsConf.Bool.ShowFolderPanel.get());
 		final ResultPanel folderResults = folderPanel.getResultPanel();
 		folderResults.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
 			public void update(List<ResultDocument> eventData) {
@@ -1658,6 +1723,23 @@ public final class Application {
 			}
 		});
 
+		Menu viewMenu = createMenu(menuBar, Msg.menu_view.get());
+		final MenuItem folderPanelItem = new MenuItem(viewMenu, SWT.CHECK);
+		folderPanelItem.setText(Msg.menu_folder_panel.get());
+		folderPanelItem.setSelection(SettingsConf.Bool.ShowFolderPanel.get());
+		folderPanelItem.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				toggleFolderPanel();
+				folderPanelItem.setSelection(SettingsConf.Bool.ShowFolderPanel.get());
+			}
+		});
+		SettingsConf.Bool.ShowFolderPanel.evtChanged.add(new Event.Listener<Boolean>() {
+			public void update(Boolean eventData) {
+				if (!folderPanelItem.isDisposed())
+					folderPanelItem.setSelection(eventData);
+			}
+		});
+		
 		Menu helpMenu = createMenu(menuBar, Msg.menu_help.get());
 		createMenuItem(helpMenu, Msg.menu_manual.get(), Img.HELP.get(), new Runnable() {
 			public void run() {

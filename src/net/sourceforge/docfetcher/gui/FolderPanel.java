@@ -93,10 +93,17 @@ public final class FolderPanel {
 
 		resultPanel = new ResultPanel(comp, indexRegistry, true);
 		resultPanel.getControl().setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+		// The path bar already says which folder the files are in
+		resultPanel.setPathColumnAllowed(false);
 
 		resultPanel.evtFolderOpened.add(new Event.Listener<File>() {
 			public void update(File eventData) {
 				setFolder(eventData);
+			}
+		});
+		resultPanel.evtGoUp.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				goUp();
 			}
 		});
 		resultPanel.evtDocumentsChanged.add(new Event.Listener<Void>() {
@@ -118,6 +125,26 @@ public final class FolderPanel {
 		return file.isDirectory() ? file : null;
 	}
 
+	/**
+	 * When the browser is a panel of its own, its purpose isn't obvious from
+	 * a tab label, so the path bar carries the panel name as a prefix.
+	 */
+	public void setShowLabel(boolean showLabel) {
+		this.showLabel = showLabel;
+		updatePathLabel();
+	}
+	
+	private boolean showLabel = false;
+	
+	private void updatePathLabel() {
+		File current = folder;
+		String path = current == null
+			? Msg.folder_roots.get()
+			: Util.getSystemAbsPath(current);
+		pathLabel.setText(showLabel ? Msg.folders_tab.get() + ":  " + path : path);
+		pathLabel.getParent().layout();
+	}
+	
 	@NotNull
 	public Control getControl() {
 		return comp;
@@ -141,10 +168,7 @@ public final class FolderPanel {
 		this.folder = folder;
 		SettingsConf.Str.LastBrowsedFolder.set(
 			folder == null ? "" : Util.getSystemAbsPath(folder));
-		pathLabel.setText(folder == null
-			? Msg.folder_roots.get()
-			: Util.getSystemAbsPath(folder));
-		pathLabel.getParent().layout();
+		updatePathLabel();
 		upBt.setEnabled(folder != null);
 		evtFolderChanged.fire(null);
 		refresh();
@@ -245,13 +269,48 @@ public final class FolderPanel {
 		return docs;
 	}
 
-	/** Returns the subfolders and files of the given folder. */
+	/**
+	 * Returns the '..' entry, the subfolders and the files of the given
+	 * folder.
+	 */
 	@NotNull
 	private List<ResultDocument> listFolder(@NotNull File folder) throws Exception {
 		Searcher searcher = indexRegistry.getSearcher();
 		if (searcher == null)
 			return Collections.emptyList();
-		return searcher.listFolderEntries(findIndexFor(folder), folder);
+		List<ResultDocument> entries = new ArrayList<ResultDocument>();
+		File up = getUpFolder(folder);
+		if (up != null || isRootFolder(folder)) {
+			// Leads to the parent folder, or back to the list of root folders
+			ResultDocument parentRow = searcher.createFolderRow(
+				findIndexFor(up != null ? up : folder),
+				up != null ? up : folder, PARENT_ROW_NAME);
+			parentRow.setParentRow(true);
+			entries.add(parentRow);
+		}
+		entries.addAll(searcher.listFolderEntries(findIndexFor(folder), folder));
+		return entries;
+	}
+	
+	/** Name of the row that leads to the parent folder. */
+	private static final String PARENT_ROW_NAME = "..";
+	
+	private boolean isRootFolder(@NotNull File folder) {
+		for (File root : getRootFolders())
+			if (Util.isCanonicallyEqual(root, folder))
+				return true;
+		return false;
+	}
+	
+	/**
+	 * Returns the folder the '..' entry leads to, or null if it leads back to
+	 * the list of root folders.
+	 */
+	@Nullable
+	private File getUpFolder(@NotNull File folder) {
+		if (isRootFolder(folder))
+			return null;
+		return folder.getParentFile();
 	}
 
 	/** Returns the index covering the given folder, or null. */

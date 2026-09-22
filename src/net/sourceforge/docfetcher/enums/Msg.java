@@ -250,6 +250,12 @@ public enum Msg {
 	menu_file ("&File",
 		"Label of the 'File' menu in the menu bar. The '&' marks the " +
 		"mnemonic character."),
+	menu_view ("&View",
+		"Label of the 'View' menu in the menu bar. The '&' marks the " +
+		"mnemonic character."),
+	menu_folder_panel ("&Folder panel\tF9",
+		"Menu entry that shows the folder browser as a panel of its own " +
+		"next to the tabs, instead of as a tab."),
 	menu_help ("&Help",
 		"Label of the 'Help' menu in the menu bar. The '&' marks the " +
 		"mnemonic character."),

@@ -41,11 +41,17 @@ while i < len(args):
     c = args[i]
     if c == 'move': move(int(args[i+1]), int(args[i+2])); i += 3
     elif c == 'click': click(1); i += 1
-    elif c == 'drag':
-        move(int(args[i+1]), int(args[i+2])); xtest.fake_input(d, X.ButtonPress, 1); d.sync(); time.sleep(0.2)
-        for s in range(1, 11):
-            move(int(args[i+1]) + (int(args[i+3]) - int(args[i+1])) * s // 10, int(args[i+2]) + (int(args[i+4]) - int(args[i+2])) * s // 10); time.sleep(0.03)
-        xtest.fake_input(d, X.ButtonRelease, 1); d.sync(); time.sleep(0.2); i += 5
+    elif c == 'drag' or c == 'dragslow':
+        # dragslow moves in many small steps, which GTK needs for drag and
+        # drop between two widgets
+        steps, pause = (10, 0.03) if c == 'drag' else (40, 0.05)
+        x1, y1, x2, y2 = (int(args[i+1]), int(args[i+2]), int(args[i+3]), int(args[i+4]))
+        move(x1, y1); time.sleep(0.2)
+        xtest.fake_input(d, X.ButtonPress, 1); d.sync(); time.sleep(0.3)
+        for s in range(1, steps + 1):
+            move(x1 + (x2 - x1) * s // steps, y1 + (y2 - y1) * s // steps); time.sleep(pause)
+        time.sleep(0.4)
+        xtest.fake_input(d, X.ButtonRelease, 1); d.sync(); time.sleep(0.5); i += 5
     elif c == 'rclick': click(3); i += 1
     elif c == 'dclick': click(1, 2); i += 1
     elif c == 'key': key(args[i+1]); i += 2

@@ -255,6 +255,7 @@ public final class ResultDocument {
 	}
 	
 	private boolean folder = false;
+	private boolean parentRow = false;
 	
 	/**
 	 * Marks this document as a folder row, which is shown in the folder
@@ -267,6 +268,16 @@ public final class ResultDocument {
 	/** Returns true if this row stands for a folder, not for a document. */
 	public boolean isFolder() {
 		return folder;
+	}
+	
+	/** Marks this row as the '..' entry leading to the parent folder. */
+	public void setParentRow(boolean parentRow) {
+		this.parentRow = parentRow;
+	}
+	
+	/** Returns true if this is the '..' entry of the folder browser. */
+	public boolean isParentRow() {
+		return parentRow;
 	}
 	
 	/**
