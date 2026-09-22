@@ -121,3 +121,13 @@
   - F9 replaced by F3 for showing/hiding the folder panel, in the global keys and in the View menu.
 - make the icons larger on HiDPI screens
   - New option 'Icon size' (Int.IconScalePercent): automatic (from the display DPI: 125/150/200 % above 120/132/168 dpi) or fixed 100/125/150/200 %. LazyImageCache scales the loaded images smoothly (antialiasing + high interpolation); the action icon columns follow the icon width. Takes effect after a restart. Test LazyImageCacheTest (skips without a display).
+- add support to rename a folder (F2, context menu); currently an error shows up
+  - The rename in the result table now handles folder rows: `F2` and `Rename...` open a dialog with the folder
+    name, the name is taken as typed and only checked (`UtilFile.isValidName`: no empty name, no `. / \ : * ? " < > |`
+    or control characters), the folder is renamed on disk, the affected indexes are updated and the operation
+    goes into the undo history. The root folder of an index is refused with an explanatory message, since its
+    index would have to be created again. Bugfix on the way: the undo only moved files back (`isFile()`), so
+    renamed folders were skipped, and the undo never updated the indexes. Tests: `UtilFileTest`
+    (`checksNamesForFilesAndFolders`), `FileOperationHistoryTest`; in the GUI: index root refused, rename via
+    F2 and via the context menu (with a space in the name), invalid name rejected, undo through
+    `File > Undo file operation` (Ctrl+Z can't be tested on Xephyr, see `skill.md`).

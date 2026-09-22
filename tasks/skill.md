@@ -17,8 +17,12 @@
 - Never use the user's display (`:0`). `dev/guitest/run-dev.sh $JAVA` starts Xephyr on `:2` and the dev build
   (cwd = project root; settings in `bin/settings-conf.txt`, indexes in `bin/indexes`). German UI: add
   `-Duser.language=de -Duser.country=DE` and put `dist/lang:lang` on the classpath.
-- Drive it with `DISPLAY=:2 python3 dev/guitest/xin.py move X Y | click | rclick | dclick | key KEYSYM | type TEXT`
-  (python-xlib XTEST; keyboard-layout aware, so `/` and `_` work on a German layout).
+- Drive it with `DISPLAY=:2 python3 dev/guitest/xin.py move X Y | click | rclick | dclick | key KEYSYM |
+  ckey KEYSYM (with Ctrl) | type TEXT` (python-xlib XTEST; keyboard-layout aware, so `/` and `_` work on a
+  German layout).
+- The global shortcuts (F1, F3, Ctrl+F, Ctrl+Q, Ctrl+Z) do not fire on `:2`, because Xephyr runs without a
+  window manager and the shell is never the active shell. Test them through the equivalent menu item
+  (e.g. `File > Undo file operation` for Ctrl+Z); shortcuts of a widget, such as F2 in a result table, work.
 - Screenshots: `DISPLAY=:2 python3 dev/guitest/shot.py out.png [x y w h]`, then look at the PNG.
 - GTK folder dialogs: type the absolute path and press Return.
 - Stop everything afterwards: `dev/guitest/stop-dev.sh` (rule: no processes left running after a task).

@@ -1558,7 +1558,7 @@ public final class Application {
 	 * that may show them.
 	 */
 	private static void undoFileOperation() {
-		if (!ResultPanel.undoLastFileOperation())
+		if (!ResultPanel.undoLastFileOperation(indexRegistry))
 			return;
 		refreshInboxTabs();
 		refreshFolderPanels();

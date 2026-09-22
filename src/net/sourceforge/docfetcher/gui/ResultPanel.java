@@ -48,6 +48,7 @@ import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilFile;
+import net.sourceforge.docfetcher.util.gui.dialog.InputDialog;
 import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.MutableCopy;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
@@ -686,7 +687,9 @@ public final class ResultPanel {
 		menuManager.add(new MenuAction(Msg.rename_document.get()) {
 			public boolean isEnabled() {
 				List<ResultDocument> sel = viewer.getSelection();
-				return sel.size() == 1 && sel.get(0).isPlainFileOnDisk();
+				if (sel.size() != 1)
+					return false;
+				return sel.get(0).isPlainFileOnDisk() || isRenamableFolder(sel.get(0));
 			}
 			public void run() {
 				renameSelection();
@@ -805,6 +808,10 @@ public final class ResultPanel {
 		if (sel.size() != 1)
 			return;
 		ResultDocument doc = sel.get(0);
+		if (doc.isFolder()) {
+			renameFolder(doc);
+			return;
+		}
 		if (!doc.isPlainFileOnDisk()) {
 			AppUtil.showError(Msg.only_plain_files.get(), true, true);
 			return;
@@ -815,6 +822,56 @@ public final class ResultPanel {
 		String newName = dialog.open();
 		if (newName != null)
 			renameTo(doc, newName);
+	}
+	
+	/**
+	 * Returns true if the given row is a folder that may be renamed, i.e. a
+	 * real subfolder, not the '..' entry.
+	 */
+	private static boolean isRenamableFolder(@NotNull ResultDocument doc) {
+		if (!doc.isFolder() || doc.isParentRow())
+			return false;
+		return doc.getPath().getCanonicalFile().isDirectory();
+	}
+	
+	/**
+	 * Asks for a new name and renames the folder of the given row. The root
+	 * folder of an index is not renamed, since that would leave the index
+	 * pointing at a folder that doesn't exist any more.
+	 */
+	private void renameFolder(@NotNull ResultDocument doc) {
+		File folder = doc.getPath().getCanonicalFile();
+		if (!folder.isDirectory())
+			return;
+		for (LuceneIndex index : indexRegistry.getIndexes()) {
+			if (Util.isCanonicallyEqual(index.getCanonicalRootFile(), folder)) {
+				AppUtil.showError(Msg.rename_folder_index_root.format(
+					folder.getName()), true, true);
+				return;
+			}
+		}
+		
+		InputDialog dialog = new InputDialog(getControl().getShell(),
+			Msg.rename_folder_title.get(), Msg.rename_folder_msg.get(),
+			folder.getName());
+		String newName = dialog.open();
+		if (newName == null)
+			return;
+		newName = newName.trim();
+		if (newName.equals(folder.getName()))
+			return;
+		if (!UtilFile.isValidName(newName)) {
+			AppUtil.showError(Msg.rename_folder_failed.format(newName), true, true);
+			return;
+		}
+		
+		File target = new File(folder.getParentFile(), newName);
+		if (!moveFile(folder, target))
+			return; // Error already shown
+		updateIndexesFor(Arrays.asList(folder, target));
+		FileOperationHistory.getInstance().add(FileOperationHistory.Kind.RENAME,
+			Collections.singletonList(folder), Collections.singletonList(target));
+		evtDocumentsChanged.fire(null);
 	}
 	
 	/**
@@ -1141,7 +1198,7 @@ public final class ResultPanel {
 	 * recycle bin, which is reported. Returns false if there is nothing to
 	 * undo.
 	 */
-	public static boolean undoLastFileOperation() {
+	public static boolean undoLastFileOperation(@NotNull IndexRegistry indexRegistry) {
 		FileOperationHistory history = FileOperationHistory.getInstance();
 		FileOperationHistory.Entry entry = history.peek();
 		if (entry == null) {
@@ -1168,7 +1225,7 @@ public final class ResultPanel {
 		for (int i = 0; i < targets.size() && i < sources.size(); i++) {
 			File from = targets.get(i);
 			File to = sources.get(i);
-			if (!from.isFile())
+			if (!from.exists())
 				continue; // Already gone, e.g. moved again in the meantime
 			File parent = to.getParentFile();
 			if (parent != null && !parent.isDirectory() && !parent.mkdirs())
@@ -1180,12 +1237,9 @@ public final class ResultPanel {
 		}
 		if (affected.isEmpty())
 			return false;
-		evtFilesRestored.fire(affected);
+		updateIndexesFor(indexRegistry, affected);
 		return true;
 	}
-	
-	/** Fired after an undo, with the files that were moved back. */
-	public static final Event<List<File>> evtFilesRestored = new Event<List<File>>();
 	
 	/**
 	 * Moves or renames the given file. Returns true on success; on failure an
@@ -1208,6 +1262,12 @@ public final class ResultPanel {
 	
 	@Nullable
 	private LuceneIndex findIndexFor(@NotNull File file) {
+		return findIndexFor(indexRegistry, file);
+	}
+	
+	@Nullable
+	private static LuceneIndex findIndexFor(	@NotNull IndexRegistry indexRegistry,
+												@NotNull File file) {
 		for (LuceneIndex index : indexRegistry.getIndexes()) {
 			File root = index.getCanonicalRootFile();
 			if (Util.contains(root, file) || Util.isCanonicallyEqual(root, file))
@@ -1222,9 +1282,14 @@ public final class ResultPanel {
 	 * enabled for the index.
 	 */
 	private void updateIndexesFor(@NotNull Collection<File> files) {
+		updateIndexesFor(indexRegistry, files);
+	}
+	
+	private static void updateIndexesFor(	@NotNull IndexRegistry indexRegistry,
+											@NotNull Collection<File> files) {
 		Set<LuceneIndex> indexes = new HashSet<LuceneIndex>();
 		for (File file : files) {
-			LuceneIndex index = findIndexFor(file);
+			LuceneIndex index = findIndexFor(indexRegistry, file);
 			if (index != null)
 				indexes.add(index);
 		}

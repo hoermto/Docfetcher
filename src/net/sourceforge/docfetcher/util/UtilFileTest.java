@@ -63,6 +63,25 @@ public final class UtilFileTest {
 	}
 
 	@Test
+	public void checksNamesForFilesAndFolders() {
+		assertTrue(UtilFile.isValidName("Invoices 2026"));
+		assertTrue(UtilFile.isValidName("  Rechnungen  "));
+		assertTrue(UtilFile.isValidName("Ärger & Co."));
+		assertFalse(UtilFile.isValidName(""));
+		assertFalse(UtilFile.isValidName("   "));
+		assertFalse(UtilFile.isValidName("."));
+		assertFalse(UtilFile.isValidName(".."));
+		assertFalse(UtilFile.isValidName("a/b"));
+		assertFalse(UtilFile.isValidName("a\\b"));
+		assertFalse(UtilFile.isValidName("a:b"));
+		assertFalse(UtilFile.isValidName("a?b"));
+		assertFalse(UtilFile.isValidName("a*b"));
+		assertFalse(UtilFile.isValidName("a\"b"));
+		assertFalse(UtilFile.isValidName("a<b"));
+		assertFalse(UtilFile.isValidName("a|b"));
+	}
+
+	@Test
 	public void rejectsImpossibleFolderNames() throws Exception {
 		File dir = createDir();
 		assertNull(UtilFile.createFolder(dir, ""));

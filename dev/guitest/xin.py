@@ -1,4 +1,4 @@
-# usage: xin.py move X Y | click [button] | dclick | key KEYSYM... | type TEXT | rclick
+# usage: xin.py move X Y | click [button] | dclick | key KEYSYM | ckey KEYSYM (with Ctrl) | type TEXT | rclick
 import sys, time
 from Xlib import X, display, XK
 from Xlib.ext import xtest
@@ -30,6 +30,12 @@ def key(name):
     xtest.fake_input(d, X.KeyRelease, kc); d.sync(); time.sleep(0.03)
     for m in reversed(mods):
         xtest.fake_input(d, X.KeyRelease, m); d.sync(); time.sleep(0.02)
+def ckey(name):
+    # Same as key, but with the Control key held down, e.g. for Ctrl+Z
+    ctrl = d.keysym_to_keycode(XK.string_to_keysym('Control_L'))
+    xtest.fake_input(d, X.KeyPress, ctrl); d.sync(); time.sleep(0.05)
+    key(name)
+    xtest.fake_input(d, X.KeyRelease, ctrl); d.sync(); time.sleep(0.05)
 NAMES = {' ': 'space', '/': 'slash', '.': 'period', '-': 'minus', '_': 'underscore',
          ':': 'colon', '*': 'asterisk', '\\': 'backslash', '@': 'at', '~': 'asciitilde'}
 def type_text(s):
@@ -55,6 +61,7 @@ while i < len(args):
     elif c == 'rclick': click(3); i += 1
     elif c == 'dclick': click(1, 2); i += 1
     elif c == 'key': key(args[i+1]); i += 2
+    elif c == 'ckey': ckey(args[i+1]); i += 2
     elif c == 'type': type_text(args[i+1]); i += 2
     elif c == 'sleep': time.sleep(float(args[i+1])); i += 2
     else: raise SystemExit('bad arg ' + c)

@@ -979,6 +979,19 @@ public enum Msg {
 		"Confirmation before deleting files on a system without a recycle " +
 		"bin. The number of files is inserted in the {0} slot, their names " +
 		"in the {1} slot."),
+	rename_folder_title ("Rename Folder",
+		"Title of the dialog for renaming a folder in the folder browser."),
+	rename_folder_msg ("Please enter the new folder name:",
+		"Message of the dialog for renaming a folder."),
+	rename_folder_failed ("''{0}'' cannot be used as a folder name.",
+		"Error message for an unusable folder name, which is inserted in " +
+		"the {0} slot."),
+	rename_folder_index_root (
+		"''{0}'' is the root folder of an index and is therefore not renamed " +
+		"here. Remove the index first, rename the folder in the file " +
+		"manager, and create the index again.",
+		"Error message shown when the user tries to rename the root folder " +
+		"of an index. The folder name is inserted in the {0} slot."),
 	new_folder ("New Folder...",
 		"Button in the folder browser for creating a subfolder."),
 	new_folder_title ("New Folder",

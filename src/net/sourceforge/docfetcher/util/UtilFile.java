@@ -64,17 +64,29 @@ public final class UtilFile {
 	 * file names are rejected. Returns the new folder, an existing folder of
 	 * that name, or null if it couldn't be created.
 	 */
+	/**
+	 * Returns true if the given name can be used for a file or folder, i.e.
+	 * it isn't empty and contains no characters that file names can't have.
+	 */
+	public static boolean isValidName(@NotNull String name) {
+		Util.checkNotNull(name);
+		name = name.trim();
+		if (name.isEmpty() || name.equals(".") || name.equals(".."))
+			return false;
+		for (int i = 0; i < name.length(); i++) {
+			char c = name.charAt(i);
+			if (INVALID_NAME_CHARS.indexOf(c) >= 0 || c < ' ')
+				return false;
+		}
+		return true;
+	}
+
 	@Nullable
 	public static File createFolder(@NotNull File parent, @NotNull String name) {
 		Util.checkNotNull(parent, name);
 		name = name.trim();
-		if (name.isEmpty() || name.equals(".") || name.equals(".."))
+		if (!isValidName(name))
 			return null;
-		for (int i = 0; i < name.length(); i++) {
-			char c = name.charAt(i);
-			if (INVALID_NAME_CHARS.indexOf(c) >= 0 || c < ' ')
-				return null;
-		}
 		File folder = new File(parent, name);
 		if (folder.isDirectory())
 			return folder;
