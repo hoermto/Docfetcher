@@ -542,8 +542,12 @@ public final class ResultPanel {
 				return;
 			TableColumn[] columns = table.getColumns();
 			
-			// The action icon columns keep a fixed width
+			// The action icon columns keep a fixed width, which follows the
+			// icon size so that larger icons aren't cut off
 			int actionWidth = 26;
+			Image penImage = Img.PEN.get();
+			if (penImage != null && !penImage.isDisposed())
+				actionWidth = Math.max(actionWidth, penImage.getBounds().width + 10);
 			available -= actionColumnCount * actionWidth;
 			if (available <= 0)
 				return;

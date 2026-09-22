@@ -138,7 +138,8 @@ public final class Application {
 	private static TabFolder mainTabFolder;
 	private static final List<InboxTab> inboxTabs = new ArrayList<InboxTab>();
 	private static final Set<File> inboxIndexRequests = new HashSet<File>();
-	@Nullable private static FolderPanel folderPanel;
+	@Nullable private static FolderPanel folderPanel; // Next to the tabs
+	@Nullable private static FolderPanel folderTabPanel; // On the 'Folders' tab
 	@Nullable private static TabItem foldersTab;
 	private static SashForm folderSash;
 	private static Composite folderPanelHolder;
@@ -317,6 +318,7 @@ public final class Application {
 		// Load images
 		LazyImageCache lazyImageCache = new LazyImageCache(
 			display, AppUtil.getImageDir());
+		lazyImageCache.setScalePercent(getIconScalePercent(display));
 		Img.initialize(lazyImageCache);
 		lazyImageCache.reportMissingFiles(
 			shell, Img.class, Msg.missing_image_files.get());
@@ -589,7 +591,7 @@ public final class Application {
 				else if (m == SWT.MOD1 && k == 'q') {
 					requestExit();
 				}
-				else if (k == SWT.F9) {
+				else if (k == SWT.F3) {
 					toggleFolderPanel();
 				}
 				else if (m == SWT.MOD1 && k == 'z') {
@@ -1346,11 +1348,10 @@ public final class Application {
 				InboxTab selected = getSelectedInboxTab();
 				if (selected != null)
 					selected.panel.refresh();
-				else if (folderPanel != null
+				else if (folderTabPanel != null
 						&& mainTabFolder.getSelection().length > 0
-						&& mainTabFolder.getSelection()[0].getControl()
-							== folderPanel.getControl())
-					folderPanel.refresh();
+						&& mainTabFolder.getSelection()[0] == foldersTab)
+					folderTabPanel.refresh();
 			}
 		});
 		applyFolderPanelMode();
@@ -1369,36 +1370,44 @@ public final class Application {
 	 * according to the settings.
 	 */
 	private static void applyFolderPanelMode() {
-		boolean asPanel = SettingsConf.Bool.ShowFolderPanel.get();
+		// The 'Folders' tab always exists, after the inbox tabs
+		if (foldersTab == null) {
+			foldersTab = new TabItem(mainTabFolder, SWT.NONE, inboxTabs.size());
+			foldersTab.setText(Msg.folders_tab.get());
+			folderTabPanel = createFolderPanel(
+				mainTabFolder, SettingsConf.Str.LastBrowsedFolder);
+			foldersTab.setControl(folderTabPanel.getControl());
+		}
 		
-		// Dispose the browser in its old place, the folder is remembered
-		if (folderPanel != null) {
+		/*
+		 * The second browser next to the tabs is shown on demand. Both
+		 * browsers work the same way and are independent of each other, so
+		 * that documents can be dragged from one folder to another.
+		 */
+		boolean showPanel = SettingsConf.Bool.ShowFolderPanel.get();
+		if (showPanel && folderPanel == null) {
+			folderPanel = createFolderPanel(
+				folderPanelHolder, SettingsConf.Str.LastBrowsedFolderPanel);
+			folderPanel.setShowLabel(true);
+			folderPanelHolder.layout();
+		}
+		else if (!showPanel && folderPanel != null) {
 			folderPanel.getControl().dispose();
 			folderPanel = null;
 		}
-		if (foldersTab != null) {
-			foldersTab.dispose();
-			foldersTab = null;
-		}
-		
-		if (asPanel) {
-			createFolderPanel(folderPanelHolder);
-			folderPanelHolder.layout();
-			folderSash.setMaximizedControl(null);
-		}
-		else {
-			folderSash.setMaximizedControl(mainTabFolder);
-			// After the inbox tabs, before the search tab
-			foldersTab = new TabItem(mainTabFolder, SWT.NONE, inboxTabs.size());
-			foldersTab.setText(Msg.folders_tab.get());
-			foldersTab.setControl(createFolderPanel(mainTabFolder));
-		}
+		folderSash.setMaximizedControl(showPanel ? null : mainTabFolder);
 	}
 	
-	/** Toggles the folder browser between a tab and a panel of its own. */
+	/** Shows or hides the folder browser next to the tabs. */
 	private static void toggleFolderPanel() {
 		SettingsConf.Bool.ShowFolderPanel.set(!SettingsConf.Bool.ShowFolderPanel.get());
 		applyFolderPanelMode();
+	}
+	
+	/** The folder browser a document should be shown in. */
+	@Nullable
+	private static FolderPanel getVisibleFolderPanel() {
+		return folderPanel != null ? folderPanel : folderTabPanel;
 	}
 	
 	/** An inbox tab of the main window. */
@@ -1552,8 +1561,40 @@ public final class Application {
 		if (!ResultPanel.undoLastFileOperation())
 			return;
 		refreshInboxTabs();
+		refreshFolderPanels();
+	}
+	
+	/**
+	 * Returns the size of the icons in percent: the configured value, or, if
+	 * that is 0, a value derived from the resolution of the screen, so that
+	 * the icons don't look tiny on a high resolution display.
+	 */
+	private static int getIconScalePercent(@NotNull Display display) {
+		int configured = SettingsConf.Int.IconScalePercent.get();
+		if (configured > 0)
+			return configured;
+		int dpi;
+		try {
+			dpi = display.getDPI().x;
+		}
+		catch (RuntimeException e) {
+			return 100;
+		}
+		if (dpi >= 168)
+			return 200;
+		if (dpi >= 132)
+			return 150;
+		if (dpi >= 120)
+			return 125;
+		return 100;
+	}
+	
+	/** Reloads the listings of both folder browsers. */
+	private static void refreshFolderPanels() {
 		if (folderPanel != null)
 			folderPanel.refresh();
+		if (folderTabPanel != null)
+			folderTabPanel.refresh();
 	}
 	
 	/**
@@ -1561,26 +1602,22 @@ public final class Application {
 	 * a panel, or by switching to its tab) and selects the file there.
 	 */
 	private static void showInFolderView(@NotNull File file) {
-		if (folderPanel == null)
+		FolderPanel panel = getVisibleFolderPanel();
+		if (panel == null)
 			return;
-		if (!SettingsConf.Bool.ShowFolderPanel.get()) {
-			// The browser is a tab; bring it to the front
-			for (TabItem item : mainTabFolder.getItems()) {
-				if (item == foldersTab) {
-					mainTabFolder.setSelection(item);
-					break;
-				}
-			}
+		if (panel == folderTabPanel && foldersTab != null) {
+			// Only the tab shows a browser; bring it to the front
+			mainTabFolder.setSelection(foldersTab);
 		}
-		folderPanel.showFile(file);
+		panel.showFile(file);
 	}
 	
 	/** Creates the 'Folders' tab, which browses the indexed folders. */
 	@NotNull
-	private static Control createFolderPanel(@NotNull Composite parent) {
-		folderPanel = new FolderPanel(parent, indexRegistry);
-		folderPanel.setShowLabel(SettingsConf.Bool.ShowFolderPanel.get());
-		final ResultPanel folderResults = folderPanel.getResultPanel();
+	private static FolderPanel createFolderPanel(	@NotNull Composite parent,
+													@NotNull SettingsConf.Str lastFolderSetting) {
+		final FolderPanel panel = new FolderPanel(parent, indexRegistry, lastFolderSetting);
+		final ResultPanel folderResults = panel.getResultPanel();
 		folderResults.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
 			public void update(List<ResultDocument> eventData) {
 				// Folder rows have nothing to preview
@@ -1596,13 +1633,13 @@ public final class Application {
 				systemTrayHider.hide();
 			}
 		});
-		folderPanel.evtFolderChanged.add(new Event.Listener<Void>() {
+		panel.evtFolderChanged.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
 				previewPanel.clear();
 				showSelectedPath(Collections.<ResultDocument> emptyList());
 			}
 		});
-		return folderPanel.getControl();
+		return panel;
 	}
 	
 	private static Control createSearchPanel(Composite parent) {
@@ -1632,8 +1669,8 @@ public final class Application {
 				if (!SettingsConf.Bool.SyncFolderView.get() || eventData.size() != 1)
 					return;
 				ResultDocument doc = eventData.get(0);
-				if (doc.isPlainFileOnDisk() && folderPanel != null
-						&& SettingsConf.Bool.ShowFolderPanel.get())
+				// Only the panel follows along; the tab would steal the view
+				if (doc.isPlainFileOnDisk() && folderPanel != null)
 					folderPanel.showFile(doc.getPath().getCanonicalFile());
 			}
 		});

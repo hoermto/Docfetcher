@@ -61,14 +61,19 @@ public final class FolderPanel {
 	private final ToolItem newFolderBt;
 	private final ResultPanel resultPanel;
 	private final IndexRegistry indexRegistry;
+	/** Where the folder of this browser is remembered between program runs. */
+	private final SettingsConf.Str lastFolderSetting;
 
 	/** The folder being shown, or null for the root list. */
 	@Nullable private volatile File folder;
 	private volatile int refreshCount = 0;
 
-	public FolderPanel(@NotNull Composite parent, @NotNull IndexRegistry indexRegistry) {
-		Util.checkNotNull(parent, indexRegistry);
+	public FolderPanel(	@NotNull Composite parent,
+						@NotNull IndexRegistry indexRegistry,
+						@NotNull SettingsConf.Str lastFolderSetting) {
+		Util.checkNotNull(parent, indexRegistry, lastFolderSetting);
 		this.indexRegistry = indexRegistry;
+		this.lastFolderSetting = lastFolderSetting;
 
 		comp = new Composite(parent, SWT.NONE);
 		comp.setLayout(UtilGui.createGridLayout(1, false, 0, 3));
@@ -139,7 +144,7 @@ public final class FolderPanel {
 			}
 		});
 
-		setFolder(getStartFolder());
+		setFolder(getStartFolder(lastFolderSetting));
 	}
 
 	/**
@@ -155,8 +160,8 @@ public final class FolderPanel {
 	
 	/** Returns the folder shown at startup: the last one, if it still exists. */
 	@Nullable
-	private static File getStartFolder() {
-		String path = SettingsConf.Str.LastBrowsedFolder.get().trim();
+	private static File getStartFolder(@NotNull SettingsConf.Str lastFolderSetting) {
+		String path = lastFolderSetting.get().trim();
 		if (path.isEmpty())
 			return null;
 		File file = Util.getCanonicalFile(path);
@@ -204,8 +209,7 @@ public final class FolderPanel {
 	 */
 	public void setFolder(@Nullable File folder) {
 		this.folder = folder;
-		SettingsConf.Str.LastBrowsedFolder.set(
-			folder == null ? "" : Util.getSystemAbsPath(folder));
+		lastFolderSetting.set(folder == null ? "" : Util.getSystemAbsPath(folder));
 		updatePathLabel();
 		resultPanel.setCurrentFolder(folder);
 		upBt.setEnabled(folder != null);

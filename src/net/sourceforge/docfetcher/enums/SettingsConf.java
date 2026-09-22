@@ -91,7 +91,7 @@ public final class SettingsConf {
 		KeepTiffAfterConversion (true), // Keep the TIFF renamed to .ocr instead of deleting it
 		DailyIndexUpdate (true), // Update all indexes once a day while running
 		ShowPathColumn (true), // Show the folder column in the result tables
-		ShowFolderPanel (true), // Show the folder browser as a panel of its own
+		ShowFolderPanel (true), // Show a second folder browser next to the tabs
 		SyncFolderView (true), // Folder view follows the selected search result
 		FolderSortAscending (false), // Sort order of the folder view
 
@@ -144,6 +144,8 @@ public final class SettingsConf {
 	public enum Int implements Storable {
 		/* Column the folder view is sorted by; -1 means by date, newest first. */
 		FolderSortColumn (-1),
+		/* Size of the icons in percent; 0 = automatically from the screen. */
+		IconScalePercent (0),
 		LuceneAnalyzer (getDefaultAnalyzer()),
 		
 		/*
@@ -216,6 +218,8 @@ public final class SettingsConf {
 		InboxFolder (""),
 		/* Folder shown on the 'Folders' tab when the program was closed. */
 		LastBrowsedFolder (""),
+		/* The same for the folder panel next to the tabs. */
+		LastBrowsedFolderPanel (""),
 		;
 
 		public final Event<String> evtChanged = new Event<String> ();

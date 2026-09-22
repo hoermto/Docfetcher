@@ -22,6 +22,9 @@ import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 import net.sourceforge.docfetcher.util.collect.LazyList;
 
+import org.eclipse.swt.SWT;
+import org.eclipse.swt.graphics.GC;
+import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
@@ -69,12 +72,47 @@ public final class LazyImageCache {
 		if (image == null) {
 			try {
 				image = new Image(display, new File(imageDir, filename).getPath());
+				if (scalePercent != 100)
+					image = scale(image, scalePercent);
 				imageMap.put(filename, image);
 			} catch (Exception e) {
 				return null;
 			}
 		}
 		return image;
+	}
+	
+	/**
+	 * Sets the size of the loaded images in percent, for screens with a high
+	 * resolution. Must be set before the images are used.
+	 */
+	public void setScalePercent(int scalePercent) {
+		this.scalePercent = Math.max(100, Math.min(400, scalePercent));
+	}
+	
+	private int scalePercent = 100;
+	
+	/**
+	 * Returns a scaled copy of the given image and disposes the original.
+	 * The images are small icons, so they are scaled smoothly.
+	 */
+	@NotNull
+	private Image scale(@NotNull Image image, int percent) {
+		Rectangle bounds = image.getBounds();
+		int width = Math.max(1, bounds.width * percent / 100);
+		int height = Math.max(1, bounds.height * percent / 100);
+		Image scaled = new Image(display, width, height);
+		GC gc = new GC(scaled);
+		try {
+			gc.setAntialias(SWT.ON);
+			gc.setInterpolation(SWT.HIGH);
+			gc.drawImage(image, 0, 0, bounds.width, bounds.height, 0, 0, width, height);
+		}
+		finally {
+			gc.dispose();
+			image.dispose();
+		}
+		return scaled;
 	}
 	
 	public <T extends Enum<T> & FilenameProvider> void reportMissingFiles(	@NotNull Shell shell,

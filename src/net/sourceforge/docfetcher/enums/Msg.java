@@ -253,9 +253,8 @@ public enum Msg {
 	menu_view ("&View",
 		"Label of the 'View' menu in the menu bar. The '&' marks the " +
 		"mnemonic character."),
-	menu_folder_panel ("&Folder panel\tF9",
-		"Menu entry that shows the folder browser as a panel of its own " +
-		"next to the tabs, instead of as a tab."),
+	menu_folder_panel ("&Folder panel\tF3",
+		"Menu entry that shows a second folder browser next to the tabs."),
 	menu_help ("&Help",
 		"Label of the 'Help' menu in the menu bar. The '&' marks the " +
 		"mnemonic character."),
@@ -851,6 +850,14 @@ public enum Msg {
 		Comments.prefOption + "If checked, all indexes whose folders are " +
 		"watched for changes are updated in the background when the program " +
 		"starts."),
+	pref_icon_size ("Icon size:",
+		Comments.prefOption + "Size of the icons in the program window, for " +
+		"screens with a high resolution."),
+	pref_icon_size_auto ("Automatic"),
+	pref_icon_size_hint (
+		"A new icon size takes effect after {0} has been restarted.",
+		"Note below the icon size option. The program name is inserted in " +
+		"the {0} slot."),
 	pref_show_path_column (
 		"Show the folder of a document as a column in the result tables",
 		Comments.prefOption + "If unchecked, the folder is only shown as a " +

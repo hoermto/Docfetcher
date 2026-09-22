@@ -227,6 +227,13 @@ public final class PrefDialog {
 				new String[] { "1", "2", "3", "4", "5" },
 				new int[] { 1, 2, 3, 4, 5 }),
 			
+			new DropdownOption(
+				Msg.pref_icon_size.get(),
+				SettingsConf.Int.IconScalePercent,
+				new String[] { Msg.pref_icon_size_auto.get(), "100 %", "125 %",
+					"150 %", "200 %" },
+				new int[] { 0, 100, 125, 150, 200 }),
+			
 			analyzerOption,
 
 			new ColorOption(

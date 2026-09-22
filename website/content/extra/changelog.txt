@@ -6,7 +6,8 @@
 === Features ===
   * New 'Folders' tab: a file browser over the folders of your indexes and your fixed move targets. Subfolders come first, then all files of the folder (indexed or not), with preview, rename and move like on the inbox tabs; the last folder is restored on the next start.
   * Files can be filed by dragging them onto a folder row of the folder browser; dropping moves them into that folder (Ctrl copies). Files dragged in from other programs are moved as well.
-  * 'View > Folder panel' (F9) turns the folder browser into a panel of its own between the tabs and the preview, so documents can be dragged from an inbox tab or from the search results into a folder while both are visible.
+  * 'View > Folder panel' (F3, shown by default) adds a second, independent folder browser between the tabs and the preview, next to the one on the 'Folders' tab, so documents can be dragged from an inbox tab, from the search results or from one folder into another while both are visible.
+  * New 'Icon size' option for screens with a high resolution: automatic (from the screen resolution) or a fixed 100 / 125 / 150 / 200 percent.
   * The folder browser has a '..' row at the top; the left arrow key and backspace go to the parent folder.
   * The folder browser is shown as a panel by default now, and has buttons for the root folder list and for creating a subfolder.
   * 'Delete' in the context menu of any result table (or the Del key) moves the selected files to the recycle bin after a confirmation; without a recycle bin the files are deleted permanently, which the confirmation says.
