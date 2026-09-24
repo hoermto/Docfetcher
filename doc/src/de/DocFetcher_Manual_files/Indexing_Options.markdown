@@ -16,7 +16,7 @@ Anm.: Dieser Abschnitt beschreibt hauptsächlich die verfügbaren Indizierungs-E
 
 Datei-Erweiterungen
 -------------------
-In dem Bereich "Datei-Erweiterungen" auf dem Indizierungs-Fenster können Sie einstellen, welche Dateien als Textdateien oder Zip-Archive behandelt werden sollen. Ein häufiger Anwendungsfall hierfür besteht in der Indizierung von Quell-Code. Neben den beiden Textfeldern im "Datei-Erweiterungen"-Bereich gibt es zudem noch zwei "..."-Buttons. Wenn Sie auf diese klicken, durchsucht DocFetcher den zu indizierenden Ordner und stellt eine Liste von möglichen Datei-Erweiterungen zusammen, aus denen Sie die gewünschten auswählen können.
+In dem Bereich "Datei-Erweiterungen" auf dem Indizierungs-Fenster können Sie einstellen, welche Dateien als Textdateien oder Zip-Archive behandelt werden sollen. Ein häufiger Anwendungsfall hierfür besteht in der Indizierung von Quell-Code. Neben den beiden Textfeldern im "Datei-Erweiterungen"-Bereich gibt es zudem noch zwei "..."-Buttons. Wenn Sie auf diese klicken, durchsucht DocFetcher den zu indizierenden Ordner und stellt eine Liste von möglichen Datei-Erweiterungen zusammen, aus denen Sie die gewünschten auswählen können. Bei einem neuen Index ist die Liste der Zip-Archive leer, der Inhalt von Zip- und Jar-Dateien wird also nicht indiziert; tragen Sie hier `zip` und `jar` ein, wenn Sie ihn durchsuchen wollen. Bereits vorhandene Indizes behalten die Erweiterungen, mit denen sie erstellt wurden.
 
 Dateien überspringen / MIME-Typ ermitteln
 -----------------------------------------

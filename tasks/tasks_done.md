@@ -169,4 +169,11 @@
     `MultiFileLauncher`, the same launcher `Open Parent Folder` uses, and is only enabled when every selected
     row is a real folder (not the `..` row). Application test: entry shown and enabled on a folder row,
     launching it reported no error.
+- by default disable archive (zip, jar) search
+  - `IndexingConfig.defaultZipExtensions` is empty now, so a new index treats zip and jar files as ordinary
+    files; the extensions can be entered in the indexing dialog, and existing indexes keep the extensions
+    stored with them (the config is serialized with the index). An index whose root is an archive file still
+    adds that extension by itself (`FileIndex`). Test: `IndexingConfigTest.doesNotLookIntoArchivesByDefault`;
+    in the GUI: the 'Zip archives' field of a new index was empty, and after indexing a folder with a zip, a
+    word inside the archive found nothing while a word in the file next to it was found.
 

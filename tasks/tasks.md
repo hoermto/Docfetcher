@@ -19,7 +19,6 @@
 
 ## changes
 
-[] by default disable archive (zip, jar) search
 
 
 ## features

@@ -11,7 +11,12 @@
 
 package net.sourceforge.docfetcher.model.index;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+
+import java.util.Arrays;
+
 import net.sourceforge.docfetcher.util.AppUtil;
 
 import org.junit.Test;
@@ -35,6 +40,20 @@ public final class IndexingConfigTest {
 		String tempFilename = config.createDerivedTempFile("test.pdf").getName();
 		assertTrue(tempFilename.startsWith("test"));
 		assertTrue(tempFilename.endsWith(".pdf"));
+	}
+
+	@Test
+	public void doesNotLookIntoArchivesByDefault() {
+		IndexingConfig config = new IndexingConfig();
+		assertTrue("Zip and jar archives are not indexed by default",
+			config.getZipExtensions().isEmpty());
+		assertFalse(config.isArchive("backup.zip"));
+		assertFalse(config.isArchive("library.jar"));
+
+		// They can still be switched on for an index
+		config.setZipExtensions(Arrays.asList("zip", "jar"));
+		assertEquals(Arrays.asList("zip", "jar"), config.getZipExtensions());
+		assertTrue(config.isArchive("backup.zip"));
 	}
 
 }
