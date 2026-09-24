@@ -594,6 +594,9 @@ public final class Application {
 				else if (k == SWT.F3) {
 					toggleFolderPanel();
 				}
+				else if (k == SWT.F4) {
+					togglePreviewPanel();
+				}
 				else if (m == SWT.MOD1 && k == 'z') {
 					undoFileOperation();
 				}
@@ -1404,6 +1407,14 @@ public final class Application {
 		applyFolderPanelMode();
 	}
 	
+	/** Shows or hides the preview pane, which has no toggle of its own. */
+	private static void togglePreviewPanel() {
+		if (twoPanelForm == null)
+			return;
+		twoPanelForm.setSecondSubControlVisible(
+			!twoPanelForm.isSecondSubControlVisible());
+	}
+	
 	/** The folder browser a document should be shown in. */
 	@Nullable
 	private static FolderPanel getVisibleFolderPanel() {
@@ -1836,6 +1847,22 @@ public final class Application {
 			public void update(Boolean eventData) {
 				if (!folderPanelItem.isDisposed())
 					folderPanelItem.setSelection(eventData);
+			}
+		});
+		
+		final MenuItem previewPanelItem = new MenuItem(viewMenu, SWT.CHECK);
+		previewPanelItem.setText(Msg.menu_preview_panel.get());
+		previewPanelItem.setSelection(SettingsConf.Bool.ShowPreviewPanel.get());
+		previewPanelItem.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				togglePreviewPanel();
+				previewPanelItem.setSelection(SettingsConf.Bool.ShowPreviewPanel.get());
+			}
+		});
+		SettingsConf.Bool.ShowPreviewPanel.evtChanged.add(new Event.Listener<Boolean>() {
+			public void update(Boolean eventData) {
+				if (!previewPanelItem.isDisposed())
+					previewPanelItem.setSelection(eventData);
 			}
 		});
 		

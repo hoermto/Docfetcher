@@ -151,4 +151,10 @@
     A double-click on a folder hit opens it in the visible folder browser (`evtFolderOpened`). Tests:
     `FolderSearchTest`; in the GUI: search for "rechnung" listed "Rechnungen 2026" above the documents and
     the double-click opened it.
+- remove the arrows that make the doc view pane invisible
+  - The three thin arrow buttons of `TwoPanelForm` (hide the preview pane, move it to the right or to the
+    bottom) and the `ThinArrowButton` class are gone; the layout code got simpler with them. The preview pane
+    is now shown and hidden with `View > Preview panel` (F4, a check item that follows the stored setting),
+    its position stays in the preferences. Application test: arrows gone, menu entry hides and shows the pane
+    and its check mark follows.
 

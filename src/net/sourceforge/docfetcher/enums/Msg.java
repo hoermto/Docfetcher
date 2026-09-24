@@ -255,6 +255,8 @@ public enum Msg {
 		"mnemonic character."),
 	menu_folder_panel ("&Folder panel\tF3",
 		"Menu entry that shows a second folder browser next to the tabs."),
+	menu_preview_panel ("&Preview panel\tF4",
+		"Menu entry that shows or hides the preview pane."),
 	menu_help ("&Help",
 		"Label of the 'Help' menu in the menu bar. The '&' marks the " +
 		"mnemonic character."),
