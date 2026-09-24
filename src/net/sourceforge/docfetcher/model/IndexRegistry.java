@@ -105,7 +105,7 @@ public final class IndexRegistry {
 	@Nullable
 	public static volatile File indexPathOverride = null;
 
-	private static final String SER_FILENAME = "tree-index.ser";
+	public static final String SER_FILENAME = "tree-index.ser";
 	private static final String NAME_FILENAME = "index-name.txt";
 	
 	/*

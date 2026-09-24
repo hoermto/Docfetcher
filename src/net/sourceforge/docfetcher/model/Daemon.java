@@ -33,15 +33,26 @@ import com.google.common.io.LineProcessor;
  */
 public final class Daemon {
 	
+	/** Name of the file in the index folder that lists the indexes for the daemon. */
+	public static final String INDEXES_FILENAME = ".indexes.txt";
+	
 	private final IndexRegistry indexRegistry;
 	private final File indexesFile;
 
-	public Daemon(@NotNull IndexRegistry indexRegistry) {
-		Util.checkNotNull(indexRegistry);
+	/**
+	 * @param daemonDir
+	 *            The folder in which the daemon looks for the indexes file.
+	 *            This is a fixed location (the application data folder, or the
+	 *            'indexes' subfolder of the portable version), which may differ
+	 *            from the actual index folder if the user has customized the
+	 *            latter.
+	 */
+	public Daemon(@NotNull IndexRegistry indexRegistry, @NotNull File daemonDir) {
+		Util.checkNotNull(indexRegistry, daemonDir);
 		this.indexRegistry = indexRegistry;
 		
-		File indexParentDir = indexRegistry.getIndexParentDir();
-		indexesFile = new File(indexParentDir, ".indexes.txt");
+		daemonDir.mkdirs();
+		indexesFile = new File(daemonDir, INDEXES_FILENAME);
 		
 		/*
 		 * Open a FileOutputStream for writing. This lets the daemon know that

@@ -12,6 +12,7 @@
 package net.sourceforge.docfetcher.util.gui.viewer;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -45,6 +46,7 @@ public abstract class VirtualTableViewer<E> {
 		private final int orientation;
 		private final Event<String> evtLabelChanged = new Event<String> ();
 		private int lastSortDirection = 1;
+		@Nullable private TableColumn tableColumn;
 		
 		public Column(@NotNull String label) {
 			this(label, SWT.LEFT);
@@ -114,6 +116,7 @@ public abstract class VirtualTableViewer<E> {
 		columns.add(column);
 		
 		final TableColumn tableColumn = new TableColumn(table, column.orientation);
+		column.tableColumn = tableColumn;
 		tableColumn.setText(column.label);
 		tableColumn.setToolTipText(column.getToolTipText());
 		
@@ -136,28 +139,59 @@ public abstract class VirtualTableViewer<E> {
 		final int direction = lastSortColumn != column
 			? 1
 			: column.lastSortDirection * -1;
-		Collections.sort(elements, new Comparator<E>() {
-			public int compare(E e1, E e2) {
-				return column.compare(e1, e2) * direction;
-			};
-		});
-		table.clearAll();
-		lastSortColumn = column;
-		column.lastSortDirection = direction;
+		sort(column, direction);
 	}
 	
 	public final void sortByColumn(@NotNull final Column<E> column, boolean up) {
 		if (elements == null || !sortingEnabled)
 			return;
-		final int direction = up ? 1 : -1;
+		sort(column, up ? 1 : -1);
+	}
+	
+	/**
+	 * Sets a comparator that groups the elements before the column
+	 * comparison is applied, e.g. to keep folders above files no matter
+	 * which column is sorted by. May be null.
+	 */
+	public final void setGroupComparator(@Nullable Comparator<E> groupComparator) {
+		this.groupComparator = groupComparator;
+	}
+	
+	@Nullable private Comparator<E> groupComparator;
+	
+	/** Fired when the elements have been sorted by a column. */
+	public final Event<Column<E>> evtSorted = new Event<Column<E>>();
+	
+	/** Returns the column the elements are sorted by, or null. */
+	@Nullable
+	public final Column<E> getSortColumn() {
+		return lastSortColumn;
+	}
+	
+	/** Returns true if the last sorting was in ascending order. */
+	public final boolean isSortAscending() {
+		return lastSortColumn == null || lastSortColumn.lastSortDirection > 0;
+	}
+	
+	private void sort(@NotNull final Column<E> column, final int direction) {
 		Collections.sort(elements, new Comparator<E>() {
 			public int compare(E e1, E e2) {
+				if (groupComparator != null) {
+					int group = groupComparator.compare(e1, e2);
+					if (group != 0)
+						return group;
+				}
 				return column.compare(e1, e2) * direction;
 			};
 		});
 		table.clearAll();
 		lastSortColumn = column;
 		column.lastSortDirection = direction;
+		
+		// Show sort indicator in the column header
+		table.setSortColumn(column.tableColumn);
+		table.setSortDirection(direction > 0 ? SWT.UP : SWT.DOWN);
+		evtSorted.fire(column);
 	}
 	
 	@Immutable
@@ -183,6 +217,47 @@ public abstract class VirtualTableViewer<E> {
 		table.setItemCount(elements.size()); // Must be called *before* calling clearAll()
 		table.clearAll();
 		lastSortColumn = null;
+		table.setSortColumn(null);
+	}
+	
+	/**
+	 * Removes the given elements from the table, keeping the current sorting.
+	 */
+	public final void removeElements(@NotNull Collection<E> toRemove) {
+		if (elements == null || toRemove.isEmpty())
+			return;
+		elements.removeAll(toRemove);
+		table.setItemCount(elements.size());
+		table.clearAll();
+	}
+	
+	/** Returns the current elements (empty before the first setRoot call). */
+	@NotNull
+	public final List<E> getElements() {
+		return elements == null ? Collections.<E>emptyList() : Collections.unmodifiableList(elements);
+	}
+	
+	/**
+	 * Selects the given elements (those that are present in the table).
+	 */
+	public final void setSelection(@NotNull Collection<E> toSelect) {
+		if (elements == null)
+			return;
+		List<Integer> indices = new ArrayList<Integer>();
+		for (int i = 0; i < elements.size(); i++)
+			if (toSelect.contains(elements.get(i)))
+				indices.add(i);
+		int[] array = new int[indices.size()];
+		for (int i = 0; i < array.length; i++)
+			array[i] = indices.get(i);
+		table.setSelection(array);
+	}
+	
+	/**
+	 * Redraws all rows, e.g. after the elements' contents have changed.
+	 */
+	public final void refresh() {
+		table.clearAll();
 	}
 	
 	@MutableCopy

@@ -1368,6 +1368,10 @@ public final class Util {
 		return "";
 	}
 
+	public static double clamp(double value, double minimum, double maximum) {
+		return Math.max(minimum, Math.min(maximum, value));
+	}
+	
 	public static int clamp(int value, int minimum, int maximum) {
 		Util.checkThat(minimum <= maximum);
 		if (value > maximum) return maximum;

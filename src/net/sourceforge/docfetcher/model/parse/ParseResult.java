@@ -32,6 +32,7 @@ public final class ParseResult {
 	@Nullable private List<String> authors;
 	@Nullable private List<String> miscMetadata;
 	@NotNull private String parserName;
+	private int pageCount = -1;
 	
 	public ParseResult(@Nullable CharSequence content) {
 		setContent(content);
@@ -106,6 +107,23 @@ public final class ParseResult {
 		return metadata;
 	}
 	
+	/**
+	 * Returns the number of pages of the document, or -1 if unknown. For
+	 * presentations, this is the number of slides.
+	 */
+	public int getPageCount() {
+		return pageCount;
+	}
+	
+	/**
+	 * Sets the number of pages; values below 1 mean "unknown".
+	 */
+	@NotNull
+	public ParseResult setPageCount(int pageCount) {
+		this.pageCount = pageCount > 0 ? pageCount : -1;
+		return this;
+	}
+	
 	// Should not be called by Parser implementations
 	@Nullable
 	public String getParserName() {
@@ -119,4 +137,15 @@ public final class ParseResult {
 		return this;
 	}
 	
+	private boolean ocrSkipped = false;
+	
+	/** True if the parser would have run text recognition but wasn't allowed to. */
+	public boolean isOcrSkipped() {
+		return ocrSkipped;
+	}
+	
+	public void setOcrSkipped(boolean ocrSkipped) {
+		this.ocrSkipped = ocrSkipped;
+	}
+
 }

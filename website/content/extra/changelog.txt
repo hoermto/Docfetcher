@@ -1,3 +1,113 @@
+==== 2026-09-24 - DocFetcher 2.6 ====
+
+=== Bugfixes ===
+  * Folders can now be deleted in the folder browser like files ('Delete...' or the Del key): the folder goes to the recycle bin with its contents, and the confirmation says how many files that are. The root folder of an index is refused with an explanation.
+  * German messages that contain a file or folder name showed the placeholder '{0}' instead of the name.
+
+=== Features ===
+  * New indexes no longer look into zip and jar archives; add the extensions in the indexing dialog if you want their contents searched. Existing indexes keep their settings.
+  * 'Open in Explorer' in the context menu of a folder row opens that folder in the file manager of the system.
+  * The separators between the panels are wider now and show a grip in the middle, so they are easier to grab and drag.
+  * The small arrow buttons that hid the preview pane are gone; 'View > Preview panel' (F4) shows and hides it instead, and the preferences say where it sits.
+  * A search now lists folders as well: folders of your indexes and move targets whose name contains all the search terms are shown above the documents, and a double-click opens them in the folder browser.
+
+==== 2026-09-22 - DocFetcher 2.5 ====
+
+=== Bugfixes ===
+  * Undoing a rename or a move now also works for folders, and the affected indexes are updated right away.
+  * With the folder column turned off, the freed space is now used by the other columns, and the stored column widths are no longer overwritten by the automatic column fitting.
+
+=== Features ===
+  * Folders can be renamed in the folder browser with F2 or 'Rename...' in the context menu; the root folder of an index is refused, since its index would have to be created again.
+  * New 'Folders' tab: a file browser over the folders of your indexes and your fixed move targets. Subfolders come first, then all files of the folder (indexed or not), with preview, rename and move like on the inbox tabs; the last folder is restored on the next start.
+  * Files can be filed by dragging them onto a folder row of the folder browser; dropping moves them into that folder (Ctrl copies). Files dragged in from other programs are moved as well.
+  * 'View > Folder panel' (F3, shown by default) adds a second, independent folder browser between the tabs and the preview, next to the one on the 'Folders' tab, so documents can be dragged from an inbox tab, from the search results or from one folder into another while both are visible.
+  * New 'Icon size' option for screens with a high resolution: automatic (from the screen resolution) or a fixed 100 / 125 / 150 / 200 percent.
+  * The folder browser has a '..' row at the top; the left arrow key and backspace go to the parent folder.
+  * The folder browser is shown as a panel by default now, and has buttons for the root folder list and for creating a subfolder.
+  * 'Delete' in the context menu of any result table (or the Del key) moves the selected files to the recycle bin after a confirmation; without a recycle bin the files are deleted permanently, which the confirmation says.
+  * 'Show in Folder View' in the context menu opens a document's folder in the folder browser and selects the document there; optionally the browser follows the selected search result (on by default).
+  * Files dropped anywhere in the folder browser, not just on a folder row, are moved into the folder currently shown.
+  * Renaming and moving files can be undone with Ctrl+Z (File > Undo file operation), for the last 20 operations of the running program; for deleted files the undo points to the recycle bin.
+  * Confirmation dialogs now have 'Yes' and 'No' buttons instead of 'OK' and 'Cancel'.
+  * The folder view is sorted by date (newest first) by default; another sort order chosen in the column header is kept across folders and restarts.
+  * The search terms are marked in the PDF preview: the matches are highlighted in a copy of the document (the file itself is not changed) and the preview opens on the page with the first match. Word, Excel and RTF previews highlighted them already.
+
+==== 2026-09-21 - DocFetcher 2.4 ====
+
+=== Features ===
+  * Text recognition (OCR) with a bundled Tesseract engine (German and English): while indexing, the text of image files (PNG, JPEG, GIF, BMP, TIFF) and of PDF files without text is recognized, so scans can be searched and get name and folder suggestions. PDFs without text get an invisible text layer; PNG and JPEG files keep the recognized text in their metadata. Optionally, TIFF files are converted into PDFs with a text layer (off by default), keeping their fax compression and, if wanted, the original as 'name.tif.ocr'. With 'Store the recognized text in the files' switched off, the text goes into the index only and no file is modified. File dates are preserved. Can be switched off in the preferences. Requires the Microsoft Visual C++ 2015-2022 Redistributable (x64) on Windows.
+  * Existing indexes are offered for a one-time rebuild so that scans get recognized.
+  * Text recognition runs at the end of an indexing task, after all other documents have been indexed, so they become searchable first.
+  * Fixed move targets: folders configured on the new 'Folders' tab of the preferences (which also holds the inbox folders) are always listed first in the 'Move To' menu and in the move dialog.
+  * The last five folders you moved files into are offered in the 'Move To' menu and in the move dialog, below the fixed targets.
+
+=== Changes ===
+  * The result and inbox tables show the file name in the first column instead of the title; the separate 'Filename' column is gone.
+  * The 'Path' column became 'Folder' and no longer repeats the file name; the full path is shown as a tooltip and in the status bar, and the column can be switched off in the preferences.
+  * Indexing progress: a progress bar at the bottom right of the main window shows the overall progress of all queued indexing tasks, and the 'Indexes' tab of the preferences has a 'Status' column (queued, creating/updating/rebuilding with percentage, time of the last update).
+  * Index management and settings are reachable from the menu bar only; the 'Manage Indexes' entry of the search-scope context menu was removed. Clicking the progress indicator in the status bar (or double-clicking an index with a running task on the 'Indexes' tab) shows the indexing window, e.g. to press 'Run' for a new index.
+  * Search results whose files have been deleted or moved in the meantime are no longer shown; the affected index is updated in the background. Optionally, all indexes are updated once a day while the program runs (on by default).
+
+=== Bugfixes ===
+  * Files whose names contain accented characters in decomposed form (e.g. synced from macOS or written by some apps) were reported as "File not found" in the preview and couldn't be renamed or moved.
+  * The preview of Word documents saved by newer Word versions failed with "string value 'start' is not a valid enumeration value for ST_Jc".
+  * Text recognition of some archive TIFF files (fax compression) threw an ArrayIndexOutOfBoundsException; such files are now decoded with the bundled Leptonica library, and recognition errors no longer interrupt indexing.
+  * The preview of TIFF files failed for many files; TIFFs are now decoded like in text recognition, and multi-page TIFFs can be browsed page by page.
+
+==== 2026-09-21 - DocFetcher 2.3 ====
+
+=== Features ===
+  * New 'Inbox' tab: set an inbox folder in the preferences (e.g. where your scanner saves documents) and DocFetcher lists its files with preview, rename and move, like search results. The folder is indexed automatically.
+  * The Inbox table has icon columns for renaming (pen) and moving (folder) a file with one click.
+  * The 'Move To' context menu lists the five best matching folders for one-click moving.
+  * Removed the 'Try DocFetcher Pro' link and hint.
+  * Several inbox folders can be configured, each shown on its own tab with a user-defined name (default: the folder name). Inbox folders are never suggested as move targets.
+  * Inbox tabs list all files in the folder, indexed or not, so that new scans can be renamed and moved right away.
+  * Image files (PNG, JPEG, GIF, BMP, TIFF) are shown as pictures in the preview pane, with zoom.
+  * New menu bar (File: Preferences, Indexes, Minimize to System Tray, Exit; Help: Manual, About) reachable from every tab; the corresponding icons were removed from the search bar.
+  * File name suggestions of the form <date>_<keywords> (e.g. 2026-03-12_Deutsche-Telekom-Rechnung.pdf): the 'Rename To' context menu offers variants with 2 to 5 keywords, and the rename dialog lets you combine the suggested keywords freely. The date is taken from the document, the keywords are the words that best characterize it.
+
+=== Bugfixes ===
+  * Parsing text files from two threads at once could crash the program.
+
+
+==== 2026-09-21 - DocFetcher 2.2 ====
+
+=== Features ===
+  * Documents can be renamed directly from the result table (F2 or context menu).
+  * Documents can be moved into another folder from the result table. The 'Move to Folder' dialog suggests target folders whose documents have similar content, based on the keywords in the indexes.
+  * Files can be dragged from the result table into Windows Explorer and other programs: a plain drag moves the files, Ctrl+drag copies them (DocFetcher then asks whether to keep the originals).
+  * Search terms can also match any part of the file names ('Also match file names' in the search settings, on by default).
+  * The 'Move to Folder' dialog remembers its size, fits its columns to the width and shows a configurable number of path segments for the suggested folders.
+
+
+==== 2026-09-21 - DocFetcher 2.1 ====
+
+=== Changes ===
+  * Only one instance of DocFetcher runs at a time: launching it again brings the running instance to the front. Stale lock files after a crash no longer trigger a warning dialog.
+  * Indexes created before version 2.0 don't contain page counts; DocFetcher now offers once to rebuild them in the background.
+  * Page counts are also read from RTF files and, for Word documents without page metadata, estimated from the page breaks.
+
+
+==== 2026-09-21 - DocFetcher 2.0 ====
+
+=== Features ===
+  * Rich document preview: PDF files are shown in the embedded browser's PDF viewer (Edge/WebView2 on Windows, with a PDFBox page viewer as fallback); Word, Excel and RTF documents are rendered as formatted documents with the search terms highlighted.
+  * New tabbed preferences dialog with an 'Indexes' tab for creating, updating, rebuilding, renaming and removing indexes, and for choosing the index folder (existing indexes can be moved).
+  * Search filters (document types, search scope) moved into a 'Search Settings' dialog next to the search field.
+  * Result table: sorted by last-modified date (newest first) by default; columns Title, Last Modified, Pages, Filename, Type, Path; columns are fitted to the available width automatically.
+  * Page counts (PDF, Word, OpenDocument text, PowerPoint slides) are recorded while indexing and shown in the result table.
+  * 'Update indexes on startup' option picks up changes made while the program was closed, even without the daemon.
+  * Options to start DocFetcher with Windows and to minimize to the taskbar or hide in the system tray when closing the window; new Exit toolbar button (Ctrl+Q).
+  * Preview position (right of or below the results) can be set in the preferences.
+  * Complete German translation of the user interface and updated German manual.
+
+=== Changes ===
+  * The file-size filter and the Score, Size and Authors result columns were removed.
+  * The Windows packages can be cross-built on Linux/macOS (python3 build.py windows).
+
+
 ==== 2016-07-25 - DocFetcher 1.1.18 ====
 
 === Features ===

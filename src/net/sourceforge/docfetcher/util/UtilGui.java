@@ -54,7 +54,9 @@ import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Link;
+import org.eclipse.swt.widgets.Sash;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.swt.widgets.Widget;
@@ -893,6 +895,68 @@ public final class UtilGui {
 	public static boolean isAlphaNumeric(int keyCode){
 		return (keyCode >=97 && keyCode <=122) || (keyCode >=48 && keyCode <=57);
 	}
+
+	/** Marks the sashes that already draw a grip. */
+	private static final String SASH_GRIP_KEY = "sash-grip";
+
+	/**
+	 * Draws a grip in the middle of the sashes of the given sash form, so
+	 * that the separators between the panels can be seen and grabbed easily.
+	 * The sashes of a sash form are created while it is laid out, so they are
+	 * picked up whenever the form is resized.
+	 */
+	public static void paintSashHandles(@NotNull final Composite sashForm) {
+		Util.checkNotNull(sashForm);
+		final Runnable addPainters = new Runnable() {
+			public void run() {
+				if (sashForm.isDisposed())
+					return;
+				for (Control child : sashForm.getChildren()) {
+					if (!(child instanceof Sash))
+						continue;
+					if (child.getData(SASH_GRIP_KEY) != null)
+						continue;
+					child.setData(SASH_GRIP_KEY, Boolean.TRUE);
+					child.addPaintListener(sashGripPainter);
+					child.redraw();
+				}
+			}
+		};
+		sashForm.addListener(SWT.Resize, new Listener() {
+			public void handleEvent(org.eclipse.swt.widgets.Event event) {
+				addPainters.run();
+				// The sashes may only be created by the layout that follows
+				sashForm.getDisplay().asyncExec(addPainters);
+			}
+		});
+	}
+
+	/** Draws three dots in the middle of a sash. */
+	private static final PaintListener sashGripPainter = new PaintListener() {
+		private static final int DOT_SIZE = 2;
+		private static final int DOT_DISTANCE = 4;
+		private static final int DOT_COUNT = 3;
+
+		public void paintControl(PaintEvent e) {
+			Control sash = (Control) e.widget;
+			Point size = sash.getSize();
+			GC gc = e.gc;
+			gc.setBackground(sash.getDisplay().getSystemColor(
+				SWT.COLOR_WIDGET_NORMAL_SHADOW));
+			int length = DOT_COUNT * DOT_SIZE + (DOT_COUNT - 1)
+				* (DOT_DISTANCE - DOT_SIZE);
+			boolean isVertical = size.x < size.y; // Tall and narrow
+			int x = isVertical ? (size.x - DOT_SIZE) / 2 : (size.x - length) / 2;
+			int y = isVertical ? (size.y - length) / 2 : (size.y - DOT_SIZE) / 2;
+			for (int i = 0; i < DOT_COUNT; i++) {
+				gc.fillRectangle(x, y, DOT_SIZE, DOT_SIZE);
+				if (isVertical)
+					y += DOT_DISTANCE;
+				else
+					x += DOT_DISTANCE;
+			}
+		}
+	};
 
 	// Any of the given resources may be null
 	public static void disposeWith(	@NotNull Widget widget,

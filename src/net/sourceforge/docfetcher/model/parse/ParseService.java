@@ -85,7 +85,7 @@ public final class ParseService {
 		textParser = new TextParser(),
 		htmlParser = new HtmlParser(),
 		
-		new ExifParser(),
+		new ImageParser(),
 		new MP3Parser(),
 		new FLACParser(),
 		new AbiWordParser(),
@@ -203,7 +203,25 @@ public final class ParseService {
 	                                @NotNull IndexingReporter reporter,
 	                                @NotNull Cancelable cancelable)
 			throws ParseException, CheckedOutOfMemoryError {
+		return parse(config, file, filename, filepath, reporter, cancelable, true);
+	}
+	
+	/**
+	 * Parses the given file; with {@code ocrAllowed} false, text recognition
+	 * is skipped and {@link ParseResult#isOcrSkipped()} tells whether it
+	 * would have been needed.
+	 */
+	@NotNull
+	public static ParseResult parse(@NotNull IndexingConfig config,
+	                                @NotNull File file,
+	                                @NotNull String filename,
+	                                @NotNull Path filepath,
+	                                @NotNull IndexingReporter reporter,
+	                                @NotNull Cancelable cancelable,
+	                                boolean ocrAllowed)
+			throws ParseException, CheckedOutOfMemoryError {
 		ParseContext context = new ParseContext(filename, reporter, cancelable);
+		context.setOcrAllowed(ocrAllowed);
 		
 		// Search for appropriate parser by mimetype
 		for (PatternAction patternAction : config.getPatternActions()) {
@@ -318,6 +336,7 @@ public final class ParseService {
 				throw new IllegalStateException();
 			}
 			String parserName = parser.getClass().getSimpleName();
+			result.setOcrSkipped(context.isOcrSkipped());
 			return result.setParserName(parserName);
 		}
 		catch (final RuntimeException e) {
@@ -389,6 +408,20 @@ public final class ParseService {
 		 */
 		throw new ParseException(Msg.parser_not_found.get());
 //		throw new IllegalArgumentException();
+	}
+	
+	/**
+	 * Returns the name of the parser that would parse a file with the given
+	 * name, as stored in the index, or the name of the filename-only parser if
+	 * no parser matches.
+	 */
+	@NotNull
+	public static String getParserName(	@NotNull IndexingConfig config,
+										@NotNull String filename) {
+		Parser parser = findParserByName(config, filename);
+		return parser == null
+			? FILENAME_PARSER
+			: parser.getClass().getSimpleName();
 	}
 	
 	@Nullable
@@ -464,7 +497,7 @@ public final class ParseService {
 		}
 	}
 	
-	static org.apache.tika.parser.ParseContext tikaContext() {
+	public static org.apache.tika.parser.ParseContext tikaContext() {
 		return new org.apache.tika.parser.ParseContext();
 	}
 

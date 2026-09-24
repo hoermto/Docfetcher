@@ -11,12 +11,18 @@
 
 package net.sourceforge.docfetcher.util;
 
-import java.awt.AWTException;
-import java.awt.Robot;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.io.Writer;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.text.MessageFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -35,7 +41,6 @@ import com.sun.jna.platform.win32.Shell32Util;
 import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.enums.SystemConf;
-import net.sourceforge.docfetcher.gui.KeyCodeTranslator;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 import net.sourceforge.docfetcher.util.gui.dialog.StackTraceWindow;
@@ -222,6 +227,25 @@ public final class AppUtil {
 	 * method, otherwise the confirmation dialog will show untranslated strings.
 	 */
 	// TODO doc: before calling this method, set USER_DIR_PATH, PROGRAM_NAME and all Msg enums
+	/**
+	 * Fired (from a non-GUI thread) when another instance of the program was
+	 * launched and asks this instance to show its main window.
+	 */
+	public static final Event<Void> evtActivateRequested = new Event<Void>();
+	
+	private static final String ACTIVATE_COMMAND = "ACTIVATE";
+	
+	/**
+	 * Ensures that only one instance of the program runs at a time. Returns
+	 * true if this instance may continue; returns false if another instance
+	 * is already running, in which case that instance has been asked to bring
+	 * its main window to the front and this instance should exit silently.
+	 * <p>
+	 * Implementation: The running instance listens on a loopback socket and
+	 * stores the port in a lockfile. A newly launched instance connects to
+	 * that port; if nobody answers, the lockfile is stale (e.g. after a crash)
+	 * and is taken over.
+	 */
 	public static boolean checkSingleInstance() {
 		checkConstInitialized();
 		ensureNoDisplay();
@@ -256,59 +280,115 @@ public final class AppUtil {
 		// Usual filename length limit is 255 characters
 		lockname = lockname.substring(0, Math.min(lockname.length(), 250));
 		File lockfile = new File(Util.TEMP_DIR, lockname);
-				
-		if (lockfile.exists()) {
-			if (SettingsConf.Bool.AllowOnlyOneInstance.get()) {
-				sendHotkeyToFront();
-				return false;
-			} else {
-				// Show message, ask whether to launch new instance or to abort
-				Display display = new Display();
-				Shell shell = new Shell(display);
-				MessageBox msgBox = new MessageBox(shell, SWT.ICON_QUESTION | SWT.OK | SWT.CANCEL | SWT.PRIMARY_MODAL | SWT.ON_TOP);
-				msgBox.setText(Messages.confirm_operation.value);
-				msgBox.setMessage(Messages.program_running_launch_another.format(ProgramConf.Str.AppName.get()));
-				int ans = msgBox.open();
-				display.dispose();
-				if(ans != SWT.OK) {
-					sendHotkeyToFront();
-					return false;
-				}
-				/*
-				 * If the user clicks OK, we'll take over the lockfile we found and
-				 * delete it on exit. That means: (1) If there's another instance
-				 * running, we'll wrongfully "steal" the lockfile from it. (2) If
-				 * there's no other instance running (probably because it crashed or
-				 * was killed by the user), we'll rightfully take over an orphaned
-				 * lockfile. This behavior is okay, assuming the second case is more
-				 * likely.
-				 */
-			 }
-		} else {
-			try {
-				lockfile.createNewFile();
-			} catch (IOException e) {
-			}
+		
+		if (lockfile.exists() && activateRunningInstance(lockfile))
+			return false;
+		
+		// No instance is running (or the lockfile is stale): take over
+		ServerSocket server;
+		try {
+			server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
+		}
+		catch (IOException e) {
+			// Can't listen; still allow the program to run
+			Util.printErr(e);
+			return true;
+		}
+		try {
+			Files.write(String.valueOf(server.getLocalPort()), lockfile, Charsets.UTF_8);
+		}
+		catch (IOException e) {
+			Util.printErr(e);
 		}
 		lockfile.deleteOnExit();
+		startActivationServer(server);
 		return true;
 	}
 	
-	public static void sendHotkeyToFront() {
+	/**
+	 * Tries to contact the instance that owns the given lockfile. Returns true
+	 * if it answered, i.e. it is running and will show its window.
+	 */
+	private static boolean activateRunningInstance(@NotNull File lockfile) {
+		int port;
 		try {
-			int one = SettingsConf.IntArray.Hotkey.get()[0];
-			one = KeyCodeTranslator.translateSWTKey(one);
-			int two = SettingsConf.IntArray.Hotkey.get()[1];
-			two = KeyCodeTranslator.translateSWTKey(two);
-			Robot robot = new Robot();
-			robot.keyPress(one);
-			robot.keyPress(two);
-			robot.delay(500);
-			robot.keyRelease(two);
-			robot.keyRelease(one);
-		} catch (AWTException e) {
-			AppUtil.showStackTrace(e);
+			String content = Files.toString(lockfile, Charsets.UTF_8).trim();
+			if (content.isEmpty())
+				return false; // Lockfile from an older version, treat as stale
+			port = Integer.parseInt(content);
 		}
+		catch (IOException e) {
+			return false;
+		}
+		catch (NumberFormatException e) {
+			return false;
+		}
+		
+		Socket socket = new Socket();
+		try {
+			socket.connect(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 1000);
+			socket.setSoTimeout(3000);
+			Writer out = new OutputStreamWriter(socket.getOutputStream(), Charsets.UTF_8);
+			out.write(ACTIVATE_COMMAND + "\n");
+			out.flush();
+			BufferedReader in = new BufferedReader(
+				new InputStreamReader(socket.getInputStream(), Charsets.UTF_8));
+			String reply = in.readLine();
+			return reply != null && reply.startsWith("OK");
+		}
+		catch (IOException e) {
+			return false; // Nobody listening: stale lockfile
+		}
+		finally {
+			try {
+				socket.close();
+			}
+			catch (IOException e) {
+				// Ignore
+			}
+		}
+	}
+	
+	/**
+	 * Accepts activation requests from other instances in a daemon thread.
+	 */
+	private static void startActivationServer(@NotNull final ServerSocket server) {
+		Thread thread = new Thread(AppUtil.class.getName() + " (single instance server)") {
+			public void run() {
+				while (!server.isClosed()) {
+					Socket socket = null;
+					try {
+						socket = server.accept();
+						socket.setSoTimeout(3000);
+						BufferedReader in = new BufferedReader(
+							new InputStreamReader(socket.getInputStream(), Charsets.UTF_8));
+						String line = in.readLine();
+						if (line != null && line.trim().equals(ACTIVATE_COMMAND)) {
+							evtActivateRequested.fire(null);
+							Writer out = new OutputStreamWriter(socket.getOutputStream(), Charsets.UTF_8);
+							out.write("OK\n");
+							out.flush();
+						}
+					}
+					catch (IOException e) {
+						if (server.isClosed())
+							return;
+					}
+					finally {
+						if (socket != null) {
+							try {
+								socket.close();
+							}
+							catch (IOException e) {
+								// Ignore
+							}
+						}
+					}
+				}
+			}
+		};
+		thread.setDaemon(true);
+		thread.start();
 	}
 	
 	/**
@@ -359,8 +439,8 @@ public final class AppUtil {
 	}
 
 	/**
-	 * Shows the given message in a confirmation message box and returns the
-	 * user's answer, either <tt>SWT.OK</tt> or <tt>SWT.CANCEL</tt>. If
+	 * Shows the given message in a confirmation message box with 'Yes' and
+	 * 'No' buttons and returns true if the user confirmed. If
 	 * <tt>isSevere</tt> is true, a warning icon is shown, otherwise a question
 	 * icon.
 	 * <p>
@@ -373,12 +453,12 @@ public final class AppUtil {
 		class MyRunnable implements Runnable {
 			private boolean answer;
 			public void run() {
-				int style = SWT.OK | SWT.CANCEL;
+				int style = SWT.YES | SWT.NO;
 				style |= warningNotQuestion ? SWT.ICON_WARNING : SWT.ICON_QUESTION;
 				MessageBox msgBox = new MessageBox(getActiveShell(), style);
 				msgBox.setText(Messages.confirm_operation.value);
 				msgBox.setMessage(message);
-				answer = msgBox.open() == SWT.OK;
+				answer = msgBox.open() == SWT.YES;
 			}
 		}
 		MyRunnable myRunnable = new MyRunnable();

@@ -56,6 +56,7 @@ public enum Fields {
 	TITLE (TextField.TYPE_STORED),
 	AUTHOR (TextField.TYPE_STORED),
 	LAST_MODIFIED (StringField.TYPE_STORED),
+	PAGES (StringField.TYPE_STORED), // number of pages (or slides), optional
 
 	// Fields available for emails
 	SUBJECT (TextField.TYPE_STORED),

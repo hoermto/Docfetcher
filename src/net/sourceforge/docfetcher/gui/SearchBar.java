@@ -11,8 +11,6 @@
 
 package net.sourceforge.docfetcher.gui;
 
-import java.io.File;
-
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.ControlAdapter;
 import org.eclipse.swt.events.ControlEvent;
@@ -28,19 +26,15 @@ import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
-import org.eclipse.swt.widgets.ToolBar;
 
-import net.sourceforge.docfetcher.enums.Img;
 import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.enums.SettingsConf;
-import net.sourceforge.docfetcher.gui.pref.PrefDialog;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.collect.MemoryList;
-import net.sourceforge.docfetcher.util.gui.ToolItemFactory;
 
 /**
  * @author Tran Nam Quang
@@ -52,17 +46,15 @@ public final class SearchBar {
 
 	public final Event<String> evtSearch = new Event<String>();
 	public final Event<String> evtSearchTypeAhead = new Event<String>();
-	public final Event<Void> evtHideInSystemTray = new Event<Void>();
-	public final Event<Void> evtOpenManual = new Event<Void>();
-	public final Event<Void> evtOKClicked = new Event<Void> ();
+	public final Event<Void> evtOpenSearchSettings = new Event<Void>();
 
 	private final Composite comp;
 	private final Combo searchBox;
 	private final Button searchBt;
-	private final ToolBar toolBar;
+	private final Button searchSettingsBt;
 	private final MemoryList<String> searchHistory;
 
-	public SearchBar(@NotNull Composite parent, @NotNull final File programConfFile) {
+	public SearchBar(@NotNull Composite parent) {
 		comp = new CustomBorderComposite(parent) {
 			public Point computeSize(int wHint, int hHint, boolean changed) {
 				return SearchBar.this.computeSize(wHint, hHint);
@@ -111,66 +103,30 @@ public final class SearchBar {
 			}
 		});
 
-		toolBar = new ToolBar(comp, SWT.FLAT);
-		ToolItemFactory tif = new ToolItemFactory(toolBar);
-
-		tif.image(Img.HELP.get()).toolTip(Msg.open_manual.get())
-				.listener(new SelectionAdapter() {
-					public void widgetSelected(SelectionEvent e) {
-						evtOpenManual.fire(null);
-					}
-				}).create();
-
-		tif.image(Img.PREFERENCES.get()).toolTip(Msg.preferences.get())
-				.listener(new SelectionAdapter() {
-					public void widgetSelected(SelectionEvent e) {
-						PrefDialog prefDialog = new PrefDialog(comp.getShell(), programConfFile);
-						prefDialog.evtOKClicked.add(new Event.Listener<Void> () {
-						    public void update(Void eventData) {
-						    	evtOKClicked.fire(null);
-						    }
-						});
-						prefDialog.open();
-					}
-				}).create();
-
-		// TODO web interface
-//		tif.image(Img.BROWSER.get()).toolTip(Msg.web_interface.get())
-//				.listener(new SelectionAdapter() {
-//					public void widgetSelected(SelectionEvent e) {
-//						WebInterfaceDialog dialog = new WebInterfaceDialog(comp.getShell());
-//						dialog.open();
-//					}
-//				}).create();
-
-		/*
-		 * On Ubuntu Unity, disable hiding in system tray. See bug #3457028 and
-		 * follow-up bug #3457035.
-		 */
-		if (!Util.IS_UBUNTU_UNITY) {
-			tif.image(Img.HIDE.get()).toolTip(Msg.to_systray.get())
-			.listener(new SelectionAdapter() {
-				public void widgetSelected(SelectionEvent e) {
-					evtHideInSystemTray.fire(null);
-				}
-			}).create();
-		}
+		// Opens the dialog with the search filters (document types, search scope)
+		searchSettingsBt = new Button(comp, SWT.PUSH);
+		searchSettingsBt.setText(Msg.search_settings_bt.get());
+		searchSettingsBt.setToolTipText(Msg.document_types.get() + ", " + Msg.search_scope.get());
+		searchSettingsBt.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				evtOpenSearchSettings.fire(null);
+			}
+		});
 
 		// Make the search box smaller when there's not enough space left
 		comp.addControlListener(new ControlAdapter() {
 			public void controlResized(ControlEvent e) {
 				Point searchBoxSize = computeSize(searchBox);
 				Point searchBtSize = computeSize(searchBt);
-				Point toolBarSize = computeSize(toolBar);
+				Point settingsBtSize = computeSize(searchSettingsBt);
 
 				Rectangle clientArea = comp.getClientArea();
 				int caWidth = clientArea.width;
 				int caHeight = clientArea.height;
 
-				int spaceLeft = caWidth;
-				spaceLeft -= toolBarSize.x;
+				int spaceLeft = caWidth - MARGIN * 2;
 				spaceLeft -= searchBtSize.x;
-				spaceLeft -= 5; // spacing between search button and toolbar
+				spaceLeft -= settingsBtSize.x + SPACING;
 
 				int searchBoxMaxWidth = ProgramConf.Int.SearchBoxMaxWidth.get();
 				int searchBoxWidth = Util.clamp(spaceLeft, 0, searchBoxMaxWidth);
@@ -179,8 +135,8 @@ public final class SearchBar {
 				int searchBtX = MARGIN + searchBox.getSize().x + SPACING;
 				setBounds(searchBt, searchBtX, searchBtSize.x, caHeight, searchBtSize.y);
 
-				int toolBarX = caWidth - MARGIN - toolBarSize.x;
-				setBounds(toolBar, toolBarX, toolBarSize.x, caHeight, toolBarSize.y);
+				int settingsBtX = searchBtX + searchBtSize.x + SPACING;
+				setBounds(searchSettingsBt, settingsBtX, settingsBtSize.x, caHeight, settingsBtSize.y);
 			}
 		});
 	}
@@ -199,16 +155,16 @@ public final class SearchBar {
 	private Point computeSize(int wHint, int hHint) {
 		Point searchBoxSize = computeSize(searchBox);
 		Point searchBtSize = computeSize(searchBt);
-		Point toolBarSize = computeSize(toolBar);
+		Point settingsBtSize = computeSize(searchSettingsBt);
 
 		int width = 0;
 		width += searchBoxSize.x;
 		width += searchBtSize.x;
-		width += toolBarSize.x;
+		width += settingsBtSize.x;
 		width += MARGIN * 2 + SPACING * 2;
 
 		int height = Math.max(searchBoxSize.y, searchBtSize.y);
-		height = Math.max(height, toolBarSize.y);
+		height = Math.max(height, settingsBtSize.y);
 		height += MARGIN * 2;
 
 		if (wHint != SWT.DEFAULT)

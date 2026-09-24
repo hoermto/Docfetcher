@@ -12,7 +12,11 @@
 package net.sourceforge.docfetcher.gui.preview;
 
 import java.io.File;
+import java.util.Collections;
 import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -26,6 +30,10 @@ import net.sourceforge.docfetcher.gui.preview.DelayedOverlay.Hider;
 import net.sourceforge.docfetcher.model.FileResource;
 import net.sourceforge.docfetcher.model.MailResource;
 import net.sourceforge.docfetcher.model.parse.ParseException;
+import net.sourceforge.docfetcher.model.render.HtmlPage.Highlighting;
+import net.sourceforge.docfetcher.model.render.HtmlRenderService;
+import net.sourceforge.docfetcher.model.render.PdfHighlighter;
+import net.sourceforge.docfetcher.model.render.HtmlRenderService.Kind;
 import net.sourceforge.docfetcher.model.search.HighlightedString;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.model.search.ResultDocument.PreviewPageHandler;
@@ -69,6 +77,8 @@ public final class PreviewPanel extends Composite {
 	private final TextPreview textPreview;
 	@Nullable private EmailPreview emailPreview;
 	@Nullable private HtmlPreview htmlPreview;
+	@Nullable private PdfImagePreview pdfImagePreview;
+	@Nullable private ImagePreview imagePreview;
 	private final Composite stackComp;
 	private final StackLayout stackLayout;
 	private final DelayedOverlay delayedOverlay;
@@ -78,7 +88,8 @@ public final class PreviewPanel extends Composite {
 	// These fields should only be accessed by the GUI thread
 	@Nullable private ResultDocument lastDoc;
 	@Nullable private MailResource lastMailResource;
-	@Nullable private FileResource lastHtmlResource;
+	@Nullable private FileResource lastHtmlResource; // file shown in browser or PDF viewer
+	@Nullable private File lastTempHtmlFile; // HTML rendered from a document
 	private boolean browserCreationFailed = false;
 	
 	// Thread interrupt signal
@@ -134,6 +145,16 @@ public final class PreviewPanel extends Composite {
 		setPreviewUnchecked(doc);
 	}
 	
+	/**
+	 * Reloads the currently displayed document, e.g. after its file was
+	 * renamed or moved.
+	 */
+	public void refresh() {
+		UtilGui.assertSwtThread();
+		if (lastDoc != null)
+			setPreviewUnchecked(lastDoc);
+	}
+	
 	public boolean setHtmlFile(@NotNull File file) {
 		Util.checkNotNull(file);
 		UtilGui.assertSwtThread();
@@ -146,7 +167,7 @@ public final class PreviewPanel extends Composite {
 		requestCount++;
 		setError(null, requestCount);
 		
-		clearPreviews(true, false, true, false);
+		clearPreviews(true, false, true, false, true, true);
 		htmlPreview.setFile(file, false);
 		return true;
 	}
@@ -161,25 +182,52 @@ public final class PreviewPanel extends Composite {
 			if (emailPreview == null)
 				emailPreview = new EmailPreview(stackComp);
 			moveToTop(emailPreview);
-			clearPreviews(true, false, false, true);
+			clearPreviews(true, false, false, true, true, true);
 			new EmailThread(doc, requestCount).start();
 		}
-		else if (doc.isPdfFile() || doc.isChmFile()) {
+		else if (doc.isImageFile()) {
+			if (imagePreview == null) {
+				imagePreview = new ImagePreview(stackComp);
+				Event.redirect(imagePreview.evtHideInSystemTray, evtHideInSystemTray);
+			}
+			moveToTop(imagePreview);
+			clearPreviews(true, false, true, true, true, false);
+			new ImageThread(doc, requestCount).start();
+		}
+		else if (doc.isPdfFile() && !(createAndShowHtmlPreview() && htmlPreview.isEdge())) {
+			/*
+			 * The embedded browser is either unavailable or lacks a built-in
+			 * PDF viewer (only Edge has one), so render the pages with PDFBox.
+			 */
+			if (pdfImagePreview == null) {
+				pdfImagePreview = new PdfImagePreview(stackComp);
+				Event.redirect(pdfImagePreview.evtHideInSystemTray, evtHideInSystemTray);
+			}
+			moveToTop(pdfImagePreview);
+			clearPreviews(true, false, true, true, false, true);
+			new PdfImageThread(doc, requestCount).start();
+		}
+		else if (doc.isRichPreviewFile() && createAndShowHtmlPreview()) {
+			// PDF in the browser's PDF viewer; Word, Excel and RTF converted to HTML
+			clearPreviews(true, false, true, false, true, true);
+			new RichDocThread(doc, requestCount).start();
+		}
+		else if (doc.isChmFile()) {
 			moveToTop(textPreview);
-			clearPreviews(true, true, true, true);
+			clearPreviews(true, true, true, true, true, true);
 			new PagingThread(doc, requestCount).start();
 		}
 		else if (doc.isHtmlFile()
 				&& SettingsConf.Bool.PreferHtmlPreview.get()
 				&& createAndShowHtmlPreview()) {
-			clearPreviews(true, false, true, false);
+			clearPreviews(true, false, true, false, true, true);
 			new HtmlThread(doc, requestCount).start();
 		}
 		else {
 			boolean htmlEnabled = doc.isHtmlFile() && !browserCreationFailed;
 			textPreview.setHtmlButtonEnabled(htmlEnabled);
 			moveToTop(textPreview);
-			clearPreviews(false, false, true, true);
+			clearPreviews(false, false, true, true, true, true);
 			new TextThread(doc, requestCount).start();
 		}
 	}
@@ -224,20 +272,29 @@ public final class PreviewPanel extends Composite {
 		disposeLastResources();
 		requestCount++;
 		setError(null, requestCount);
-		clearPreviews(true, false, true, true);
+		clearPreviews(true, false, true, true, true, true);
 		ResultDocument ret = lastDoc;
 		lastDoc = null;
 		return ret;
 	}
 	
 	@NotThreadSafe
-	private void clearPreviews(boolean text, boolean showPageToolBar, boolean email, boolean html) {
+	private void clearPreviews(	boolean text,
+								boolean showPageToolBar,
+								boolean email,
+								boolean html,
+								boolean pdfImage,
+								boolean image) {
 		if (text)
 			textPreview.clear(showPageToolBar);
 		if (email && emailPreview != null)
 			emailPreview.clear();
 		if (html && htmlPreview != null)
 			htmlPreview.clear();
+		if (pdfImage && pdfImagePreview != null)
+			pdfImagePreview.clear();
+		if (image && imagePreview != null)
+			imagePreview.clear();
 	}
 
 	@NotThreadSafe
@@ -250,6 +307,44 @@ public final class PreviewPanel extends Composite {
 			lastHtmlResource.dispose();
 			lastHtmlResource = null;
 		}
+		deleteTempHtmlFile();
+	}
+	
+	@NotThreadSafe
+	private void deleteTempHtmlFile() {
+		if (lastTempHtmlFile != null) {
+			lastTempHtmlFile.delete();
+			lastTempHtmlFile = null;
+		}
+	}
+	
+	/**
+	 * Writes the given HTML page to a temporary file for display in the
+	 * embedded browser. The caller is responsible for deleting the file.
+	 */
+	@NotNull
+	private static File writeTempHtmlFile(@NotNull String html) throws IOException {
+		File tempFile = File.createTempFile("docfetcher-preview-", ".html");
+		tempFile.deleteOnExit();
+		Files.write(tempFile.toPath(), html.getBytes(StandardCharsets.UTF_8));
+		return tempFile;
+	}
+	
+	/**
+	 * Returns the highlighting options for the rich document preview, or null
+	 * if highlighting is disabled.
+	 */
+	@Nullable
+	private static Highlighting getHighlighting(@NotNull ResultDocument doc) {
+		if (!SettingsConf.Bool.HighlightingEnabled.get())
+			return null;
+		int[] rgb = SettingsConf.IntArray.PreviewHighlighting.get();
+		String colorHex = rgb.length == 3
+			? String.format("#%02x%02x%02x", rgb[0] & 0xFF, rgb[1] & 0xFF, rgb[2] & 0xFF)
+			: "#ffff00";
+		return new Highlighting(
+			doc.getQueryTerms(), colorHex,
+			SettingsConf.Bool.AutoScrollToFirstMatch.get());
 	}
 	
 	@ThreadSafe
@@ -394,6 +489,193 @@ public final class PreviewPanel extends Composite {
 			});
 			if (!success)
 				htmlResource.dispose();
+		}
+	}
+	
+	/**
+	 * Displays a PDF file in the browser's built-in PDF viewer, or converts a
+	 * Word, Excel or RTF document to HTML and displays that.
+	 */
+	/** A copy of a PDF file with the search terms marked. */
+	private static final class Marked {
+		@Nullable final File file;
+		final int firstMatchPage;
+		
+		Marked(@Nullable File file, int firstMatchPage) {
+			this.file = file;
+			this.firstMatchPage = firstMatchPage;
+		}
+	}
+	
+	/**
+	 * Writes a copy of the given PDF file with the search terms of the given
+	 * document marked. Returns a result without a file if there is nothing
+	 * to mark or the marking failed; the original file is then displayed.
+	 */
+	@NotNull
+	private static Marked markSearchTerms(@NotNull ResultDocument doc, @NotNull File file) {
+		if (!SettingsConf.Bool.HighlightingEnabled.get())
+			return new Marked(null, 0);
+		List<String> terms = doc.getQueryTerms();
+		if (terms.isEmpty())
+			return new Marked(null, 0);
+		File tempFile = null;
+		try {
+			tempFile = File.createTempFile("docfetcher-preview-", ".pdf");
+			PdfHighlighter.Result result = PdfHighlighter.highlight(
+				file, tempFile, terms, SettingsConf.IntArray.PreviewHighlighting.get());
+			if (result != null)
+				return new Marked(result.getFile(), result.getFirstMatchPage());
+		}
+		catch (IOException e) {
+			Util.printErr("Marking the search terms failed: " + e);
+		}
+		catch (OutOfMemoryError e) {
+			Util.printErr("Marking the search terms failed: " + e);
+		}
+		if (tempFile != null)
+			tempFile.delete();
+		return new Marked(null, 0);
+	}
+	
+	private class RichDocThread extends PreviewThread {
+		public RichDocThread(@NotNull ResultDocument doc, long startCount) {
+			super(doc, startCount);
+		}
+
+		protected void doRun(Hider overlayHider) throws ParseException,
+				FileNotFoundException, CheckedOutOfMemoryError {
+			final FileResource resource = doc.getFileResource();
+			boolean keepResource = false;
+			try {
+				final File file = resource.getFile();
+				final String displayPath = doc.getPath().getPath();
+				
+				if (doc.isPdfFile()) {
+					/*
+					 * The browser's PDF viewer has no interface for marking
+					 * the search terms, so they are marked in a copy of the
+					 * document, which is then displayed.
+					 */
+					final List<String> terms = SettingsConf.Bool.HighlightingEnabled.get()
+						? doc.getQueryTerms()
+						: Collections.<String> emptyList();
+					final Marked marked = markSearchTerms(doc, file);
+					final File fileToShow = marked.file == null ? file : marked.file;
+					final File tempToDelete = marked.file;
+					final int firstMatchPage = marked.firstMatchPage;
+					keepResource = runSafely(startCount, stackComp, new Runnable() {
+						public void run() {
+							deleteTempHtmlFile();
+							lastTempHtmlFile = tempToDelete;
+							htmlPreview.setDocument(
+								fileToShow, file, displayPath, terms, firstMatchPage);
+							lastHtmlResource = resource; // Keep the file alive while displayed
+						}
+					});
+					if (!keepResource && tempToDelete != null)
+						tempToDelete.delete();
+					return;
+				}
+				
+				final Kind kind;
+				if (doc.isWordFile())
+					kind = Kind.WORD;
+				else if (doc.isExcelFile())
+					kind = Kind.EXCEL;
+				else
+					kind = Kind.RTF;
+				
+				final File tempFile;
+				try {
+					String html = HtmlRenderService.render(file, kind, getHighlighting(doc));
+					tempFile = writeTempHtmlFile(html);
+				}
+				catch (IOException e) {
+					setError(Msg.preview_render_failed.format(e.getMessage()), startCount);
+					return;
+				}
+				catch (OutOfMemoryError e) {
+					throw new CheckedOutOfMemoryError(e);
+				}
+				
+				keepResource = runSafely(startCount, stackComp, new Runnable() {
+					public void run() {
+						deleteTempHtmlFile();
+						lastTempHtmlFile = tempFile;
+						htmlPreview.setDocument(tempFile, file, displayPath);
+						lastHtmlResource = resource; // Keep the original alive for launching
+					}
+				});
+				if (!keepResource)
+					tempFile.delete();
+			}
+			finally {
+				if (!keepResource)
+					resource.dispose();
+			}
+		}
+	}
+	
+	/**
+	 * Displays a PDF file page by page as images rendered with PDFBox.
+	 */
+	private class PdfImageThread extends PreviewThread {
+		public PdfImageThread(@NotNull ResultDocument doc, long startCount) {
+			super(doc, startCount);
+		}
+
+		protected void doRun(Hider overlayHider) throws ParseException,
+				FileNotFoundException, CheckedOutOfMemoryError {
+			final FileResource resource = doc.getFileResource();
+			final File file = resource.getFile();
+			
+			// Show the copy with the marked search terms, if there is one
+			final Marked marked = markSearchTerms(doc, file);
+			final File fileToShow = marked.file == null ? file : marked.file;
+			final int firstMatchPage = marked.firstMatchPage;
+			boolean success = runSafely(startCount, stackComp, new Runnable() {
+				public void run() {
+					deleteTempHtmlFile();
+					lastTempHtmlFile = marked.file;
+					pdfImagePreview.setFile(fileToShow, firstMatchPage,
+						new PdfImagePreview.ErrorHandler() {
+						public void handleError(String message) {
+							setError(Msg.preview_render_failed.format(message), startCount);
+						}
+					});
+					lastHtmlResource = resource; // Keep the file alive while displayed
+				}
+			});
+			if (!success) {
+				resource.dispose();
+				if (marked.file != null)
+					marked.file.delete();
+			}
+		}
+	}
+	
+	private class ImageThread extends PreviewThread {
+		public ImageThread(@NotNull ResultDocument doc, long startCount) {
+			super(doc, startCount);
+		}
+
+		protected void doRun(Hider overlayHider) throws ParseException,
+				FileNotFoundException, CheckedOutOfMemoryError {
+			final FileResource resource = doc.getFileResource();
+			final File file = resource.getFile();
+			boolean success = runSafely(startCount, stackComp, new Runnable() {
+				public void run() {
+					imagePreview.setFile(file, new ImagePreview.ErrorHandler() {
+						public void handleError(String message) {
+							setError(Msg.preview_render_failed.format(message), startCount);
+						}
+					});
+					lastHtmlResource = resource; // Keep the file alive while displayed
+				}
+			});
+			if (!success)
+				resource.dispose();
 		}
 	}
 	

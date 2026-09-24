@@ -19,3 +19,6 @@
 .settings/
 *.DS_Store
 __pycache__/
+/lib/tesseract/linux-x86-64/
+
+/hs_err_pid*.log

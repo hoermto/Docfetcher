@@ -22,6 +22,8 @@ import net.sourceforge.docfetcher.enums.*;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.layout.FormLayout;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -31,13 +33,18 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Link;
 import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.TabFolder;
+import org.eclipse.swt.widgets.TabItem;
 
 import net.sourceforge.docfetcher.gui.ManualLocator;
+import net.sourceforge.docfetcher.gui.filter.IndexPanel;
+import net.sourceforge.docfetcher.model.ocr.OcrEngine;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilGui;
+import net.sourceforge.docfetcher.util.WindowsAutostart;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.VisibleForPackageGroup;
 import net.sourceforge.docfetcher.util.gui.ConfigComposite;
@@ -56,13 +63,29 @@ public final class PrefDialog {
 	private final List<PrefOption> checkOptions = new LinkedList<PrefOption>();
 	private final List<PrefOption> fieldOptions = new LinkedList<PrefOption>();
 	private final File programConfFile;
+	private final IndexPanel indexPanel;
+	private final File defaultIndexDir;
 	private final DropdownOption analyzerOption;
 	private final int oldAnalyzer;
+	@NotNull private TabFolder tabFolder;
+	@NotNull private IndexManagementPanel indexManagementPanel;
+	@NotNull private FoldersPanel foldersPanel;
 
+	/**
+	 * @param indexPanel
+	 *            The search scope panel of the main window, which provides
+	 *            the index management operations for the 'Indexes' tab.
+	 * @param defaultIndexDir
+	 *            The index folder used when no custom index folder is set.
+	 */
 	public PrefDialog(	@NotNull Shell parent,
-						@NotNull File programConfFile) {
-		Util.checkNotNull(parent);
+						@NotNull File programConfFile,
+						@NotNull IndexPanel indexPanel,
+						@NotNull File defaultIndexDir) {
+		Util.checkNotNull(parent, indexPanel, defaultIndexDir);
 		this.programConfFile = programConfFile;
+		this.indexPanel = indexPanel;
+		this.defaultIndexDir = defaultIndexDir;
 		
 		shell = new Shell(parent, SWT.PRIMARY_MODAL | SWT.SHELL_TRIM);
 		shell.setLayout(UtilGui.createFillLayout(10));
@@ -89,21 +112,53 @@ public final class PrefDialog {
 		));
 
 		if (!Util.IS_UBUNTU_UNITY) {
-			checkOptions.addAll(Arrays.<PrefOption> asList(
-			new CheckOption(
+			checkOptions.add(new CheckOption(
 				Msg.pref_hide_in_systray.get(),
-				SettingsConf.Bool.HideOnOpen),
-
-			new CheckOption(
-				Msg.pref_close_to_systray.get(),
-					SettingsConf.Bool.CloseToTray)
-			));
+				SettingsConf.Bool.HideOnOpen));
+		}
+		
+		if (WindowsAutostart.isSupported()) {
+			checkOptions.add(new AutostartOption(
+				Msg.pref_start_with_windows.get(),
+				ProgramConf.Str.AppName.get()));
 		}
 
 		checkOptions.addAll(Arrays.<PrefOption> asList(
 			new CheckOption(
 				Msg.pref_clear_search_history_on_exit.get(),
-				SettingsConf.Bool.ClearSearchHistoryOnExit)
+				SettingsConf.Bool.ClearSearchHistoryOnExit),
+
+			new CheckOption(
+				Msg.pref_update_indexes_on_startup.get(),
+				SettingsConf.Bool.UpdateIndexesOnStartup),
+
+			new CheckOption(
+				Msg.pref_daily_index_update.get(),
+				SettingsConf.Bool.DailyIndexUpdate),
+
+			new CheckOption(
+				Msg.pref_show_path_column.get(),
+				SettingsConf.Bool.ShowPathColumn),
+
+			new CheckOption(
+				Msg.pref_sync_folder_view.get(),
+				SettingsConf.Bool.SyncFolderView),
+
+			new CheckOption(
+				Msg.pref_ocr.get(),
+				SettingsConf.Bool.OcrEnabled),
+
+			new CheckOption(
+				Msg.pref_store_ocr_text.get(),
+				SettingsConf.Bool.StoreOcrTextInFiles),
+
+			new CheckOption(
+				Msg.pref_convert_tiff.get(),
+				SettingsConf.Bool.ConvertTiffToPdf),
+
+			new CheckOption(
+				Msg.pref_keep_tiff.get(),
+				SettingsConf.Bool.KeepTiffAfterConversion)
 
 			// TODO post-release-1.1: Implement this; requires saving and restoring the tree expansion state
 			//	new CheckOption(
@@ -128,7 +183,57 @@ public final class PrefDialog {
 			SettingsConf.Int.LuceneAnalyzer,
 			choices, choiceIndices);
 		
+		// The system tray is not supported on Ubuntu Unity
+		String[] closeChoices;
+		int[] closeIndices;
+		if (Util.IS_UBUNTU_UNITY) {
+			closeChoices = new String[] {
+				Msg.close_action_exit.get(),
+				Msg.close_action_minimize.get()
+			};
+			closeIndices = new int[] {
+				SettingsConf.CLOSE_ACTION_EXIT,
+				SettingsConf.CLOSE_ACTION_MINIMIZE
+			};
+		}
+		else {
+			closeChoices = new String[] {
+				Msg.close_action_exit.get(),
+				Msg.close_action_minimize.get(),
+				Msg.close_action_tray.get()
+			};
+			closeIndices = new int[] {
+				SettingsConf.CLOSE_ACTION_EXIT,
+				SettingsConf.CLOSE_ACTION_MINIMIZE,
+				SettingsConf.CLOSE_ACTION_TRAY
+			};
+		}
+		
 		fieldOptions.addAll(Arrays.asList(
+			new DropdownOption(
+				Msg.pref_close_action.get(),
+				SettingsConf.Int.CloseAction,
+				closeChoices, closeIndices),
+			
+			new BoolDropdownOption(
+				Msg.pref_preview_position.get(),
+				SettingsConf.Bool.ShowPreviewPanelAtBottom,
+				Msg.pref_preview_bottom.get(),
+				Msg.pref_preview_right.get()),
+			
+			new DropdownOption(
+				Msg.pref_folder_path_segments.get(),
+				SettingsConf.Int.FolderPathSegments,
+				new String[] { "1", "2", "3", "4", "5" },
+				new int[] { 1, 2, 3, 4, 5 }),
+			
+			new DropdownOption(
+				Msg.pref_icon_size.get(),
+				SettingsConf.Int.IconScalePercent,
+				new String[] { Msg.pref_icon_size_auto.get(), "100 %", "125 %",
+					"150 %", "200 %" },
+				new int[] { 0, 100, 125, 150, 200 }),
+			
 			analyzerOption,
 
 			new ColorOption(
@@ -167,11 +272,44 @@ public final class PrefDialog {
 
 	@NotNull
 	private Control createContents(@NotNull Composite parent) {
+		tabFolder = new TabFolder(parent, SWT.TOP);
+		
+		TabItem generalTab = new TabItem(tabFolder, SWT.NONE);
+		generalTab.setText(Msg.pref_tab_general.get());
+		generalTab.setControl(createGeneralTab(tabFolder));
+		
+		TabItem indexesTab = new TabItem(tabFolder, SWT.NONE);
+		indexesTab.setText(Msg.pref_tab_indexes.get());
+		indexManagementPanel = new IndexManagementPanel(
+			tabFolder, indexPanel, defaultIndexDir);
+		indexesTab.setControl(indexManagementPanel.getControl());
+		
+		TabItem foldersTab = new TabItem(tabFolder, SWT.NONE);
+		foldersTab.setText(Msg.pref_tab_folders.get());
+		foldersPanel = new FoldersPanel(tabFolder);
+		foldersTab.setControl(foldersPanel.getControl());
+		
+		return tabFolder;
+	}
+	
+	@NotNull
+	private Control createGeneralTab(@NotNull Composite parent) {
 		Composite comp = new Composite(parent, SWT.NONE);
-		comp.setLayout(UtilGui.createGridLayout(2, false, 0, 5));
+		comp.setLayout(UtilGui.createGridLayout(2, false, 5, 5));
 
 		for (PrefOption checkOption : checkOptions)
 			checkOption.createControls(comp);
+
+		// Explain why text recognition can't be used, e.g. missing runtime
+		String ocrProblem = OcrEngine.getInstance().getUnavailableReason();
+		if (ocrProblem != null) {
+			Label ocrLabel = new Label(comp, SWT.WRAP);
+			ocrLabel.setText(Msg.ocr_unavailable.format(ocrProblem));
+			ocrLabel.setForeground(comp.getDisplay().getSystemColor(SWT.COLOR_WIDGET_DISABLED_FOREGROUND));
+			GridData ocrData = new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1);
+			ocrData.widthHint = 500;
+			ocrLabel.setLayoutData(ocrData);
+		}
 
 		Label spacing = new Label(comp, SWT.NONE);
 		GridData spacingGridData = new GridData(SWT.FILL, SWT.FILL, true, false, 2, 1);
@@ -219,6 +357,8 @@ public final class PrefDialog {
 					checkOption.restoreDefault();
 				for (PrefOption fieldOption : fieldOptions)
 					fieldOption.restoreDefault();
+				indexManagementPanel.restoreDefaultFolder();
+				foldersPanel.restoreDefaults();
 			}
 		});
 		
@@ -244,6 +384,14 @@ public final class PrefDialog {
 
 		okBt = UtilGui.createPushButton(comp, Msg.ok.get(), new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
+				if (!indexManagementPanel.validateFolder()) {
+					tabFolder.setSelection(1);
+					return;
+				}
+				if (!foldersPanel.save()) {
+					tabFolder.setSelection(2);
+					return;
+				}
 				for (PrefOption checkOption : checkOptions)
 					checkOption.save();
 				for (PrefOption fieldOption : fieldOptions) {
@@ -257,6 +405,7 @@ public final class PrefDialog {
 						}
 					}
 				}
+				indexManagementPanel.saveFolder();
 				evtOKClicked.fire(null);
 				shell.close();
 			}
@@ -330,13 +479,40 @@ public final class PrefDialog {
 		}
 	}
 
-	public void open( ) {
+	public void open() {
+		open(false);
+	}
+	
+	/**
+	 * Opens the dialog. If {@code showIndexesTab} is true, the 'Indexes' tab is
+	 * selected initially, otherwise the 'General' tab.
+	 */
+	public void open(boolean showIndexesTab) {
+		tabFolder.setSelection(showIndexesTab ? 1 : 0);
 		okBt.setFocus();
+		growToPreferredSize();
 		shell.open();
 		while (!shell.isDisposed()) {
 			if (!shell.getDisplay().readAndDispatch())
 				shell.getDisplay().sleep();
 		}
+	}
+
+	/**
+	 * Enlarges the dialog if the stored size is too small to show all options
+	 * without scrolling, e.g. after an update that added options.
+	 */
+	private void growToPreferredSize() {
+		Point preferred = shell.computeSize(SWT.DEFAULT, SWT.DEFAULT);
+		Rectangle bounds = shell.getBounds();
+		Rectangle client = shell.getMonitor().getClientArea();
+		int width = Math.min(Math.max(bounds.width, preferred.x), client.width);
+		int height = Math.min(Math.max(bounds.height, preferred.y), client.height);
+		if (width == bounds.width && height == bounds.height)
+			return;
+		int x = Math.max(client.x, Math.min(bounds.x, client.x + client.width - width));
+		int y = Math.max(client.y, Math.min(bounds.y, client.y + client.height - height));
+		shell.setBounds(x, y, width, height);
 	}
 
 	@NotNull

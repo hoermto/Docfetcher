@@ -11,8 +11,10 @@
 
 package net.sourceforge.docfetcher.gui;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.locks.Condition;
@@ -21,19 +23,19 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import net.sourceforge.docfetcher.enums.Img;
 import net.sourceforge.docfetcher.enums.Msg;
-import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.gui.ResultPanel.HeaderMode;
 import net.sourceforge.docfetcher.gui.filter.FileTypePanel;
-import net.sourceforge.docfetcher.gui.filter.FilesizePanel;
 import net.sourceforge.docfetcher.gui.filter.IndexPanel;
 import net.sourceforge.docfetcher.model.Fields;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.LuceneIndex;
+import net.sourceforge.docfetcher.model.index.Task.IndexAction;
 import net.sourceforge.docfetcher.model.TreeCheckState;
 import net.sourceforge.docfetcher.model.parse.Parser;
 import net.sourceforge.docfetcher.model.search.PhraseDetectingQueryParser;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.model.search.SearchException;
+import net.sourceforge.docfetcher.model.search.FolderSearch;
 import net.sourceforge.docfetcher.model.search.Searcher;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.CheckedOutOfMemoryError;
@@ -58,13 +60,12 @@ import com.google.common.collect.Sets;
 public final class SearchQueue {
 	
 	private static enum GuiEvent {
-		SEARCH_OR_LIST, SIZE, TYPE, LOCATION, TYPE_AHEAD, EXPLICIT_SEARCH,
+		SEARCH_OR_LIST, TYPE, LOCATION, TYPE_AHEAD, EXPLICIT_SEARCH,
 	}
 	
 	private static final String spaces = Strings.repeat(" ", 5);
 
 	private final SearchBar searchBar;
-	private final FilesizePanel filesizePanel;
 	private final FileTypePanel fileTypePanel;
 	private final IndexPanel indexPanel;
 	private final ResultPanel resultPanel;
@@ -77,21 +78,24 @@ public final class SearchQueue {
 	
 	@Nullable private volatile String query;
 	@Nullable private volatile Set<String> listDocIds;
+	@Nullable private volatile String lastSearchQuery; // last query that was run
 	@Nullable private List<ResultDocument> results;
+	@Nullable private List<ResultDocument> folderResults;
+	
+	/** Upper bound for the file existence checks per search, see removeMissingFiles. */
+	private static final int MAX_EXISTENCE_CHECKS = 2000;
 	@Nullable private Set<String> checkedParsers;
 	@Nullable private TreeCheckState treeCheckState;
 	private boolean allParsersChecked;
 	
 	public SearchQueue(	@NotNull SearchBar searchBar,
-						@NotNull FilesizePanel filesizePanel,
 						@NotNull FileTypePanel fileTypePanel,
 						@NotNull IndexPanel indexPanel,
 						@NotNull ResultPanel resultPanel,
 						@NotNull StatusBar statusBar) {
-		Util.checkNotNull(searchBar, filesizePanel, fileTypePanel);
+		Util.checkNotNull(searchBar, fileTypePanel);
 		Util.checkNotNull(indexPanel, resultPanel, statusBar);
 		this.searchBar = searchBar;
-		this.filesizePanel = filesizePanel;
 		this.fileTypePanel = fileTypePanel;
 		this.indexPanel = indexPanel;
 		this.resultPanel = resultPanel;
@@ -111,6 +115,28 @@ public final class SearchQueue {
 		thread.start();
 		
 		initListeners();
+	}
+	
+	/**
+	 * Runs the last explicit search again, e.g. after a setting that affects
+	 * the query was changed. Does nothing if no search has been run yet.
+	 */
+	public void rerunLastSearch() {
+		lock.lock();
+		try {
+			if (lastSearchQuery == null)
+				return;
+			indexPanel.getIndexRegistry().getSearcher().stopSearch();
+			query = lastSearchQuery;
+			listDocIds = null;
+			searchBar.setEnabled(false);
+			queue.add(GuiEvent.SEARCH_OR_LIST);
+			queue.add(GuiEvent.EXPLICIT_SEARCH);
+			queueNotEmpty.signal();
+		}
+		finally {
+			lock.unlock();
+		}
 	}
 	
 	private void initListeners() {
@@ -165,19 +191,6 @@ public final class SearchQueue {
 			}
 		});
 
-		filesizePanel.evtValuesChanged.add(new Event.Listener<Void>() {
-			public void update(Void eventData) {
-				lock.lock();
-				try {
-					queue.add(GuiEvent.SIZE);
-					queueNotEmpty.signal();
-				}
-				finally {
-					lock.unlock();
-				}
-			}
-		});
-		
 		fileTypePanel.evtCheckStatesChanged.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
 				lock.lock();
@@ -235,6 +248,10 @@ public final class SearchQueue {
 			listDocIds = this.listDocIds;
 			this.query = null;
 			this.listDocIds = null;
+			if (query != null)
+				lastSearchQuery = query;
+			else if (listDocIds != null)
+				lastSearchQuery = null; // A document listing replaced the search
 		}
 		catch (InterruptedException e) {
 			return false;
@@ -268,10 +285,14 @@ public final class SearchQueue {
 				if (searcher == null)
 					return false;
 				
-				if (query != null)
-					results = searcher.search(query);
-				else if (listDocIds != null)
+				if (query != null) {
+					results = removeMissingFiles(searcher.search(query));
+					folderResults = findFolders(searcher, indexRegistry, query);
+				}
+				else if (listDocIds != null) {
 					results = searcher.list(listDocIds);
+					folderResults = null;
+				}
 				else
 					throw new IllegalStateException();
 			}
@@ -311,18 +332,10 @@ public final class SearchQueue {
 		if (results == null)
 			return true;
 		
-		Long[] minMax = filesizePanel.getValuesInKB();
 		final List<ResultDocument> visibleResults = new ArrayList<ResultDocument>();
 
 		// Apply filters
 		for (ResultDocument doc : results) {
-			if (minMax != null) {
-				long size = doc.getSizeInKB();
-				if (minMax[0] != null && size < minMax[0])
-					continue;
-				if (minMax[1] != null && size > minMax[1])
-					continue;
-			}
 			if (!doc.isEmail()) {
 				if (checkedParsers.isEmpty())
 					continue;
@@ -336,6 +349,14 @@ public final class SearchQueue {
 				continue;
 			visibleResults.add(doc);
 		}
+		
+		/*
+		 * Folders aren't indexed, so they aren't affected by the file type
+		 * and location filters; they are simply put in front of the
+		 * documents, where the sorting keeps them.
+		 */
+		if (folderResults != null)
+			visibleResults.addAll(0, folderResults);
 		
 		boolean filesFound = false;
 		boolean emailsFound = false;
@@ -351,7 +372,7 @@ public final class SearchQueue {
 		UtilGui.runSyncExec(searchBar.getControl(), new Runnable() {
 			public void run() {
 				resultPanel.setResults(visibleResults, mode);
-				resultPanel.sortByColumn(ProgramConf.Int.InitialSorting.get());
+				resultPanel.applyDefaultSorting();
 				if (queueCopy.contains(GuiEvent.SEARCH_OR_LIST) && queueCopy.contains(GuiEvent.EXPLICIT_SEARCH))
 					resultPanel.getControl().setFocus();
 				updateResultStatus(); // Must be done *after* setting the results
@@ -386,10 +407,74 @@ public final class SearchQueue {
 		String msg = Msg.num_results.format(resultCount);
 		if (resultCount >= Searcher.MAX_RESULTS)
 			msg += "+";
-		int selCount = resultPanel.getSelection().size();
-		if (selCount > 1)
-			msg += spaces + Msg.num_sel_results.format(selCount);
+		List<ResultDocument> selection = resultPanel.getSelection();
+		if (selection.size() > 1)
+			msg += spaces + Msg.num_sel_results.format(selection.size());
+		else if (selection.size() == 1)
+			msg += spaces + selection.get(0).getPath().getPath();
 		statusBar.getLeftPart().setContents(Img.INFO.get(), msg);
+	}
+
+	/**
+	 * Drops results whose files no longer exist, e.g. because they were
+	 * deleted or moved while the index wasn't updated, and enqueues an
+	 * update of the affected indexes, which removes the entries for good.
+	 * Results of indexes whose root folder is currently unavailable (e.g.
+	 * an unplugged drive) are kept. To bound the cost on slow drives, only
+	 * the first results are checked.
+	 */
+	@NotNull
+	private List<ResultDocument> removeMissingFiles(@NotNull List<ResultDocument> results) {
+		List<ResultDocument> existing = new ArrayList<ResultDocument>(results.size());
+		Set<LuceneIndex> affected = new HashSet<LuceneIndex>();
+		IndexRegistry indexRegistry = indexPanel.getIndexRegistry();
+		List<LuceneIndex> indexes = indexRegistry.getIndexes();
+		int checked = 0;
+		for (ResultDocument doc : results) {
+			if (doc.isEmail() || checked >= MAX_EXISTENCE_CHECKS || doc.existsOnDisk()) {
+				existing.add(doc);
+				continue;
+			}
+			checked++;
+			LuceneIndex index = findIndexFor(indexes, doc.getPath().getCanonicalFile());
+			if (index == null || !index.getCanonicalRootFile().exists()) {
+				existing.add(doc); // Unavailable drive: keep the result
+				continue;
+			}
+			affected.add(index);
+		}
+		for (LuceneIndex index : affected)
+			indexRegistry.getQueue().addTask(index, IndexAction.UPDATE); // Rejected if queued
+		return existing;
+	}
+	
+	/**
+	 * Returns folder rows for the folders whose name matches the search
+	 * terms, so that the results list folders as well as documents.
+	 */
+	@NotNull
+	private static List<ResultDocument> findFolders(	@NotNull Searcher searcher,
+													@NotNull IndexRegistry indexRegistry,
+													@NotNull String query) {
+		List<ResultDocument> rows = new ArrayList<ResultDocument>();
+		List<String> terms = FolderSearch.extractTerms(query);
+		if (terms.isEmpty())
+			return rows;
+		List<LuceneIndex> indexes = indexRegistry.getIndexes();
+		for (File folder : FolderSearch.find(
+				FolderPanel.getRootFolders(indexRegistry), terms))
+			rows.add(searcher.createFolderRow(findIndexFor(indexes, folder), folder));
+		return rows;
+	}
+	
+	@Nullable
+	private static LuceneIndex findIndexFor(@NotNull List<LuceneIndex> indexes, @NotNull File file) {
+		for (LuceneIndex index : indexes) {
+			File root = index.getCanonicalRootFile();
+			if (Util.contains(root, file) || Util.isCanonicallyEqual(root, file))
+				return index;
+		}
+		return null;
 	}
 
 }

@@ -13,8 +13,15 @@ package net.sourceforge.docfetcher.model.index.file;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.model.Cancelable;
@@ -30,6 +37,7 @@ import net.sourceforge.docfetcher.model.index.IndexingError.ErrorType;
 import net.sourceforge.docfetcher.model.index.IndexingException;
 import net.sourceforge.docfetcher.model.index.IndexingInfo.InfoType;
 import net.sourceforge.docfetcher.model.index.IndexingReporter;
+import net.sourceforge.docfetcher.model.ocr.OcrPreprocessor;
 import net.sourceforge.docfetcher.model.index.MutableInt;
 import net.sourceforge.docfetcher.model.index.file.FileFolder.FileFolderVisitor;
 import net.sourceforge.docfetcher.util.Util;
@@ -117,6 +125,77 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 		return DocumentType.FILE;
 	}
 
+	/**
+	 * Counts the regular files below the given folder for progress
+	 * reporting. Archives count as one file; the index folder is skipped.
+	 * Returns -1 if the folder can't be walked or counting was cancelled.
+	 */
+	private int countFiles(@NotNull File root, @NotNull final Cancelable cancelable) {
+		final File indexDir = getIndexParentDir();
+		final int[] count = {0};
+		try {
+			Files.walkFileTree(root.toPath(), new SimpleFileVisitor<java.nio.file.Path>() {
+				public FileVisitResult preVisitDirectory(java.nio.file.Path dir, BasicFileAttributes attrs) {
+					if (cancelable.isCanceled())
+						return FileVisitResult.TERMINATE;
+					if (indexDir != null && Util.isCanonicallyEqual(indexDir, dir.toFile()))
+						return FileVisitResult.SKIP_SUBTREE;
+					return FileVisitResult.CONTINUE;
+				}
+				public FileVisitResult visitFile(java.nio.file.Path file, BasicFileAttributes attrs) {
+					if (attrs.isRegularFile())
+						count[0]++;
+					return FileVisitResult.CONTINUE;
+				}
+				public FileVisitResult visitFileFailed(java.nio.file.Path file, IOException e) {
+					return FileVisitResult.CONTINUE; // e.g. no permission
+				}
+			});
+		}
+		catch (IOException e) {
+			return -1;
+		}
+		catch (RuntimeException e) {
+			return -1;
+		}
+		return cancelable.isCanceled() ? -1 : count[0];
+	}
+	
+	/**
+	 * Recognizes the text of the files collected during the walk and
+	 * re-indexes them. A TIFF converted to PDF is replaced by the PDF in the
+	 * index and in the tree.
+	 */
+	private void processDeferredOcr(@NotNull FileContext context,
+									@NotNull Cancelable cancelable)
+			throws IndexingException {
+		List<FileContext.DeferredFile> deferred =
+			new ArrayList<FileContext.DeferredFile>(context.getDeferredFiles());
+		context.getDeferredFiles().clear();
+		for (FileContext.DeferredFile entry : deferred) {
+			if (cancelable.isCanceled())
+				return;
+			File prepared = OcrPreprocessor.prepare(entry.file, cancelable);
+			FileFolder folder = entry.doc.getParent();
+			if (prepared.equals(entry.file)) {
+				entry.doc.setLastModified(prepared.lastModified());
+				if (!context.index(entry.doc, prepared, false))
+					context.deleteFromIndex(entry.doc.getUniqueId());
+			}
+			else {
+				// TIFF converted to PDF: the TIFF entry goes, the PDF comes
+				context.deleteFromIndex(entry.doc.getUniqueId());
+				folder.removeDocument(entry.doc);
+				File file = entry.file instanceof TFile
+					? new TFile(prepared, ((TFile) entry.file).getArchiveDetector())
+					: prepared;
+				FileDocument doc = createFileDoc(folder, file);
+				context.index(doc, file, true);
+			}
+			context.fileVisited();
+		}
+	}
+	
 	public IndexingResult doUpdate(	@NotNull IndexingReporter reporter,
 									@NotNull Cancelable cancelable) {
 		reporter.setStartTime(System.currentTimeMillis());
@@ -156,7 +235,16 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 				FileContext context = new FileContext(
 					config, zipDetector, writer, reporter, null, cancelable,
 					new MutableInt(0), getIndexParentDir());
+				
+				// Count the files first so that progress can be shown
+				context.setProgressTotal(countFiles(getCanonicalRootFile(), cancelable));
+				
+				// Recognize text at the end, so that the other documents
+				// become searchable first
+				context.setDeferOcr(true);
 				visitDirOrZip(context, rootFolder, rootFile);
+				context.setDeferOcr(false);
+				processDeferredOcr(context, cancelable);
 			}
 			else {
 				// Return immediately if the root file wasn't modified
@@ -279,23 +367,51 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 		 * Note: If the user aborts the indexing, the file tree must be left in
 		 * a consistent state, so that the user can continue indexing later.
 		 */
+		final Set<String> createdFiles = new HashSet<String>();
 		new HtmlFileLister<IndexingException>(
 			dirOrZip, context.getConfig(), context.getReporter()) {
 			protected void handleFile(@NotNull File file) {
 				if (context.isStopped()) stop();
+				context.fileVisited();
 				try {
 					if (switchDirZipToSolid(context, folder, file)) {
 						unseenSubFolders.remove(file.getName());
 						return;
 					}
+					if (createdFiles.contains(file.getName()))
+						return; // Created and indexed by this run already
 					FileDocument doc = unseenDocs.remove(file.getName());
+					boolean added = doc == null;
+					boolean modified = !added && doc.isModified(context, file, null);
+					
+					/*
+					 * Text recognition may replace the file (TIFF -> PDF), in
+					 * which case the new file is indexed and the entry of the
+					 * old one is treated as deleted. With deferred recognition
+					 * this happens in the deferred pass instead.
+					 */
+					if ((added || modified) && OcrPreprocessor.isEnabled() && !context.isDeferOcr()) {
+						File prepared = OcrPreprocessor.prepare(file, context.getStopper());
+						if (!prepared.equals(file)) {
+							if (doc != null)
+								unseenDocs.put(file.getName(), doc);
+							createdFiles.add(prepared.getName());
+							file = file instanceof TFile
+								? new TFile(prepared, ((TFile) file).getArchiveDetector())
+								: prepared;
+							doc = unseenDocs.remove(file.getName());
+							added = doc == null;
+							modified = !added && doc.isModified(context, file, null);
+						}
+					}
+					
 					// File added
-					if (doc == null) {
+					if (added) {
 						doc = createFileDoc(folder, file);
 						context.index(doc, file, true);
 					}
 					// File modified
-					else if (doc.isModified(context, file, null)) {
+					else if (modified) {
 						doc.setLastModified(file.lastModified());
 						doc.setHtmlFolder(null);
 						
@@ -316,6 +432,7 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 			protected void handleHtmlPair(	@NotNull File htmlFile,
 											@Nullable File htmlDir) {
 				if (context.isStopped()) stop();
+				context.fileVisited();
 				try {
 					FileDocument doc = unseenDocs.remove(htmlFile.getName());
 					// HTML pair added

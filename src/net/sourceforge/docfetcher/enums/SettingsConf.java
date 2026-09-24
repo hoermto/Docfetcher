@@ -67,6 +67,11 @@ import com.google.common.primitives.Ints;
 public final class SettingsConf {
 
 	// TODO pre-release: remove unused entries
+	
+	// Values of Int.CloseAction
+	public static final int CLOSE_ACTION_EXIT = 0;
+	public static final int CLOSE_ACTION_MINIMIZE = 1;
+	public static final int CLOSE_ACTION_TRAY = 2;
 
 	@Description("# Boolean entries. Allowed values: true, false")
 	public enum Bool implements Storable {
@@ -77,13 +82,22 @@ public final class SettingsConf {
 		UseTypeAheadSearch (false),
 		ResetLocationFilterOnExit (true),
 		HotkeyEnabled (true),
-		ShowDocFetcherProTip (true),
+		UpdateIndexesOnStartup (true),
+		AskRebuildOutdatedIndexes (true),
+		MatchFilenames (true), // Search terms also match file names as substrings
+		OcrEnabled (true), // Recognize text in images and scanned PDFs while indexing
+		StoreOcrTextInFiles (true), // Write recognized text back into the files
+		ConvertTiffToPdf (false), // Turn TIFF files into PDFs with a text layer while indexing
+		KeepTiffAfterConversion (true), // Keep the TIFF renamed to .ocr instead of deleting it
+		DailyIndexUpdate (true), // Update all indexes once a day while running
+		ShowPathColumn (true), // Show the folder column in the result tables
+		ShowFolderPanel (true), // Show a second folder browser next to the tabs
+		SyncFolderView (true), // Folder view follows the selected search result
+		FolderSortAscending (false), // Sort order of the folder view
 
-		ShowFilterPanel (true),
 		ShowPreviewPanel (true),
-		ShowPreviewPanelAtBottom (true),
+		ShowPreviewPanelAtBottom (false),
 
-		FilesizeFilterMaximized (true),
 		TypesFilterMaximized (false),
 		LocationFilterMaximized (false),
 
@@ -92,8 +106,7 @@ public final class SettingsConf {
 		HighlightingEnabled (true),
 		ShowRelativePathsMessage (true),
 		AutoScrollToFirstMatch (true),
-		CloseToTray (false), // Default must be 'false' since system tray not supported on Ubuntu Unity
-		AllowOnlyOneInstance (false),
+		CloseToTray (false), // Legacy, migrated to Int.CloseAction on startup
 		;
 
 		public final Event<Boolean> evtChanged = new Event<Boolean> ();
@@ -129,8 +142,21 @@ public final class SettingsConf {
 
 	@Description("# Integer entries.")
 	public enum Int implements Storable {
-		FilterPanelWidth (250),
+		/* Column the folder view is sorted by; -1 means by date, newest first. */
+		FolderSortColumn (-1),
+		/* Size of the icons in percent; 0 = automatically from the screen. */
+		IconScalePercent (0),
 		LuceneAnalyzer (getDefaultAnalyzer()),
+		
+		/*
+		 * What happens when the main window is closed: 0 = exit, 1 = minimize
+		 * to taskbar, 2 = hide in system tray. The default must be 0 since the
+		 * system tray is not supported on Ubuntu Unity.
+		 */
+		CloseAction (CLOSE_ACTION_EXIT),
+		
+		// Number of trailing path segments shown for suggested folders
+		FolderPathSegments (2),
 		;
 
 		public final Event<Integer> evtChanged = new Event<Integer> ();
@@ -169,6 +195,31 @@ public final class SettingsConf {
 			"\r\n# escaped by a preceding \\.")
 	public enum Str implements Storable {
 		LastIndexedFolder (Util.USER_HOME_PATH),
+		
+		/*
+		 * Custom index folder, set via the preferences dialog. Empty means
+		 * "use the default location" (or the location from paths.txt, if
+		 * specified there). Takes effect on the next program start.
+		 */
+		IndexFolder (""),
+		
+		/*
+		 * If non-empty, this is the previous index folder whose index
+		 * subfolders should be moved into the current index folder on the next
+		 * program start. Set by the preferences dialog after the index folder
+		 * has been changed and the user opted to move the existing indexes.
+		 */
+		PendingIndexMoveFrom (""),
+		
+		/*
+		 * Inbox folder of version 2.3; migrated to StrList.InboxFolders on
+		 * startup.
+		 */
+		InboxFolder (""),
+		/* Folder shown on the 'Folders' tab when the program was closed. */
+		LastBrowsedFolder (""),
+		/* The same for the folder panel next to the tabs. */
+		LastBrowsedFolderPanel (""),
 		;
 
 		public final Event<String> evtChanged = new Event<String> ();
@@ -196,6 +247,7 @@ public final class SettingsConf {
 
 	@Description("# Comma-separated lists of integers.")
 	public enum IntArray implements Storable {
+		FolderSashWeights (3, 2), // Tabs and folder panel
 		PreviewHighlighting (255, 255, 0),
 		Hotkey (SWT.CTRL, SWT.F8),
 
@@ -235,9 +287,14 @@ public final class SettingsConf {
 		}
 	}
 
-	@Description("# Semicolon-separated lists of strings.")
+	@Description("# Semicolon-separated lists of strings. InboxFolders" +
+			"\r\n# contains entries of the form 'path|name', where the name is" +
+			"\r\n# optional; each folder is shown on its own inbox tab.")
 	public enum StrList implements Storable {
 		SearchHistory,
+		InboxFolders,
+		MoveTargets, // Folders always offered at the top of the 'Move To' menu
+		RecentMoveTargets, // Folders recently used as move targets, newest first
 		;
 
 		public final Event<List<String>> evtChanged = new Event<List<String>> ();
@@ -278,7 +335,9 @@ public final class SettingsConf {
 		MainWindow (-1, -1, 1024, 768),
 		IndexingDialog (-1, -1, 600, 750),
 		FileExtensionChooser (-1, -1, 300, 450),
-		PreferencesDialog (-1, -1, 750, 600),
+		PreferencesDialog (-1, -1, 750, 680),
+		SearchSettingsDialog (-1, -1, 400, 600),
+		MoveToFolderDialog (-1, -1, 560, 380),
 		;
 
 		public final int[] defaultValue;
@@ -318,7 +377,8 @@ public final class SettingsConf {
 
 	@Description("# Comma-separated lists of table column widths.")
 	public enum ColumnWidths implements Storable {
-		ResultPanel (250, 75, 75, 200, 75, 350, 100, 100),
+		ResultPanel (260, 130, 55, 60, 350),
+		InboxPanel (26, 26, 260, 130, 55, 60, 350),
 		IndexingErrorTable (100, 100, 500),
 		PatternTable (200, 75, 75),
 		;
@@ -329,6 +389,27 @@ public final class SettingsConf {
 
 		ColumnWidths(int... defaultValue) {
 			value = this.defaultValue = defaultValue;
+		}
+		
+		/**
+		 * Returns the stored widths, or the default widths if the stored
+		 * ones don't match the given number of columns (e.g. after a program
+		 * update or when a column was turned off).
+		 */
+		@NotNull
+		public int[] get(int columnCount) {
+			int[] widths = new int[columnCount];
+			for (int i = 0; i < columnCount; i++) {
+				if (value.length == columnCount)
+					widths[i] = value[i];
+				else
+					widths[i] = i < defaultValue.length ? defaultValue[i] : 100;
+			}
+			return widths;
+		}
+		
+		public void set(@NotNull int[] widths) {
+			value = widths;
 		}
 
 		/**
@@ -345,8 +426,16 @@ public final class SettingsConf {
 			int columnCount = columns.length;
 			Util.checkThat(columnCount > 0);
 			if (columnCount != value.length) {
-				Util.checkThat(columnCount == defaultValue.length);
-				value = defaultValue;
+				/*
+				 * The number of columns can differ from the stored values,
+				 * e.g. after a program update or when a column is turned off
+				 * in the settings. Take the default widths, padded or cut to
+				 * the current number of columns.
+				 */
+				int[] widths = new int[columnCount];
+				for (int i = 0; i < columnCount; i++)
+					widths[i] = i < defaultValue.length ? defaultValue[i] : 100;
+				value = widths;
 			}
 
 			for (int i = 0; i < columnCount; i++) {
@@ -389,6 +478,7 @@ public final class SettingsConf {
 	@Description("# Column orderings.")
 	public enum ColumnOrder implements Storable {
 		ResultPanelColumnOrder (),
+		InboxPanelColumnOrder (),
 		;
 
 		public final int[] defaultValue;

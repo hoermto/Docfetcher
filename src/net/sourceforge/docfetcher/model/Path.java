@@ -51,7 +51,10 @@ public final class Path implements Serializable {
 		private static final FilePredicate instance = new FilePredicate();
 		
 		public boolean apply(Path path) {
-			return path.getCanonicalFile().isFile();
+			if (path.getCanonicalFile().isFile())
+				return true;
+			File resolved = path.resolveEquivalentFile();
+			return resolved != null && resolved.isFile();
 		}
 	}
 	
@@ -152,6 +155,53 @@ public final class Path implements Serializable {
 			canonicalFile = Util.getCanonicalFile(path1);
 		}
 		return canonicalFile;
+	}
+	
+	/**
+	 * If no file exists under the (Unicode-normalized) canonical path, looks
+	 * for a file or folder on disk whose name is the same after
+	 * normalization, e.g. a name stored in decomposed form (NFD) by another
+	 * program or operating system. If one is found, it becomes the canonical
+	 * file of this path and is returned; otherwise null is returned.
+	 */
+	@Nullable
+	public File resolveEquivalentFile() {
+		File file = getCanonicalFile();
+		if (file.exists())
+			return file;
+		File resolved = resolveOnDisk(file);
+		if (resolved != null)
+			canonicalFile = resolved;
+		return resolved;
+	}
+	
+	/**
+	 * Recursively resolves each part of the given path to an existing file or
+	 * folder with an equivalent name (see {@link #resolveEquivalentFile()}).
+	 */
+	@Nullable
+	@RecursiveMethod
+	private static File resolveOnDisk(@NotNull File file) {
+		if (file.exists())
+			return file;
+		File parent = file.getParentFile();
+		if (parent == null)
+			return null;
+		File resolvedParent = resolveOnDisk(parent);
+		if (resolvedParent == null)
+			return null;
+		String[] names = resolvedParent.list();
+		if (names == null)
+			return null;
+		String wanted = normalizeUnicode(file.getName(), true);
+		for (String name : names) {
+			if (normalizeUnicode(name, true).equals(wanted)) {
+				File candidate = new File(resolvedParent, name);
+				if (candidate.exists())
+					return candidate;
+			}
+		}
+		return null;
 	}
 	
 	@NotNull

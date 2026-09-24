@@ -19,12 +19,18 @@ import java.io.InputStream;
 import java.io.StringReader;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.net.URL;
+import java.nio.file.FileVisitResult;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.regex.Matcher;
@@ -36,24 +42,24 @@ import org.eclipse.swt.SWTException;
 import org.eclipse.swt.events.ControlAdapter;
 import org.eclipse.swt.events.ControlEvent;
 import org.eclipse.swt.events.ControlListener;
-import org.eclipse.swt.events.DisposeEvent;
-import org.eclipse.swt.events.DisposeListener;
-import org.eclipse.swt.events.MouseAdapter;
-import org.eclipse.swt.events.MouseEvent;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.ShellAdapter;
 import org.eclipse.swt.events.ShellEvent;
-import org.eclipse.swt.events.TraverseEvent;
-import org.eclipse.swt.events.TraverseListener;
 import org.eclipse.swt.graphics.Image;
-import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
+import org.eclipse.swt.custom.SashForm;
+import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.layout.FormLayout;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
-import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.MenuItem;
+import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.Shell;
+import org.eclipse.swt.widgets.TabFolder;
+import org.eclipse.swt.widgets.TabItem;
 
 import com.drew.lang.Charsets;
 import com.google.common.base.Joiner;
@@ -72,11 +78,8 @@ import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.enums.SystemConf;
 import net.sourceforge.docfetcher.gui.StatusBar.StatusBarPart;
 import net.sourceforge.docfetcher.gui.filter.FileTypePanel;
-import net.sourceforge.docfetcher.gui.filter.FilesizePanel;
 import net.sourceforge.docfetcher.gui.filter.IndexPanel;
-import net.sourceforge.docfetcher.gui.filter.ToolBarForm;
-import net.sourceforge.docfetcher.gui.filter.TwoFormExpander;
-import net.sourceforge.docfetcher.gui.filter.TwoFormExpander.MaximizedControl;
+import net.sourceforge.docfetcher.gui.filter.SearchSettingsDialog;
 import net.sourceforge.docfetcher.gui.pref.PrefDialog;
 import net.sourceforge.docfetcher.gui.preview.PreviewPanel;
 import net.sourceforge.docfetcher.model.Cancelable;
@@ -87,12 +90,13 @@ import net.sourceforge.docfetcher.model.IndexLoadingProblems.CorruptedIndex;
 import net.sourceforge.docfetcher.model.IndexLoadingProblems.OverflowIndex;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.LuceneIndex;
+import net.sourceforge.docfetcher.model.TreeIndex;
 import net.sourceforge.docfetcher.model.index.IndexingQueue;
+import net.sourceforge.docfetcher.model.index.Task;
 import net.sourceforge.docfetcher.model.index.Task.CancelAction;
 import net.sourceforge.docfetcher.model.index.Task.CancelHandler;
 import net.sourceforge.docfetcher.model.index.Task.IndexAction;
-import net.sourceforge.docfetcher.model.parse.ParseService;
-import net.sourceforge.docfetcher.model.parse.Parser;
+import net.sourceforge.docfetcher.model.index.Task.TaskState;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.CharsetDetectorHelper;
@@ -104,7 +108,6 @@ import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 import net.sourceforge.docfetcher.util.collect.AlphanumComparator;
-import net.sourceforge.docfetcher.util.collect.ListMap;
 import net.sourceforge.docfetcher.util.gui.CocoaUIEnhancer;
 import net.sourceforge.docfetcher.util.gui.FormDataFactory;
 import net.sourceforge.docfetcher.util.gui.LazyImageCache;
@@ -116,32 +119,60 @@ public final class Application {
 
 	// TODO post-release-1.1: review visibility of all DocFetcher classes
 
-	/** The widths of the sashes in pixels */
-	private static final int sashWidth = 5;
+	/**
+	 * The width of the sashes between the panels, in pixels. Wide enough to
+	 * be grabbed easily with the mouse.
+	 */
+	private static final int sashWidth = 9;
 
 	private static volatile IndexRegistry indexRegistry;
 	private static volatile FolderWatcher folderWatcher;
 	@Nullable private static HotkeyHandler hotkeyHandler;
 	private static File programConfFile;
 
-	private static FilesizePanel filesizePanel;
+	private static SearchSettingsDialog searchSettingsDialog;
 	private static FileTypePanel fileTypePanel;
 	private static IndexPanel indexPanel;
 
 	private static volatile Shell shell;
-	private static ThreePanelForm threePanelForm;
+	private static TwoPanelForm twoPanelForm;
 	private static SearchBar searchBar;
 	private static ResultPanel resultPanel;
+	private static TabFolder mainTabFolder;
+	private static final List<InboxTab> inboxTabs = new ArrayList<InboxTab>();
+	private static final Set<File> inboxIndexRequests = new HashSet<File>();
+	@Nullable private static FolderPanel folderPanel; // Next to the tabs
+	@Nullable private static FolderPanel folderTabPanel; // On the 'Folders' tab
+	@Nullable private static TabItem foldersTab;
+	private static SashForm folderSash;
+	private static Composite folderPanelHolder;
 	private static PreviewPanel previewPanel;
 	private static volatile StatusBarPart indexingStatus;
+	// Tasks of the current batch of indexing jobs, for the overall progress
+	private static final List<Task> queuedTasks = new ArrayList<Task>();
+	private static int batchTaskCount = 0;
+	private static int batchFinishedCount = 0;
 	private static SystemTrayHider systemTrayHider;
 	private static StatusBar statusBar;
-	@Nullable private static HintOverlay docfetcherProTip;
 	private static boolean systemTrayShutdown = false;
+	private static boolean exitRequested = false; // set by the Exit button and Ctrl+Q
 	private static File settingsConfFile;
 	
 	private static boolean indexRegistryLoaded = false; // should only be accessed from SWT thread
-	private static Runnable clearIndexLoadingMsg; // should only be accessed from SWT thread
+	
+	/*
+	 * True while background indexing tasks enqueued by the program itself
+	 * (startup updates, rebuilds of outdated indexes) are pending, so that the
+	 * indexing indicator in the status bar is only shown if the queue hasn't
+	 * already been emptied in the meantime.
+	 */
+	
+	/*
+	 * The index folder that is used if the user hasn't set a custom index
+	 * folder in the preferences, i.e. either the folder from paths.txt or the
+	 * built-in default.
+	 */
+	private static File defaultIndexParentDir;
 
 	private Application() {
 		throw new UnsupportedOperationException();
@@ -241,9 +272,29 @@ public final class Application {
 		programConfFile = loadProgramConf(confPathOverride);
 		settingsConfFile = loadSettingsConf(confPathOverride);
 		
+		// Migrate the legacy 'close to tray' checkbox to the close action setting
+		if (SettingsConf.Bool.CloseToTray.get()) {
+			if (SettingsConf.Int.CloseAction.get() == SettingsConf.CLOSE_ACTION_EXIT)
+				SettingsConf.Int.CloseAction.set(SettingsConf.CLOSE_ACTION_TRAY);
+			SettingsConf.Bool.CloseToTray.set(false);
+		}
+		
+		/*
+		 * Determine the index folder. A custom index folder set in the
+		 * preferences dialog takes precedence over the one in paths.txt. If the
+		 * user changed the index folder and asked for the existing indexes to
+		 * be moved, this is done now, before any index files are opened.
+		 */
+		defaultIndexParentDir = getIndexParentDir(IndexRegistry.indexPathOverride);
+		String customIndexFolder = SettingsConf.Str.IndexFolder.get().trim();
+		if (!customIndexFolder.isEmpty())
+			IndexRegistry.indexPathOverride = Util.getCanonicalFile(customIndexFolder);
+		File indexParentDir = getIndexParentDir(IndexRegistry.indexPathOverride);
+		performPendingIndexMove(indexParentDir);
+		
 		// Update indexes in headless mode
 		if (args.length >= 1 && args[0].equals("--update-indexes")) {
-			loadIndexRegistryHeadless(getIndexParentDir(IndexRegistry.indexPathOverride));
+			loadIndexRegistryHeadless(indexParentDir);
 			return;
 		}
 
@@ -265,11 +316,12 @@ public final class Application {
 		Display display = new Display();
 		AppUtil.setDisplay(display);
 		shell = new Shell(display);
-		loadIndexRegistry(shell, getIndexParentDir(IndexRegistry.indexPathOverride));
+		loadIndexRegistry(shell, indexParentDir);
 
 		// Load images
 		LazyImageCache lazyImageCache = new LazyImageCache(
 			display, AppUtil.getImageDir());
+		lazyImageCache.setScalePercent(getIconScalePercent(display));
 		Img.initialize(lazyImageCache);
 		lazyImageCache.reportMissingFiles(
 			shell, Img.class, Msg.missing_image_files.get());
@@ -295,24 +347,40 @@ public final class Application {
 		shell.setLayout(new FormLayout());
 		shell.setText(shellTitle);
 
+		configureWebView2DataDir();
 		initCocoaMenu(display);
 		initSystemTrayHider();
-		initThreePanelForm();
+		initMenuBar();
+		initSearchSettingsDialog();
+		initTwoPanelForm();
+		InboxFolders.migrateLegacySetting();
+		applyInboxFolders();
 		initStatusBar();
 		initHotkey();
 		initGlobalKeys(display);
 		
-		if (SettingsConf.Bool.ShowDocFetcherProTip.get()) {
-			showDocFetcherProTip();
-		}
+		// Show the window when another instance is launched
+		AppUtil.evtActivateRequested.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				UtilGui.runAsyncExec(shell, new Runnable() {
+					public void run() {
+						activateMainWindow();
+					}
+				});
+			}
+		});
 		
-		new SearchQueue(
-			searchBar, filesizePanel, fileTypePanel, indexPanel, resultPanel,
-			statusBar);
+		final SearchQueue searchQueue = new SearchQueue(
+			searchBar, fileTypePanel, indexPanel, resultPanel, statusBar);
+		searchSettingsDialog.evtMatchFilenamesChanged.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				searchQueue.rerunLastSearch();
+			}
+		});
 
 		FormDataFactory fdf = FormDataFactory.getInstance();
 		fdf.bottom().left().right().applyTo(statusBar);
-		fdf.top().bottom(statusBar).applyTo(threePanelForm);
+		fdf.top().bottom(statusBar).applyTo(twoPanelForm);
 
 		// Move focus to search text field
 		searchBar.setFocus();
@@ -523,6 +591,18 @@ public final class Application {
 				else if (m == SWT.MOD1 && k == 'f') {
 					searchBar.setFocus();
 				}
+				else if (m == SWT.MOD1 && k == 'q') {
+					requestExit();
+				}
+				else if (k == SWT.F3) {
+					toggleFolderPanel();
+				}
+				else if (k == SWT.F4) {
+					togglePreviewPanel();
+				}
+				else if (m == SWT.MOD1 && k == 'z') {
+					undoFileOperation();
+				}
 				else {
 					e.doit = true;
 				}
@@ -533,12 +613,12 @@ public final class Application {
 	@NotNull
 	private static File getIndexParentDir(@Nullable File pathOverride) {
 		File indexParentDir;
-		if (SystemConf.Bool.IsDevelopmentVersion.get()) {
-			indexParentDir = new File("bin/indexes");
-		}
-		else if (pathOverride != null && !pathOverride.isFile()) {
+		if (pathOverride != null && !pathOverride.isFile()) {
 			pathOverride.mkdirs();
 			indexParentDir = pathOverride;
+		}
+		else if (SystemConf.Bool.IsDevelopmentVersion.get()) {
+			indexParentDir = new File("bin/indexes");
 		}
 		else {
 			File appDataDir = AppUtil.getAppDataDir();
@@ -551,6 +631,90 @@ public final class Application {
 		return indexParentDir;
 	}
 
+	/**
+	 * If the user changed the index folder in the preferences dialog and opted
+	 * to move the existing indexes, this moves all index folders from the old
+	 * index folder into the given new one. Must be called before the index
+	 * registry is loaded and before the display is created, since the moving
+	 * will fail on Windows if any index files are open.
+	 */
+	private static void performPendingIndexMove(@NotNull File newIndexParentDir) {
+		String from = SettingsConf.Str.PendingIndexMoveFrom.get().trim();
+		if (from.isEmpty())
+			return;
+		SettingsConf.Str.PendingIndexMoveFrom.set(""); // Only try once
+		
+		File oldIndexParentDir = new File(from);
+		if (!oldIndexParentDir.isDirectory())
+			return;
+		if (Util.isCanonicallyEqual(oldIndexParentDir, newIndexParentDir))
+			return;
+		newIndexParentDir.mkdirs();
+		
+		List<File> toMove = new ArrayList<File>();
+		for (File file : Util.listFiles(oldIndexParentDir)) {
+			// Index folders are recognized by their serialized index tree
+			if (file.isDirectory() && new File(file, IndexRegistry.SER_FILENAME).isFile())
+				toMove.add(file);
+		}
+		
+		List<String> failed = new ArrayList<String>();
+		for (File source : toMove) {
+			File target = new File(newIndexParentDir, source.getName());
+			try {
+				if (target.exists())
+					throw new IOException("Target already exists: " + target);
+				moveFileOrDir(source, target);
+			}
+			catch (IOException e) {
+				Util.printErr(e);
+				failed.add(source.getPath());
+			}
+		}
+		
+		if (!failed.isEmpty()) {
+			String msg = Msg.index_move_failed.format(Util.join("\n", failed));
+			AppUtil.showErrorOnStart(msg, false);
+		}
+	}
+	
+	/**
+	 * Moves the given file or directory to the given target. If a simple
+	 * rename is not possible (e.g. because source and target are on different
+	 * drives), the source is copied recursively and then deleted.
+	 */
+	private static void moveFileOrDir(@NotNull File source, @NotNull File target)
+			throws IOException {
+		java.nio.file.Path srcPath = source.toPath();
+		final java.nio.file.Path dstPath = target.toPath();
+		try {
+			java.nio.file.Files.move(srcPath, dstPath, StandardCopyOption.ATOMIC_MOVE);
+			return;
+		}
+		catch (IOException e) {
+			// Fall through to copy + delete
+		}
+		if (source.isFile()) {
+			java.nio.file.Files.copy(srcPath, dstPath);
+		}
+		else {
+			final java.nio.file.Path srcRoot = srcPath;
+			java.nio.file.Files.walkFileTree(srcRoot, new SimpleFileVisitor<java.nio.file.Path>() {
+				public FileVisitResult preVisitDirectory(java.nio.file.Path dir, BasicFileAttributes attrs)
+						throws IOException {
+					java.nio.file.Files.createDirectories(dstPath.resolve(srcRoot.relativize(dir)));
+					return FileVisitResult.CONTINUE;
+				}
+				public FileVisitResult visitFile(java.nio.file.Path file, BasicFileAttributes attrs)
+						throws IOException {
+					java.nio.file.Files.copy(file, dstPath.resolve(srcRoot.relativize(file)));
+					return FileVisitResult.CONTINUE;
+				}
+			});
+		}
+		Util.deleteRecursively(source);
+	}
+
 	private static void loadIndexRegistry(@NotNull final Shell mainShell, @NotNull File indexParentDir) {
 		UtilGui.assertSwtThread();
 		final Display display = mainShell.getDisplay();
@@ -559,7 +723,7 @@ public final class Application {
 		int reporterCapacity = ProgramConf.Int.MaxLinesInProgressPanel.get();
 		indexRegistry = new IndexRegistry(
 			indexParentDir, cacheCapacity, reporterCapacity);
-		final Daemon daemon = new Daemon(indexRegistry);
+		final Daemon daemon = new Daemon(indexRegistry, getDaemonDir());
 		IndexingQueue queue = indexRegistry.getQueue();
 
 		queue.evtWorkerThreadTerminated.add(new Event.Listener<Void>() {
@@ -569,27 +733,48 @@ public final class Application {
 		});
 
 		/*
-		 * Remove indexing hint from the status bar when the task
-		 * queue has been emptied. This covers those situations
-		 * where the indexing dialog has been minimized to the
-		 * status bar and the last task in the queue has just been
-		 * completed.
+		 * The indexing progress in the status bar follows the task queue:
+		 * visible while tasks exist, with the overall progress of the current
+		 * batch of tasks.
 		 */
+		queue.addListeners(new IndexingQueue.ExistingTasksHandler() {
+			public void handleExistingTasks(List<Task> tasks) {
+				synchronized (queuedTasks) {
+					queuedTasks.addAll(tasks);
+					batchTaskCount += tasks.size();
+				}
+			}
+		}, new Event.Listener<Task>() {
+			public void update(Task task) {
+				synchronized (queuedTasks) {
+					queuedTasks.add(task);
+					batchTaskCount++;
+				}
+				scheduleIndexingStatusUpdate();
+			}
+		}, new Event.Listener<Task>() {
+			public void update(Task task) {
+				synchronized (queuedTasks) {
+					if (queuedTasks.remove(task))
+						batchFinishedCount++;
+				}
+				scheduleIndexingStatusUpdate();
+			}
+		});
+		queue.evtProgress.add(new Event.Listener<Task>() {
+			public void update(Task task) {
+				scheduleIndexingStatusUpdate();
+			}
+		});
 		queue.evtQueueEmpty.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
-				/*
-				 * Bug #3485598: The indexing status widget can be null at this
-				 * point. Possible explanation: An indexing update was issued by
-				 * the DocFetcher daemon and finished before the GUI was fully
-				 * initialized.
-				 */
-				if (indexingStatus == null)
-					return;
-				UtilGui.runAsyncExec(indexingStatus.getControl(), new Runnable() {
-					public void run() {
-						indexingStatus.setVisible(false);
-					}
-				});
+				synchronized (queuedTasks) {
+					queuedTasks.clear();
+					batchTaskCount = 0;
+					batchFinishedCount = 0;
+				}
+				refreshInboxTabs();
+				scheduleIndexingStatusUpdate();
 			}
 		});
 
@@ -635,6 +820,19 @@ public final class Application {
 
 					// Must be called *after* the indexes have been loaded
 					daemon.enqueueUpdateTasks();
+					
+					// Offer to rebuild indexes that lack page counts
+					if (SettingsConf.Bool.AskRebuildOutdatedIndexes.get())
+						offerRebuildOfOutdatedIndexes(mainShell);
+					
+					/*
+					 * Pick up changes made while the program was closed, even
+					 * if the daemon isn't running. The updates run in the
+					 * background via the indexing queue.
+					 */
+					if (SettingsConf.Bool.UpdateIndexesOnStartup.get())
+						enqueueIndexUpdates(true);
+					startDailyIndexUpdates();
 					
 					// Confirm deletion of obsolete files inside the index
 					// folder
@@ -683,13 +881,193 @@ public final class Application {
 					UtilGui.runAsyncExec(mainShell, new Runnable() {
 						public void run() {
 							indexRegistryLoaded = true;
-							if (clearIndexLoadingMsg != null)
-								clearIndexLoadingMsg.run();
+							if (searchSettingsDialog != null)
+								searchSettingsDialog.setIndexRegistryLoaded();
 						}
 					});
 				}
 			}
 		}.start();
+	}
+	
+	/**
+	 * Returns the folder in which the DocFetcher daemon looks for the file
+	 * listing the indexed folders. The daemon ignores any custom index folder,
+	 * so this is always the default location.
+	 */
+	@NotNull
+	private static File getDaemonDir() {
+		if (SystemConf.Bool.IsDevelopmentVersion.get())
+			return new File("bin/indexes");
+		File appDataDir = AppUtil.getAppDataDir();
+		if (SystemConf.Bool.IsPortable.get())
+			return new File(appDataDir, "indexes");
+		return appDataDir;
+	}
+	
+	/**
+	 * Asks the user once per startup whether indexes created by an older
+	 * program version (which lack page counts) should be rebuilt, and enqueues
+	 * the rebuilds in the background if so. Must be called after the indexes
+	 * have been loaded, from a non-GUI thread.
+	 */
+	private static void offerRebuildOfOutdatedIndexes(@NotNull final Shell mainShell) {
+		final List<LuceneIndex> outdated = new ArrayList<LuceneIndex>();
+		for (LuceneIndex index : indexRegistry.getIndexes()) {
+			if (index.getFormatVersion() < TreeIndex.CURRENT_FORMAT_VERSION
+					&& index.getCanonicalRootFile().exists())
+				outdated.add(index);
+		}
+		if (outdated.isEmpty())
+			return;
+		
+		final boolean[] rebuild = { false };
+		UtilGui.runSyncExec(mainShell, new Runnable() {
+			public void run() {
+				List<String> names = new ArrayList<String>(outdated.size());
+				for (LuceneIndex index : outdated)
+					names.add(index.getRootFolder().getDisplayName());
+				String msg = Msg.rebuild_outdated_indexes_msg.format(
+					SystemConf.Str.ProgramName.get(), Util.join("\n", names));
+				
+				MultipleChoiceDialog<Integer> dialog = new MultipleChoiceDialog<Integer>(mainShell);
+				dialog.setTitle(Msg.rebuild_outdated_indexes_title.get());
+				dialog.setText(msg);
+				dialog.addButton(Msg.rebuild_now.get(), 1);
+				dialog.addButton(Msg.later.get(), 0);
+				dialog.addButton(Msg.dont_ask_again.get(), -1);
+				Integer answer = dialog.open();
+				if (answer == null)
+					return; // Dialog closed, ask again next time
+				if (answer < 0)
+					SettingsConf.Bool.AskRebuildOutdatedIndexes.set(false);
+				rebuild[0] = answer > 0;
+			}
+		});
+		
+		if (!rebuild[0])
+			return;
+		IndexingQueue queue = indexRegistry.getQueue();
+		for (LuceneIndex index : outdated)
+			queue.addTask(index, IndexAction.REBUILD, true);
+	}
+	
+	/** Updates the indexing progress in the status bar from the GUI thread. */
+	private static void scheduleIndexingStatusUpdate() {
+		/*
+		 * Bug #3485598: The indexing status widget can be null at this point,
+		 * e.g. when an indexing update issued by the daemon finishes before
+		 * the GUI is fully initialized.
+		 */
+		if (indexingStatus == null)
+			return;
+		UtilGui.runAsyncExec(indexingStatus.getControl(), new Runnable() {
+			public void run() {
+				updateIndexingStatus();
+			}
+		});
+	}
+	
+	/**
+	 * Shows the overall progress of the queued indexing tasks in the status
+	 * bar: finished tasks of the current batch count fully, running tasks
+	 * with their percentage. Hides the indicator when the queue is empty.
+	 */
+	private static void updateIndexingStatus() {
+		List<Task> tasks;
+		int total;
+		double done;
+		synchronized (queuedTasks) {
+			tasks = new ArrayList<Task>(queuedTasks);
+			total = batchTaskCount;
+			done = batchFinishedCount;
+		}
+		if (tasks.isEmpty()) {
+			indexingStatus.setVisible(false);
+			return;
+		}
+		StringBuilder tooltip = new StringBuilder();
+		for (Task task : tasks) {
+			int percent = task.getProgressPercent();
+			if (percent > 0)
+				done += percent / 100.0;
+			if (tooltip.length() > 0)
+				tooltip.append('\n');
+			tooltip.append(task.getLuceneIndex().getRootFolder().getDisplayName());
+			tooltip.append(": ").append(getTaskStatusText(task));
+		}
+		int percent = total > 0 ? (int) Math.min(99, done * 100 / total) : -1;
+		String text = percent >= 0
+			? Msg.indexing_progress.format(percent)
+			: Msg.indexing.get();
+		indexingStatus.setContents(Img.INDEXING.get(), text);
+		indexingStatus.setProgress(percent);
+		tooltip.append("\n\n").append(Msg.indexing_status_tooltip.get());
+		indexingStatus.setToolTipText(tooltip.toString());
+		indexingStatus.setVisible(true);
+	}
+	
+	/** Returns a short description of the state of an indexing task. */
+	@NotNull
+	public static String getTaskStatusText(@NotNull Task task) {
+		if (task.is(TaskState.NOT_READY))
+			return Msg.index_status_waiting.get();
+		if (task.is(TaskState.READY))
+			return Msg.index_status_queued.get();
+		int percent = task.getProgressPercent();
+		String percentStr = percent >= 0 ? percent + " %" : "";
+		if (task.is(IndexAction.REBUILD))
+			return Msg.index_status_rebuilding.format(percentStr).trim();
+		if (task.is(IndexAction.CREATE))
+			return Msg.index_status_creating.format(percentStr).trim();
+		return Msg.index_status_updating.format(percentStr).trim();
+	}
+	
+	/**
+	 * Enqueues update tasks for all indexes whose root folder is available;
+	 * with {@code watchedOnly}, only for indexes whose folders are watched
+	 * for changes. Must be called after the indexes have been loaded, from a
+	 * non-GUI thread.
+	 */
+	private static void enqueueIndexUpdates(boolean watchedOnly) {
+		IndexingQueue queue = indexRegistry.getQueue();
+		for (LuceneIndex index : indexRegistry.getIndexes()) {
+			if (watchedOnly && !index.isWatchFolders())
+				continue;
+			if (!index.getCanonicalRootFile().exists())
+				continue;
+			queue.addTask(index, IndexAction.UPDATE); // Rejected if already queued
+		}
+	}
+	
+	/**
+	 * Updates all indexes once a day while the program is running, so that
+	 * files deleted or changed outside the watched folders don't linger in
+	 * the indexes. The startup update counts as the first run.
+	 */
+	private static void startDailyIndexUpdates() {
+		Thread thread = new Thread(Application.class.getName() + " (daily index updates)") {
+			public void run() {
+				long lastUpdate = System.currentTimeMillis();
+				while (true) {
+					try {
+						Thread.sleep(60 * 60 * 1000); // Check hourly
+					}
+					catch (InterruptedException e) {
+						return;
+					}
+					if (!SettingsConf.Bool.DailyIndexUpdate.get())
+						continue;
+					long now = System.currentTimeMillis();
+					if (now - lastUpdate < 24L * 60 * 60 * 1000)
+						continue;
+					lastUpdate = now;
+					enqueueIndexUpdates(false);
+				}
+			}
+		};
+		thread.setDaemon(true);
+		thread.start();
 	}
 	
 	private static void loadIndexRegistryHeadless(@NotNull File indexParentDir) {
@@ -931,142 +1309,392 @@ public final class Application {
 		return confFile;
 	}
 
-	private static Control createLeftPanel(Composite parent) {
-		final Composite comp = new Composite(parent, SWT.NONE);
-		comp.setLayout(new FormLayout());
-
-		ToolBarForm filesizeForm = new ToolBarForm(comp) {
-			protected Control createToolBar(Composite parent) {
-				final Label item = new Label(parent, SWT.NONE);
-				Image image = SettingsConf.Bool.FilesizeFilterMaximized.get()
-					? Img.MINIMIZE.get()
-					: Img.MAXIMIZE.get();
-				item.setImage(image);
-				item.addMouseListener(new MouseAdapter() {
-					public void mouseUp(MouseEvent e) {
-						boolean isVisible = !isContentsVisible();
-						setContentsVisible(isVisible);
-						Image image = isVisible
-							? Img.MINIMIZE.get()
-							: Img.MAXIMIZE.get();
-						item.setImage(image);
-						comp.layout();
-						SettingsConf.Bool.FilesizeFilterMaximized.set(isVisible);
-					}
-				});
-				item.setCursor(item.getDisplay().getSystemCursor(SWT.CURSOR_HAND));
-				UtilGui.addMouseHighlighter(item);
-				return item;
-			}
-
-			protected Control createContents(Composite parent) {
-				filesizePanel = new FilesizePanel(parent);
-				return filesizePanel.getControl();
-			}
-		};
-		filesizeForm.setText(Msg.min_max_filesize.get());
-		filesizeForm.setContentsVisible(SettingsConf.Bool.FilesizeFilterMaximized.get());
-
-		final TwoFormExpander expander = new TwoFormExpander(comp) {
-			protected Control createFirstContents(Composite parent) {
-				// TODO websearch: Load parser states from file, save parser states to file?
-				List<Parser> parsers = ParseService.getParsers();
-				ListMap<Parser, Boolean> map = ListMap.create(parsers.size());
-				for (Parser parser : parsers)
-					map.add(parser, true);
-				fileTypePanel = new FileTypePanel(parent, map);
-				return fileTypePanel.getControl();
-			}
-			protected Control createSecondContents(Composite parent) {
-				indexPanel = new IndexPanel(parent, indexRegistry);
-				indexPanel.evtIndexingDialogMinimized.add(new Event.Listener<Rectangle>() {
-					public void update(Rectangle eventData) {
-						moveIndexingDialogToStatusBar(eventData);
-					}
-				});
-				return indexPanel.getControl();
-			}
-			protected void onMaximizationChanged() {
-				// Save maximization states
-				MaximizedControl maxControl = getMaximizedControl();
-				boolean topMax = maxControl == MaximizedControl.TOP;
-				boolean bottomMax = maxControl == MaximizedControl.BOTTOM;
-				SettingsConf.Bool.TypesFilterMaximized.set(topMax);
-				SettingsConf.Bool.LocationFilterMaximized.set(bottomMax);
-			}
-		};
-		expander.setTopText(Msg.document_types.get());
-		if (indexRegistryLoaded) {
-			expander.setBottomText(Msg.search_scope.get());
-		}
-		else {
-			expander.setBottomText(Msg.search_scope.get() + " (" + Msg.loading.get() + ")");
-			clearIndexLoadingMsg = new Runnable() {
-				public void run() {
-					UtilGui.assertSwtThread();
-					expander.setBottomText(Msg.search_scope.get());
-				}
-			};
-		}
-		expander.setSashWidth(sashWidth);
+	/**
+	 * Creates the dialog holding the search filters (document types, search
+	 * scope). The dialog is created at startup, but only shown on demand, since
+	 * the filter panels must exist for the search queue to work.
+	 */
+	private static void initSearchSettingsDialog() {
+		searchSettingsDialog = new SearchSettingsDialog(
+			shell, indexRegistry, indexRegistryLoaded);
+		fileTypePanel = searchSettingsDialog.getFileTypePanel();
+		indexPanel = searchSettingsDialog.getIndexPanel();
 		
-		// Restore sash weights and maximization states
-		expander.setSashWeights(SettingsConf.IntArray.FilterSash.get());
-		if (SettingsConf.Bool.TypesFilterMaximized.get())
-			expander.setMaximizedControl(MaximizedControl.TOP);
-		if (SettingsConf.Bool.LocationFilterMaximized.get())
-			expander.setMaximizedControl(MaximizedControl.BOTTOM);
-
-		// Save sash weights
-		expander.getFirstControl().addControlListener(new ControlAdapter() {
-			public void controlResized(ControlEvent e) {
-				// Run in asyncExec to make sure both controls have been resized
-				UtilGui.runAsyncExec(expander, new Runnable() {
-					public void run() {
-						MaximizedControl maxControl = expander.getMaximizedControl();
-						if (maxControl != MaximizedControl.NONE)
-							return;
-						int[] weights = expander.getSashWeights();
-						SettingsConf.IntArray.FilterSash.set(weights);
-					}
-				});
+		indexPanel.evtIndexingDialogMinimized.add(new Event.Listener<Rectangle>() {
+			public void update(Rectangle eventData) {
+				moveIndexingDialogToStatusBar(eventData);
 			}
 		});
-
-		FormDataFactory fdf = FormDataFactory.getInstance();
-		fdf.margin(0).left().top().right().applyTo(filesizeForm);
-		fdf.top(filesizeForm, 5).bottom().applyTo(expander);
-
-		return comp;
+		indexPanel.evtListDocuments.add(new Event.Listener<Set<String>>() {
+			public void update(Set<String> eventData) {
+				// Close the dialog so that the listed documents are visible
+				searchSettingsDialog.close();
+			}
+		});
 	}
 
 	private static Control createRightTopPanel(Composite parent) {
-		Composite comp = new Composite(parent, SWT.NONE);
-		searchBar = new SearchBar(comp, programConfFile);
-		searchBar.evtOKClicked.add(new Event.Listener<Void> () {
-		    public void update(Void eventData) {
-		    	saveSettingsConfFile();
-		    }
+		/*
+		 * The folder browser is either a tab of the main tab folder or a
+		 * panel of its own next to it, so that documents can be dragged from
+		 * another tab into a folder.
+		 */
+		folderSash = new SashForm(parent, SWT.HORIZONTAL);
+		folderSash.setSashWidth(sashWidth);
+		UtilGui.paintSashHandles(folderSash);
+		mainTabFolder = new TabFolder(folderSash, SWT.TOP);
+		folderPanelHolder = new Composite(folderSash, SWT.NONE);
+		folderPanelHolder.setLayout(new FillLayout());
+		
+		TabItem searchTab = new TabItem(mainTabFolder, SWT.NONE);
+		searchTab.setText(Msg.search_tab.get());
+		searchTab.setControl(createSearchPanel(mainTabFolder));
+		mainTabFolder.setSelection(searchTab);
+		mainTabFolder.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				InboxTab selected = getSelectedInboxTab();
+				if (selected != null)
+					selected.panel.refresh();
+				else if (folderTabPanel != null
+						&& mainTabFolder.getSelection().length > 0
+						&& mainTabFolder.getSelection()[0] == foldersTab)
+					folderTabPanel.refresh();
+			}
 		});
-		resultPanel = new ResultPanel(comp);
+		applyFolderPanelMode();
+		folderSash.setWeights(SettingsConf.IntArray.FolderSashWeights.get());
+		folderSash.addControlListener(new ControlAdapter() {
+			public void controlResized(ControlEvent e) {
+				if (folderSash.getMaximizedControl() == null)
+					SettingsConf.IntArray.FolderSashWeights.set(folderSash.getWeights());
+			}
+		});
+		return folderSash;
+	}
+	
+	/**
+	 * Shows the folder browser either as a tab or as a panel of its own,
+	 * according to the settings.
+	 */
+	private static void applyFolderPanelMode() {
+		// The 'Folders' tab always exists, after the inbox tabs
+		if (foldersTab == null) {
+			foldersTab = new TabItem(mainTabFolder, SWT.NONE, inboxTabs.size());
+			foldersTab.setText(Msg.folders_tab.get());
+			folderTabPanel = createFolderPanel(
+				mainTabFolder, SettingsConf.Str.LastBrowsedFolder);
+			foldersTab.setControl(folderTabPanel.getControl());
+		}
+		
+		/*
+		 * The second browser next to the tabs is shown on demand. Both
+		 * browsers work the same way and are independent of each other, so
+		 * that documents can be dragged from one folder to another.
+		 */
+		boolean showPanel = SettingsConf.Bool.ShowFolderPanel.get();
+		if (showPanel && folderPanel == null) {
+			folderPanel = createFolderPanel(
+				folderPanelHolder, SettingsConf.Str.LastBrowsedFolderPanel);
+			folderPanel.setShowLabel(true);
+			folderPanelHolder.layout();
+		}
+		else if (!showPanel && folderPanel != null) {
+			folderPanel.getControl().dispose();
+			folderPanel = null;
+		}
+		folderSash.setMaximizedControl(showPanel ? null : mainTabFolder);
+	}
+	
+	/** Shows or hides the folder browser next to the tabs. */
+	private static void toggleFolderPanel() {
+		SettingsConf.Bool.ShowFolderPanel.set(!SettingsConf.Bool.ShowFolderPanel.get());
+		applyFolderPanelMode();
+	}
+	
+	/** Shows or hides the preview pane, which has no toggle of its own. */
+	private static void togglePreviewPanel() {
+		if (twoPanelForm == null)
+			return;
+		twoPanelForm.setSecondSubControlVisible(
+			!twoPanelForm.isSecondSubControlVisible());
+	}
+	
+	/** The folder browser a document should be shown in. */
+	@Nullable
+	private static FolderPanel getVisibleFolderPanel() {
+		return folderPanel != null ? folderPanel : folderTabPanel;
+	}
+	
+	/** An inbox tab of the main window. */
+	private static final class InboxTab {
+		final InboxFolders.Entry entry;
+		final TabItem tab;
+		final InboxPanel panel;
+
+		InboxTab(@NotNull InboxFolders.Entry entry, @NotNull TabItem tab, @NotNull InboxPanel panel) {
+			this.entry = entry;
+			this.tab = tab;
+			this.panel = panel;
+		}
+	}
+
+	@Nullable
+	private static InboxTab getSelectedInboxTab() {
+		TabItem[] selection = mainTabFolder.getSelection();
+		if (selection.length == 0)
+			return null;
+		for (InboxTab inboxTab : inboxTabs)
+			if (inboxTab.tab == selection[0])
+				return inboxTab;
+		return null;
+	}
+
+	/**
+	 * Shows the path of the selected document in the status bar, or the
+	 * number of selected documents if there are several.
+	 */
+	private static void showSelectedPath(@NotNull List<ResultDocument> selection) {
+		if (statusBar == null)
+			return;
+		String msg;
+		if (selection.isEmpty())
+			msg = "";
+		else if (selection.size() > 1)
+			msg = Msg.num_sel_results.format(selection.size());
+		else
+			msg = selection.get(0).getPath().getPath();
+		statusBar.getLeftPart().setContents(msg.isEmpty() ? null : Img.INFO.get(), msg);
+	}
+	
+	/** Reloads the file lists of all inbox tabs. Safe to call from any thread. */
+	private static void refreshInboxTabs() {
+		for (InboxTab inboxTab : inboxTabs)
+			inboxTab.panel.refresh();
+	}
+
+	/**
+	 * Creates, updates or removes the inbox tabs according to the configured
+	 * inbox folders, and makes sure the folders are indexed. The inbox tabs
+	 * are placed before the search tab, in the configured order.
+	 */
+	private static void applyInboxFolders() {
+		List<InboxFolders.Entry> entries = InboxFolders.load();
+		List<InboxFolders.Entry> current = new ArrayList<InboxFolders.Entry>(inboxTabs.size());
+		for (InboxTab inboxTab : inboxTabs)
+			current.add(inboxTab.entry);
+		if (!entries.equals(current)) {
+			/*
+			 * Rebuild all tabs. Select the tab of the previously selected
+			 * folder if it still exists, otherwise the first inbox tab if an
+			 * inbox tab was selected before (or on startup).
+			 */
+			InboxTab selected = getSelectedInboxTab();
+			boolean selectInbox = inboxTabs.isEmpty() || selected != null;
+			File selectedFolder = selected == null ? null : selected.entry.getFolder();
+			for (InboxTab inboxTab : inboxTabs) {
+				inboxTab.tab.dispose();
+				inboxTab.panel.getControl().dispose();
+			}
+			inboxTabs.clear();
+			InboxTab toSelect = null;
+			for (InboxFolders.Entry entry : entries) {
+				InboxTab inboxTab = createInboxTab(entry, inboxTabs.size());
+				inboxTabs.add(inboxTab);
+				if (toSelect == null && (selectedFolder == null
+						|| Util.isCanonicallyEqual(selectedFolder, entry.getFolder())))
+					toSelect = inboxTab;
+			}
+			if (toSelect == null && !inboxTabs.isEmpty())
+				toSelect = inboxTabs.get(0);
+			if (selectInbox && toSelect != null)
+				mainTabFolder.setSelection(toSelect.tab);
+		}
+		for (InboxTab inboxTab : inboxTabs) {
+			inboxTab.panel.setFolder(inboxTab.entry.getFolder());
+			ensureIndexed(inboxTab.entry.getFolder());
+		}
+		
+		// The folders tab belongs after the inbox tabs
+		if (foldersTab != null && mainTabFolder.indexOf(foldersTab) != inboxTabs.size())
+			applyFolderPanelMode();
+	}
+
+	@NotNull
+	private static InboxTab createInboxTab(	@NotNull InboxFolders.Entry entry,
+											int index) {
+		InboxPanel inboxPanel = new InboxPanel(mainTabFolder, indexRegistry);
+		TabItem tab = new TabItem(mainTabFolder, SWT.NONE, index);
+		tab.setText(entry.getTabName());
+		tab.setControl(inboxPanel.getControl());
+
+		final ResultPanel inboxResults = inboxPanel.getResultPanel();
+		inboxResults.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
+			public void update(List<ResultDocument> eventData) {
+				if (!eventData.isEmpty())
+					previewPanel.setPreview(eventData.get(0));
+				showSelectedPath(eventData);
+			}
+		});
+		inboxResults.evtHideInSystemTray.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				systemTrayHider.hide();
+			}
+		});
+		inboxResults.evtDocumentsChanged.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				if (inboxResults.getSelection().isEmpty())
+					previewPanel.clear();
+				else
+					previewPanel.refresh();
+			}
+		});
+		return new InboxTab(entry, tab, inboxPanel);
+	}
+
+	/**
+	 * Creates an index for the given folder if no index covers it yet. Folders
+	 * whose indexing has already been requested are skipped, since the index
+	 * appears in the registry only after indexing has finished.
+	 */
+	private static void ensureIndexed(@NotNull File folder) {
+		for (LuceneIndex index : indexRegistry.getIndexes()) {
+			File root = index.getCanonicalRootFile();
+			if (Util.isCanonicallyEqual(root, folder) || Util.contains(root, folder))
+				return;
+		}
+		if (!folder.isDirectory() || inboxIndexRequests.contains(folder))
+			return;
+		if (indexPanel.createIndexForFolder(folder))
+			inboxIndexRequests.add(folder);
+	}
+	
+	/**
+	 * Undoes the last renaming or moving of files and refreshes the views
+	 * that may show them.
+	 */
+	private static void undoFileOperation() {
+		if (!ResultPanel.undoLastFileOperation(indexRegistry))
+			return;
+		refreshInboxTabs();
+		refreshFolderPanels();
+	}
+	
+	/**
+	 * Returns the size of the icons in percent: the configured value, or, if
+	 * that is 0, a value derived from the resolution of the screen, so that
+	 * the icons don't look tiny on a high resolution display.
+	 */
+	private static int getIconScalePercent(@NotNull Display display) {
+		int configured = SettingsConf.Int.IconScalePercent.get();
+		if (configured > 0)
+			return configured;
+		int dpi;
+		try {
+			dpi = display.getDPI().x;
+		}
+		catch (RuntimeException e) {
+			return 100;
+		}
+		if (dpi >= 168)
+			return 200;
+		if (dpi >= 132)
+			return 150;
+		if (dpi >= 120)
+			return 125;
+		return 100;
+	}
+	
+	/** Reloads the listings of both folder browsers. */
+	private static void refreshFolderPanels() {
+		if (folderPanel != null)
+			folderPanel.refresh();
+		if (folderTabPanel != null)
+			folderTabPanel.refresh();
+	}
+	
+	/**
+	 * Shows the given file in the folder browser: brings the browser up (as
+	 * a panel, or by switching to its tab) and selects the file there.
+	 */
+	private static void showInFolderView(@NotNull File file) {
+		FolderPanel panel = getVisibleFolderPanel();
+		if (panel == null)
+			return;
+		if (panel == folderTabPanel && foldersTab != null) {
+			// Only the tab shows a browser; bring it to the front
+			mainTabFolder.setSelection(foldersTab);
+		}
+		panel.showFile(file);
+	}
+	
+	/** Creates the 'Folders' tab, which browses the indexed folders. */
+	@NotNull
+	private static FolderPanel createFolderPanel(	@NotNull Composite parent,
+													@NotNull SettingsConf.Str lastFolderSetting) {
+		final FolderPanel panel = new FolderPanel(parent, indexRegistry, lastFolderSetting);
+		final ResultPanel folderResults = panel.getResultPanel();
+		folderResults.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
+			public void update(List<ResultDocument> eventData) {
+				// Folder rows have nothing to preview
+				if (!eventData.isEmpty() && !eventData.get(0).isFolder())
+					previewPanel.setPreview(eventData.get(0));
+				else
+					previewPanel.clear();
+				showSelectedPath(eventData);
+			}
+		});
+		folderResults.evtHideInSystemTray.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				systemTrayHider.hide();
+			}
+		});
+		panel.evtFolderChanged.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				previewPanel.clear();
+				showSelectedPath(Collections.<ResultDocument> emptyList());
+			}
+		});
+		return panel;
+	}
+	
+	private static Control createSearchPanel(Composite parent) {
+		Composite comp = new Composite(parent, SWT.NONE);
+		searchBar = new SearchBar(comp);
+		resultPanel = new ResultPanel(comp, indexRegistry);
+		resultPanel.evtShowInFolder.add(new Event.Listener<File>() {
+			public void update(File eventData) {
+				showInFolderView(eventData);
+			}
+		});
+		// Double-click on a folder among the search results opens it
+		resultPanel.evtFolderOpened.add(new Event.Listener<File>() {
+			public void update(File eventData) {
+				showInFolderView(eventData);
+			}
+		});
 
 		comp.setLayout(new FormLayout());
 		FormDataFactory fdf = FormDataFactory.getInstance();
 		fdf.margin(0).top().left().right().applyTo(searchBar.getControl());
 		fdf.top(searchBar.getControl()).bottom().applyTo(resultPanel.getControl());
 
-		searchBar.evtHideInSystemTray.add(new Event.Listener<Void>() {
+		searchBar.evtOpenSearchSettings.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
-				systemTrayHider.hide();
+				searchSettingsDialog.open();
 			}
 		});
 
-		searchBar.evtOpenManual.add(new Event.Listener<Void>() {
-			public void update(Void eventData) {
-				showManual();
+		// Optionally let the folder view follow the selected result
+		resultPanel.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
+			public void update(List<ResultDocument> eventData) {
+				if (!SettingsConf.Bool.SyncFolderView.get() || eventData.size() != 1)
+					return;
+				ResultDocument doc = eventData.get(0);
+				// Only the panel follows along; the tab would steal the view
+				if (doc.isPlainFileOnDisk() && folderPanel != null)
+					folderPanel.showFile(doc.getPath().getCanonicalFile());
 			}
 		});
-
 		resultPanel.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
 			public void update(List<ResultDocument> eventData) {
 				if (!eventData.isEmpty())
@@ -1077,6 +1705,16 @@ public final class Application {
 		resultPanel.evtHideInSystemTray.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
 				systemTrayHider.hide();
+			}
+		});
+
+		resultPanel.evtDocumentsChanged.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				// Rows of moved-away documents are removed, clearing the selection
+				if (resultPanel.getSelection().isEmpty())
+					previewPanel.clear();
+				else
+					previewPanel.refresh();
 			}
 		});
 
@@ -1149,24 +1787,148 @@ public final class Application {
 			}
 		}, new Runnable() {
 			public void run() {
-				PrefDialog prefDialog = new PrefDialog(shell, programConfFile);
-				prefDialog.evtOKClicked.add(new Event.Listener<Void> () {
-				    public void update(Void eventData) {
-				    	saveSettingsConfFile();
-				    }
-				});
-				prefDialog.open();
+				openPrefDialog(false);
+			}
+		});
+	}
+	
+	/**
+	 * Creates the menu bar with the program-wide actions (preferences,
+	 * indexes, system tray, exit, manual), so that they are reachable from
+	 * every tab. The keyboard shortcuts shown are handled by the global key
+	 * filter.
+	 */
+	private static void initMenuBar() {
+		Menu menuBar = new Menu(shell, SWT.BAR);
+		shell.setMenuBar(menuBar);
+
+		Menu fileMenu = createMenu(menuBar, Msg.menu_file.get());
+		createMenuItem(fileMenu, Msg.menu_undo.get(), Img.ARROW_LEFT.get(), new Runnable() {
+			public void run() {
+				undoFileOperation();
+			}
+		});
+		new MenuItem(fileMenu, SWT.SEPARATOR);
+		createMenuItem(fileMenu, Msg.menu_preferences.get(), Img.PREFERENCES.get(), new Runnable() {
+			public void run() {
+				openPrefDialog(false);
+			}
+		});
+		createMenuItem(fileMenu, Msg.menu_indexes.get(), Img.FOLDER.get(), new Runnable() {
+			public void run() {
+				openPrefDialog(true);
+			}
+		});
+		new MenuItem(fileMenu, SWT.SEPARATOR);
+		/*
+		 * On Ubuntu Unity, disable hiding in system tray. See bug #3457028 and
+		 * follow-up bug #3457035.
+		 */
+		if (!Util.IS_UBUNTU_UNITY) {
+			createMenuItem(fileMenu, Msg.to_systray.get(), Img.HIDE.get(), new Runnable() {
+				public void run() {
+					systemTrayHider.hide();
+				}
+			});
+		}
+		createMenuItem(fileMenu, Msg.exit_app.get(), Img.EXIT.get(), new Runnable() {
+			public void run() {
+				requestExit();
+			}
+		});
+
+		Menu viewMenu = createMenu(menuBar, Msg.menu_view.get());
+		final MenuItem folderPanelItem = new MenuItem(viewMenu, SWT.CHECK);
+		folderPanelItem.setText(Msg.menu_folder_panel.get());
+		folderPanelItem.setSelection(SettingsConf.Bool.ShowFolderPanel.get());
+		folderPanelItem.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				toggleFolderPanel();
+				folderPanelItem.setSelection(SettingsConf.Bool.ShowFolderPanel.get());
+			}
+		});
+		SettingsConf.Bool.ShowFolderPanel.evtChanged.add(new Event.Listener<Boolean>() {
+			public void update(Boolean eventData) {
+				if (!folderPanelItem.isDisposed())
+					folderPanelItem.setSelection(eventData);
+			}
+		});
+		
+		final MenuItem previewPanelItem = new MenuItem(viewMenu, SWT.CHECK);
+		previewPanelItem.setText(Msg.menu_preview_panel.get());
+		previewPanelItem.setSelection(SettingsConf.Bool.ShowPreviewPanel.get());
+		previewPanelItem.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				togglePreviewPanel();
+				previewPanelItem.setSelection(SettingsConf.Bool.ShowPreviewPanel.get());
+			}
+		});
+		SettingsConf.Bool.ShowPreviewPanel.evtChanged.add(new Event.Listener<Boolean>() {
+			public void update(Boolean eventData) {
+				if (!previewPanelItem.isDisposed())
+					previewPanelItem.setSelection(eventData);
+			}
+		});
+		
+		Menu helpMenu = createMenu(menuBar, Msg.menu_help.get());
+		createMenuItem(helpMenu, Msg.menu_manual.get(), Img.HELP.get(), new Runnable() {
+			public void run() {
+				showManual();
+			}
+		});
+		final String appName = SystemConf.Str.ProgramName.get();
+		createMenuItem(helpMenu, Msg.menu_about.format(appName), null, new Runnable() {
+			public void run() {
+				AppUtil.showInfo(appName + " " + SystemConf.Str.ProgramVersion.get());
 			}
 		});
 	}
 
 	@NotNull
-	private static void initThreePanelForm() {
-		int filterPanelWidth = SettingsConf.Int.FilterPanelWidth.get();
-		threePanelForm = new ThreePanelForm(shell, filterPanelWidth) {
-			protected Control createFirstControl(Composite parent) {
-				return createLeftPanel(parent);
+	private static Menu createMenu(@NotNull Menu menuBar, @NotNull String label) {
+		MenuItem item = new MenuItem(menuBar, SWT.CASCADE);
+		item.setText(label);
+		Menu menu = new Menu(shell, SWT.DROP_DOWN);
+		item.setMenu(menu);
+		return menu;
+	}
+
+	@NotNull
+	private static MenuItem createMenuItem(	@NotNull Menu menu,
+											@NotNull String label,
+											@Nullable Image image,
+											@NotNull final Runnable action) {
+		MenuItem item = new MenuItem(menu, SWT.PUSH);
+		item.setText(label);
+		if (image != null)
+			item.setImage(image);
+		item.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				action.run();
 			}
+		});
+		return item;
+	}
+
+	/**
+	 * Opens the preferences dialog. If {@code showIndexesTab} is true, the
+	 * 'Indexes' tab is selected initially.
+	 */
+	private static void openPrefDialog(boolean showIndexesTab) {
+		PrefDialog prefDialog = new PrefDialog(
+			shell, programConfFile, indexPanel, defaultIndexParentDir);
+		prefDialog.evtOKClicked.add(new Event.Listener<Void> () {
+		    public void update(Void eventData) {
+		    	saveSettingsConfFile();
+		    	applyInboxFolders();
+		    }
+		});
+		prefDialog.open(showIndexesTab);
+	}
+
+	@NotNull
+	private static void initTwoPanelForm() {
+		twoPanelForm = new TwoPanelForm(shell) {
 			protected Control createFirstSubControl(Composite parent) {
 				return createRightTopPanel(parent);
 			}
@@ -1187,46 +1949,26 @@ public final class Application {
 			}
 		};
 
-		threePanelForm.setSashWidth(sashWidth);
-		threePanelForm.setSubSashWidth(sashWidth);
+		twoPanelForm.setSubSashWidth(sashWidth);
 
-		// Restore visibility of filter panel and preview panel
-		threePanelForm.setFirstControlVisible(SettingsConf.Bool.ShowFilterPanel.get());
-		threePanelForm.setSecondSubControlVisible(SettingsConf.Bool.ShowPreviewPanel.get());
+		// Restore visibility of preview panel
+		twoPanelForm.setSecondSubControlVisible(SettingsConf.Bool.ShowPreviewPanel.get());
 
 		// Restore orientation and weights of right sash
 		boolean isVertical = SettingsConf.Bool.ShowPreviewPanelAtBottom.get();
-		threePanelForm.setVertical(isVertical);
-		threePanelForm.setSubSashWeights(getRightSashWeights(isVertical));
-
-		// Store visibility of filter panel
-		threePanelForm.evtFirstControlShown.add(new Event.Listener<Boolean>() {
-			public void update(Boolean eventData) {
-				SettingsConf.Bool.ShowFilterPanel.set(eventData);
-			}
-		});
-
-		// Store width of filter panel
-		final Control leftControl = threePanelForm.getFirstControl();
-		leftControl.addControlListener(new ControlAdapter() {
-			public void controlResized(ControlEvent e) {
-				if (leftControl.isVisible()) {
-					int width = leftControl.getSize().x;
-					SettingsConf.Int.FilterPanelWidth.set(width);
-				}
-			}
-		});
+		twoPanelForm.setVertical(isVertical);
+		twoPanelForm.setSubSashWeights(getRightSashWeights(isVertical));
 
 		final boolean[] ignoreControlResize = { false };
 
 		// Store weights of right sash
-		Control topRightControl = threePanelForm.getFirstSubControl();
+		Control topRightControl = twoPanelForm.getFirstSubControl();
 		ControlListener rightControlListener = new ControlAdapter() {
 			public void controlResized(ControlEvent e) {
 				if (!previewPanel.isVisible() || ignoreControlResize[0])
 					return;
-				int[] weights = threePanelForm.getSubSashWeights();
-				if (threePanelForm.isVertical())
+				int[] weights = twoPanelForm.getSubSashWeights();
+				if (twoPanelForm.isVertical())
 					SettingsConf.IntArray.RightSashVertical.set(weights);
 				else
 					SettingsConf.IntArray.RightSashHorizontal.set(weights);
@@ -1236,7 +1978,7 @@ public final class Application {
 		previewPanel.addControlListener(rightControlListener);
 
 		// Store visibility of preview panel
-		threePanelForm.evtSecondSubControlShown.add(new Event.Listener<Boolean>() {
+		twoPanelForm.evtSecondSubControlShown.add(new Event.Listener<Boolean>() {
 			public void update(Boolean eventData) {
 				SettingsConf.Bool.ShowPreviewPanel.set(eventData);
 			}
@@ -1247,18 +1989,33 @@ public final class Application {
 		 * orientation changes. Without this, we'd set the same sash weights for
 		 * both orientations.
 		 */
-		threePanelForm.evtSubOrientationChanging.add(new Event.Listener<Boolean>() {
+		twoPanelForm.evtSubOrientationChanging.add(new Event.Listener<Boolean>() {
 			public void update(Boolean isVertical) {
 				ignoreControlResize[0] = true;
 			}
 		});
 
 		// Store orientation of right sash; update weights
-		threePanelForm.evtSubOrientationChanged.add(new Event.Listener<Boolean>() {
+		twoPanelForm.evtSubOrientationChanged.add(new Event.Listener<Boolean>() {
 			public void update(Boolean isVertical) {
 				SettingsConf.Bool.ShowPreviewPanelAtBottom.set(isVertical);
-				threePanelForm.setSubSashWeights(getRightSashWeights(isVertical));
+				twoPanelForm.setSubSashWeights(getRightSashWeights(isVertical));
 				ignoreControlResize[0] = false;
+			}
+		});
+		
+		/*
+		 * Apply preview position changes made on the preferences dialog. The
+		 * listener above sets the same value, in which case the setter doesn't
+		 * fire, so there's no feedback loop.
+		 */
+		SettingsConf.Bool.ShowPreviewPanelAtBottom.evtChanged.add(new Event.Listener<Boolean>() {
+			public void update(Boolean isVertical) {
+				if (twoPanelForm.isVertical() == isVertical)
+					return;
+				twoPanelForm.setVertical(isVertical);
+				if (!twoPanelForm.isSecondSubControlVisible())
+					twoPanelForm.setSecondSubControlVisible(true);
 			}
 		});
 	}
@@ -1273,146 +2030,50 @@ public final class Application {
 	private static void initStatusBar() {
 		statusBar = new StatusBar(shell) {
 			public List<StatusBarPart> createRightParts(StatusBar statusBar) {
+				// Clicking the progress indicator shows the indexing window
+				// (queue, configuration of new indexes, errors)
 				indexingStatus = new StatusBarPart(statusBar, true);
 				indexingStatus.setContents(Img.INDEXING.get(), Msg.indexing.get());
 				indexingStatus.setVisible(false);
-
-				indexPanel.evtIndexingDialogOpened.add(new Event.Listener<Void>() {
-					public void update(Void eventData) {
-						indexingStatus.setVisible(false);
-					}
-				});
-
 				indexingStatus.evtClicked.add(new Event.Listener<Void>() {
 					public void update(Void eventData) {
 						indexPanel.openIndexingDialog();
 					}
 				});
 				
-				StatusBarPart proLink = new StatusBarPart(statusBar, false);
-				proLink.setContents(null, "<a>" + Msg.try_docfetcher_pro.get() + "</a>");
-				proLink.evtLinkClicked.add(new Event.Listener<Void> () {
-					@Override
-					public void update(Void eventData) {
-						UtilGui.launch("https://docfetcherpro.com/comparison/");
-						if (docfetcherProTip != null) {
-							docfetcherProTip.shell.close();
-						}
-					}
-				});
-
-				List<StatusBarPart> parts = new ArrayList<StatusBarPart>(2);
+				List<StatusBarPart> parts = new ArrayList<StatusBarPart>(1);
 				parts.add(indexingStatus);
-				parts.add(proLink);
 				return parts;
 			}
 		};
 	}
-	
-	private static void showDocFetcherProTip() {
-		String text = Msg.docfetcher_pro_tip.get();
-		String linkText = Msg.dont_show_msg_again.get();
-		final HintOverlay overlay = new HintOverlay(shell, text, linkText);
-		
-		overlay.evtLinkClicked.add(new Event.Listener<Void>() {
-			@Override
-			public void update(Void eventData) {
-				overlay.shell.close();
-			}
-		});
-		overlay.shell.addShellListener(new ShellAdapter() {
-			@Override
-			public void shellClosed(ShellEvent e) {
-				/*
-				 * This code is not run if the overlay is closed due to the
-				 * parent shell being closed.
-				 */
-				SettingsConf.Bool.ShowDocFetcherProTip.set(false);
-				docfetcherProTip = null;
-			}
-		});
-		overlay.shell.addTraverseListener(new TraverseListener() {
-			@Override
-			public void keyTraversed(TraverseEvent e) {
-				// Prevent closing the overlay by pressing the escape key
-				if (e.detail == SWT.TRAVERSE_ESCAPE) {
-					e.doit = false;
-				}
-			}
-		});
-		
-		final Runnable setLocation = new Runnable() {
-			@Override
-			public void run() {
-				Point overlaySize = overlay.shell.getSize();
-				List<StatusBarPart> parts = statusBar.getRightParts();
-				if (parts.isEmpty()) {
-					return;
-				}
-				Control link = parts.get(parts.size() - 1).getControl();
-				Rectangle b = link.getBounds();
-				b = link.getDisplay().map(link.getParent(), null, b);
-				Point pt = new Point(b.x + b.width, b.y);
-				Point pt2 = new Point(
-					pt.x - overlaySize.x - 5, pt.y - overlaySize.y - 10);
-				overlay.shell.setLocation(pt2);
-			}
-		};
-		
-		shell.getDisplay().asyncExec(new Runnable() {
-			@Override
-			public void run() {
-				int width = Util.IS_WINDOWS ? 300 : 350;
-				Point size = overlay.shell.computeSize(width, SWT.DEFAULT);
-				overlay.shell.setSize(size);
-				setLocation.run();
-				overlay.open();
-			}
-		});
-		
-		final ControlAdapter listener = new ControlAdapter() {
-			@Override
-			public void controlMoved(ControlEvent e) {
-				setLocation.run();
-			}
-			@Override
-			public void controlResized(ControlEvent e) {
-				/*
-				 * With the asyncExec call below, this direct call is not
-				 * necessary on Linux, but it is necessary on Windows. Without
-				 * it, the overlay won't relocate until the parent shell has
-				 * stopped resizing. Not tested whether thsi call is necessary
-				 * on macOS.
-				 */
-				setLocation.run();
-				/*
-				 * This asyncExec is necessary for reacting to parent shell
-				 * maximization and un-maximization. On Linux, for some reason
-				 * it also makes the reaction to parent shell resizing immediate
-				 * instead of "wobbly".
-				 */
-				shell.getDisplay().asyncExec(setLocation);
-			}
-		};
-		shell.addControlListener(listener);
+
+	/**
+	 * Exits the program, regardless of the configured close action. The usual
+	 * shutdown sequence applies, e.g. the user is asked what to do with
+	 * running indexing tasks.
+	 */
+	private static void requestExit() {
+		exitRequested = true;
+		shell.close();
 		/*
-		 * Detach the listener once the overlay is disposed, otherwise we may
-		 * crash by trying to access a disposed widget.
+		 * If the close was vetoed, e.g. because the user chose not to abort
+		 * the indexing, reset the flag so that the next click on the close
+		 * button honors the configured close action again.
 		 */
-		overlay.shell.addDisposeListener(new DisposeListener() {
-			@Override
-			public void widgetDisposed(DisposeEvent e) {
-				shell.removeControlListener(listener);
-			}
-		});
-		
-		docfetcherProTip = overlay;
+		if (!shell.isDisposed())
+			exitRequested = false;
 	}
 
 	private static void handleShellClosed(@NotNull ShellEvent e) {
-		if (SettingsConf.Bool.CloseToTray.get() && !systemTrayShutdown && !Util.IS_UBUNTU_UNITY) {
+		int closeAction = SettingsConf.Int.CloseAction.get();
+		boolean forceExit = systemTrayShutdown || exitRequested;
+		if (!forceExit && closeAction == SettingsConf.CLOSE_ACTION_TRAY && !Util.IS_UBUNTU_UNITY) {
 			e.doit = false;
 			systemTrayHider.hide();
+		} else if (!forceExit && closeAction == SettingsConf.CLOSE_ACTION_MINIMIZE) {
+			e.doit = false;
+			shell.setMinimized(true);
 		} else {
 			e.doit = indexRegistry.getQueue().shutdown(new CancelHandler() {
 				public CancelAction cancel() {
@@ -1549,19 +2210,28 @@ public final class Application {
 			public void update(Void eventData) {
 				UtilGui.runSyncExec(shell, new Runnable() {
 					public void run() {
-						if (systemTrayHider.isHidden()) {
-							systemTrayHider.restore();
-						}
-						else {
-							shell.setMinimized(false);
-							shell.setVisible(true);
-							shell.forceActive();
-							searchBar.setFocus();
-						}
+						activateMainWindow();
 					}
 				});
 			}
 		});
+	}
+	
+	/**
+	 * Brings the main window to the front, restoring it from the system tray
+	 * or from its minimized state if necessary. Must be called from the GUI
+	 * thread.
+	 */
+	private static void activateMainWindow() {
+		if (systemTrayHider.isHidden()) {
+			systemTrayHider.restore();
+		}
+		else {
+			shell.setMinimized(false);
+			shell.setVisible(true);
+			shell.forceActive();
+			searchBar.setFocus();
+		}
 	}
 	
 	private static void handleHotkeyConflict(int[] hotkey) {
@@ -1573,13 +2243,7 @@ public final class Application {
 		 * at startup.
 		 */
 		if (shell.isVisible()) {
-			PrefDialog prefDialog = new PrefDialog(shell, programConfFile);
-			prefDialog.evtOKClicked.add(new Event.Listener<Void> () {
-			    public void update(Void eventData) {
-			    	saveSettingsConfFile();
-			    }
-			});
-			prefDialog.open();
+			openPrefDialog(false);
 		}
 	}
 
@@ -1604,7 +2268,7 @@ public final class Application {
 		File file = ManualLocator.getManualFile();
 		if (file != null) {
 			if (previewPanel.setHtmlFile(file))
-				threePanelForm.setSecondSubControlVisible(true);
+				twoPanelForm.setSecondSubControlVisible(true);
 			else
 				UtilGui.launch(file);
 		}
@@ -1612,6 +2276,25 @@ public final class Application {
 			String msg = Msg.file_not_found.get() + "\n" + SystemConf.Str.ProgramName.get() + "_Manual.html";
 			AppUtil.showError(msg, true, true);
 		}
+	}
+
+	/**
+	 * For the portable version on Windows, keeps the user data folder of the
+	 * embedded Edge (WebView2) browser inside the application folder, next to
+	 * the unpacked SWT libraries, instead of the default location under
+	 * %LOCALAPPDATA%. Must be called before the first browser widget is
+	 * created.
+	 */
+	private static void configureWebView2DataDir() {
+		if (!Util.IS_WINDOWS || !AppUtil.isPortable())
+			return;
+		String prop = "org.eclipse.swt.browser.EdgeDataDir";
+		if (System.getProperty(prop) != null)
+			return;
+		File dataDir = new File(AppUtil.getAppDataDir(), "lib/webview2");
+		dataDir.mkdirs();
+		if (dataDir.isDirectory() && AppUtil.canWriteToDirectory(dataDir))
+			System.setProperty(prop, dataDir.getAbsolutePath());
 	}
 
 	/**

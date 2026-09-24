@@ -1,0 +1,4 @@
+app.log
+xephyr.log
+*.pid
+*.png

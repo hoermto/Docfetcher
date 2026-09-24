@@ -13,7 +13,13 @@ package net.sourceforge.docfetcher.model.search;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 import net.sourceforge.docfetcher.model.DocumentType;
 import net.sourceforge.docfetcher.model.Fields;
@@ -23,6 +29,9 @@ import net.sourceforge.docfetcher.model.Path;
 import net.sourceforge.docfetcher.model.index.IndexingConfig;
 import net.sourceforge.docfetcher.model.index.file.FileFactory;
 import net.sourceforge.docfetcher.model.index.outlook.OutlookMailFactory;
+import org.apache.lucene.search.highlight.QueryTermExtractor;
+import org.apache.lucene.search.highlight.WeightedTerm;
+
 import net.sourceforge.docfetcher.model.parse.ChmParser;
 import net.sourceforge.docfetcher.model.parse.HtmlParser;
 import net.sourceforge.docfetcher.model.parse.PageHandler;
@@ -66,7 +75,7 @@ public final class ResultDocument {
 	private final OutlookMailFactory mailFactory;
 	
 	// Cached values
-	private final String uid;
+	private String uid;
 	private final boolean isEmail;
 	private Path path;
 	private Path parentPath;
@@ -227,6 +236,121 @@ public final class ResultDocument {
 		return new java.text.SimpleDateFormat("yyyyMMdd-HHmmss").format(date);
 	}
 	
+	/**
+	 * Returns the number of pages (or slides) of the document, or -1 if
+	 * unknown, e.g. for emails, for formats without page information, or for
+	 * indexes created before page counts were recorded.
+	 */
+	public int getPageCount() {
+		String value = luceneDoc.get(Fields.PAGES.key());
+		if (value == null)
+			return -1;
+		try {
+			int pages = Integer.parseInt(value);
+			return pages > 0 ? pages : -1;
+		}
+		catch (NumberFormatException e) {
+			return -1;
+		}
+	}
+	
+	private boolean folder = false;
+	private boolean parentRow = false;
+	
+	/**
+	 * Marks this document as a folder row, which is shown in the folder
+	 * browser instead of a document.
+	 */
+	public void setFolder(boolean folder) {
+		this.folder = folder;
+	}
+	
+	/** Returns true if this row stands for a folder, not for a document. */
+	public boolean isFolder() {
+		return folder;
+	}
+	
+	/** Marks this row as the '..' entry leading to the parent folder. */
+	public void setParentRow(boolean parentRow) {
+		this.parentRow = parentRow;
+	}
+	
+	/** Returns true if this is the '..' entry of the folder browser. */
+	public boolean isParentRow() {
+		return parentRow;
+	}
+	
+	/**
+	 * Returns true if the file of this document (or the archive containing
+	 * it) still exists. Always true for e-mails.
+	 */
+	public boolean existsOnDisk() {
+		if (isEmail)
+			return true;
+		try {
+			getPath().splitAtExistingFile();
+			return true;
+		}
+		catch (FileNotFoundException e) {
+			return false;
+		}
+	}
+	
+	/**
+	 * Returns true if this document is a plain file on disk, i.e. not an
+	 * email and not an entry inside an archive. Only such documents can be
+	 * renamed or moved.
+	 */
+	public boolean isPlainFileOnDisk() {
+		if (isEmail || folder)
+			return false;
+		try {
+			return getPath().splitAtExistingFile().getRight().isEmpty();
+		}
+		catch (FileNotFoundException e) {
+			return false;
+		}
+	}
+	
+	/**
+	 * Updates this document after its file was renamed or moved on disk, so
+	 * that the result table and the preview reflect the new location until
+	 * the index has been updated. Must be called from the GUI thread.
+	 */
+	public void setPathAfterFileOperation(@NotNull File newFile) {
+		Util.checkNotNull(newFile);
+		onlyFiles();
+		String oldFilename = getFilename();
+		String oldTitle = getTitle();
+		String newFilename = newFile.getName();
+		Path newPath = new Path(newFile);
+		
+		// The UID consists of a type prefix and the path
+		String oldPathStr = getPath().getPath();
+		String prefix = uid.endsWith(oldPathStr)
+			? uid.substring(0, uid.length() - oldPathStr.length())
+			: DocumentType.FILE.createUniqueId(new Path("")); // fallback
+		String newUid = prefix + newPath.getPath();
+		
+		luceneDoc.removeFields(Fields.UID.key());
+		luceneDoc.add(Fields.UID.create(newUid));
+		luceneDoc.removeFields(Fields.FILENAME.key());
+		luceneDoc.add(Fields.FILENAME.create(newFilename));
+		// The title defaults to the filename without extension
+		if (oldTitle.equals(Util.splitFilename(oldFilename)[0])) {
+			luceneDoc.removeFields(Fields.TITLE.key());
+			luceneDoc.add(Fields.TITLE.create(Util.splitFilename(newFilename)[0]));
+		}
+		uid = newUid;
+		path = null;
+		parentPath = null;
+	}
+	
+	@NotNull
+	public String getUniqueId() {
+		return uid;
+	}
+	
 	public boolean isEmail() {
 		return isEmail;
 	}
@@ -247,15 +371,84 @@ public final class ResultDocument {
 		return wasParsedBy(TextParser.class);
 	}
 	
-	private boolean wasParsedBy(Class<? extends Parser> parserClass) {
-		String parserName = luceneDoc.get(Fields.PARSER.key());
-		return parserName.equals(parserClass.getSimpleName());
+	/** Returns true if this is a Word 2007+ document (docx, docm, dotx, dotm). */
+	public boolean isWordFile() {
+		return wasParsedBy("MSWord2007Parser");
 	}
 	
-	// Should be run in a thread
-	// thrown parse exception has localized error message
+	/** Returns true if this is an Excel workbook (xlsx, xlsm, xltx, xltm, xls). */
+	public boolean isExcelFile() {
+		return wasParsedBy("MSExcel2007Parser") || wasParsedBy("MSExcelParser");
+	}
+	
+	public boolean isRtfFile() {
+		return wasParsedBy("RtfParser");
+	}
+	
+	private static final Set<String> IMAGE_EXTENSIONS = new HashSet<String>(
+		Arrays.asList("png", "jpg", "jpeg", "gif", "bmp", "tif", "tiff"));
+	
+	/**
+	 * Returns true if this is an image file (by extension), which the preview
+	 * pane shows as a picture, e.g. a scanned document.
+	 */
+	public boolean isImageFile() {
+		if (isEmail)
+			return false;
+		return IMAGE_EXTENSIONS.contains(Util.getExtension(getFilename()).toLowerCase());
+	}
+	
+	/**
+	 * Returns true if this document can be shown in the rich document viewer
+	 * of the preview pane (PDF, Word, Excel, RTF), rather than as plain text.
+	 */
+	public boolean isRichPreviewFile() {
+		return !isEmail && (isPdfFile() || isWordFile() || isExcelFile() || isRtfFile());
+	}
+	
+	private boolean wasParsedBy(Class<? extends Parser> parserClass) {
+		return wasParsedBy(parserClass.getSimpleName());
+	}
+	
+	private boolean wasParsedBy(@NotNull String parserSimpleName) {
+		String parserName = luceneDoc.get(Fields.PARSER.key());
+		return parserName != null && parserName.equals(parserSimpleName);
+	}
+	
+	/**
+	 * Returns the search terms of the query that produced this result, in
+	 * lowercase and without duplicates. Used for highlighting matches in the
+	 * rich document preview. Wildcard and fuzzy queries may yield no terms.
+	 */
 	@NotNull
-	private String getText() throws ParseException, FileNotFoundException,
+	public List<String> getQueryTerms() {
+		Set<String> terms = new LinkedHashSet<String>();
+		try {
+			for (WeightedTerm term : QueryTermExtractor.getTerms(query, false, Fields.CONTENT.key())) {
+				String t = term.getTerm();
+				if (t != null && !t.trim().isEmpty())
+					terms.add(t.trim());
+			}
+			// Also include terms targeted at other fields (e.g. title)
+			for (WeightedTerm term : QueryTermExtractor.getTerms(query)) {
+				String t = term.getTerm();
+				if (t != null && !t.trim().isEmpty())
+					terms.add(t.trim());
+			}
+		}
+		catch (RuntimeException e) {
+			// Best effort only
+		}
+		return new ArrayList<String>(terms);
+	}
+	
+	/**
+	 * Returns the plain text of the document, extracted from the file. This
+	 * may take a while and should be run in a non-GUI thread. The thrown
+	 * parse exception has a localized error message.
+	 */
+	@NotNull
+	public String getText() throws ParseException, FileNotFoundException,
 			CheckedOutOfMemoryError {
 		onlyFiles();
 		String parserName = luceneDoc.get(Fields.PARSER.key());

@@ -128,9 +128,6 @@ public enum Msg {
 		"Please enter a new index name:"),
 	rename_index_failed (
 		"Saving the index name failed. Index files might be write-protected."),
-	try_docfetcher_pro ("Try DocFetcher Pro"),
-	docfetcher_pro_tip ("You may be interested in DocFetcher Pro, the commercial big brother of DocFetcher with more features."),
-	dont_show_msg_again ("Don't show this message again."),
 	
 	// Filter panel
 	min_max_filesize (
@@ -169,6 +166,7 @@ public enum Msg {
 	filetype_odp ("OpenOffice.org Impress (odp, otp)", Comments.filetype),
 	filetype_pdf ("PDF Document (pdf)", Comments.filetype),
 	filetype_jpg ("JPEG (jpg, jpeg)", Comments.filetype),
+	filetype_image ("Image (png, jpg, gif, bmp, tif)", Comments.filetype),
 	filetype_mp3 ("MP3 (mp3)", Comments.filetype),
 	filetype_rtf ("Rich Text Format (rtf)", Comments.filetype),
 	filetype_svg ("Scalable Vector Graphics (svg)", Comments.filetype),
@@ -249,20 +247,70 @@ public enum Msg {
 	// Various GUI controls
 	search ("Search",
 		"Label of the 'Search' button right next to the search field."),
-	open_manual ("Open Manual (F1)",
-		"Tooltip text for the '?' button to open the manual."),
+	menu_file ("&File",
+		"Label of the 'File' menu in the menu bar. The '&' marks the " +
+		"mnemonic character."),
+	menu_view ("&View",
+		"Label of the 'View' menu in the menu bar. The '&' marks the " +
+		"mnemonic character."),
+	menu_folder_panel ("&Folder panel\tF3",
+		"Menu entry that shows a second folder browser next to the tabs."),
+	menu_preview_panel ("&Preview panel\tF4",
+		"Menu entry that shows or hides the preview pane."),
+	menu_help ("&Help",
+		"Label of the 'Help' menu in the menu bar. The '&' marks the " +
+		"mnemonic character."),
+	menu_preferences ("&Preferences...",
+		"Menu entry that opens the preferences dialog."),
+	menu_indexes ("&Indexes...",
+		"Menu entry that opens the preferences dialog on the 'Indexes' tab."),
+	menu_manual ("&Manual\tF1",
+		"Menu entry that opens the manual. The '\tF1' is the keyboard " +
+		"shortcut."),
+	menu_about ("&About {0}",
+		"Menu entry that shows the program name and version. The program " +
+		"name is inserted in the {0} slot."),
 	preferences ("Preferences",
 		"Window title for the preferences dialog and tooltip text for the button " +
 		"to open the preferences dialog."),
 	indexing ("Indexing...",
 		"Message shown in the status bar to indicate that an indexing " +
 		"process is running in the background."),
+	indexing_progress ("Indexing... {0} %",
+		"Message shown in the status bar next to the progress bar while " +
+		"indexing runs in the background. The overall percentage is " +
+		"inserted in the {0} slot."),
+	index_col_status ("Status",
+		"Column header of the index table on the preferences dialog: the " +
+		"state of the index (queued, indexing, last update)."),
+	index_status_waiting ("Not started: press 'Run' in the indexing window",
+		"Status of an index whose creation has been started but whose " +
+		"settings haven't been confirmed with the 'Run' button of the " +
+		"indexing window yet."),
+	indexing_status_tooltip ("Click to show the indexing window.",
+		"Last line of the tooltip of the indexing progress indicator in " +
+		"the status bar."),
+	index_status_queued ("Queued",
+		"Status of an index that waits for its indexing task to start."),
+	index_status_creating ("Creating {0}",
+		"Status of an index that is being created. The progress in percent " +
+		"is inserted in the {0} slot (may be empty)."),
+	index_status_updating ("Updating {0}",
+		"Status of an index that is being updated. The progress in percent " +
+		"is inserted in the {0} slot (may be empty)."),
+	index_status_rebuilding ("Rebuilding {0}",
+		"Status of an index that is being rebuilt. The progress in percent " +
+		"is inserted in the {0} slot (may be empty)."),
+	index_status_updated ("Updated {0}",
+		"Status of an idle index: the date and time of the last update are " +
+		"inserted in the {0} slot."),
 	web_interface ("Web Interface",
 		"Window title for the web interface dialog and the tooltip text for " +
 		"the button to open the web interface dialog."),
 	to_systray (
-		"Minimize To System Tray",
-		"Label for a button to minimize the program into the system tray."),
+		"Minimize To System &Tray",
+		"Menu entry that minimizes the program into the system tray. The " +
+		"'&' marks the mnemonic character."),
 	press_f1_for_help (
 		"Press F1 for help.",
 		"On startup, this message shown in the status bar to indicate that " +
@@ -718,15 +766,455 @@ public enum Msg {
 	size ("Size"),
 	filename ("Filename"),
 	type ("Type"),
-	path ("Path"),
+	path ("Folder",
+		"Column header of the result tables showing the folder a document is " +
+		"in (the file name has its own column)."),
 	authors ("Authors"),
 	last_modified ("Last Modified"),
+	pages ("Pages",
+		"Header of the result table column showing the number of pages of a " +
+		"document (or slides of a presentation)."),
 	subject ("Subject"),
 	sender ("Sender"),
 	send_date ("Send Date"),
 	open ("Open"),
 	open_parent ("Open Parent Folder"),
+	open_in_explorer ("Open in Explorer",
+		"Context menu entry that opens the selected folders in the Windows " +
+		"file manager."),
+	open_in_file_manager ("Open in File Manager",
+		"Context menu entry that opens the selected folders in the file " +
+		"manager, on systems other than Windows."),
 	open_limit ("The number of entries that can be opened simultaneously is limited to {0}."),
+	
+	// Settings dialog: tabs, preview position, index management
+	pref_tab_general ("General",
+		"Label of the 'General' tab on the preferences dialog."),
+	pref_tab_indexes ("Indexes",
+		"Label of the 'Indexes' tab on the preferences dialog, which contains " +
+		"the index management controls and the index folder setting."),
+	pref_tab_folders ("Folders",
+		"Label of the preferences tab with the inbox folders and the fixed " +
+		"move targets."),
+	pref_preview_position ("Preview position:",
+		Comments.prefOption + "Where the preview pane is placed relative to " +
+		"the result table."),
+	pref_preview_right ("Right of results",
+		"Choice for the 'Preview position' option: The preview pane is shown " +
+		"to the right of the result table."),
+	pref_preview_bottom ("Below results",
+		"Choice for the 'Preview position' option: The preview pane is shown " +
+		"below the result table."),
+	pref_index_folder ("Index folder:",
+		Comments.prefOption + "The folder where the program stores its index files."),
+	pref_index_folder_hint (
+		"Leave empty to use the default location. Changes take effect after " +
+		"the program is restarted.",
+		"Explanatory text below the 'Index folder' option on the preferences " +
+		"dialog."),
+	browse ("Browse...",
+		"Label of a button that opens a folder chooser."),
+	index_folder_changed_restart (
+		"The new index folder will be used after {0} is restarted.",
+		"Message shown after the user changed the index folder in the " +
+		"preferences dialog. The program name will be inserted in the {0} slot."),
+	move_indexes_to_new_folder (
+		"Move the existing indexes to the new index folder?\n\n" +
+		"The indexes will be moved the next time {0} is started.",
+		"Confirmation message shown after the user changed the index folder. " +
+		"The program name will be inserted in the {0} slot."),
+	index_move_failed (
+		"The following index folders could not be moved to the new index " +
+		"folder:\n\n{0}",
+		"Error message shown on startup when moving the index folders failed. " +
+		"The list of index folders will be inserted in the {0} slot."),
+	invalid_index_folder (
+		"The index folder could not be created or is not writable:\n{0}",
+		"Error message shown when the user entered an invalid index folder in " +
+		"the preferences dialog. The folder path is inserted in the {0} slot."),
+	index_col_name ("Name",
+		"Header of the column showing the index names in the index table on " +
+		"the preferences dialog."),
+	index_col_location ("Location",
+		"Header of the column showing the indexed folder or file in the index " +
+		"table on the preferences dialog."),
+	create_index_bt ("Create Index...",
+		"Button on the preferences dialog that opens a menu for creating a " +
+		"new index from a folder, archive, Outlook PST file or the clipboard."),
+	update_index_bt ("Update",
+		"Button on the preferences dialog for updating the selected indexes."),
+	rebuild_index_bt ("Rebuild",
+		"Button on the preferences dialog for rebuilding the selected indexes."),
+	rename_index_bt ("Rename...",
+		"Button on the preferences dialog for renaming the selected index."),
+	remove_index_bt ("Remove",
+		"Button on the preferences dialog for removing the selected indexes."),
+	remove_orphaned_indexes_bt ("Remove Orphaned",
+		"Button on the preferences dialog for removing all indexes whose " +
+		"document folders have been deleted."),
+	
+	pref_update_indexes_on_startup (
+		"Update indexes on startup (picks up changes made while the program was closed)",
+		Comments.prefOption + "If checked, all indexes whose folders are " +
+		"watched for changes are updated in the background when the program " +
+		"starts."),
+	pref_icon_size ("Icon size:",
+		Comments.prefOption + "Size of the icons in the program window, for " +
+		"screens with a high resolution."),
+	pref_icon_size_auto ("Automatic"),
+	pref_icon_size_hint (
+		"A new icon size takes effect after {0} has been restarted.",
+		"Note below the icon size option. The program name is inserted in " +
+		"the {0} slot."),
+	pref_show_path_column (
+		"Show the folder of a document as a column in the result tables",
+		Comments.prefOption + "If unchecked, the folder is only shown as a " +
+		"tooltip and in the status bar."),
+	pref_daily_index_update (
+		"Update all indexes once a day in the background",
+		Comments.prefOption + "If checked, all indexes are updated once a " +
+		"day while the program runs, so that deleted or changed files are " +
+		"picked up even in folders that aren't watched."),
+	pref_ocr (
+		"Recognize text in images and scanned PDFs (OCR, German and English)",
+		Comments.prefOption + "If checked, the text of image files and " +
+		"PDF files without text is recognized with the bundled Tesseract " +
+		"engine and stored in the files."),
+	pref_store_ocr_text (
+		"Store the recognized text in the files (text layer in PDFs, " +
+		"metadata in images)",
+		Comments.prefOption + "If unchecked, the recognized text is only " +
+		"put into the index, and files are never modified; recognition then " +
+		"has to be repeated whenever an index is rebuilt."),
+	pref_convert_tiff (
+		"Convert TIFF files to PDF files with a text layer (requires OCR)",
+		Comments.prefOption + "If checked, TIFF files are replaced by PDF " +
+		"files containing the scanned pages and the recognized text while " +
+		"indexing."),
+	pref_keep_tiff (
+		"Keep the original TIFF file, renamed to '.tif.ocr'",
+		Comments.prefOption + "If checked, a converted TIFF file is not " +
+		"deleted but renamed, so that it can be checked later."),
+	ocr_failed (
+		"Text recognition failed: {0}",
+		"Error message for a file whose text could not be recognized. The " +
+		"reason is inserted in the {0} slot."),
+	ocr_unavailable (
+		"Text recognition is not available: {0}",
+		"Message shown in the preferences dialog when the OCR engine could " +
+		"not be loaded. The reason is inserted in the {0} slot."),
+	
+	pref_close_action ("When closing the program window:",
+		Comments.prefOption + "Dropdown for choosing what happens when the " +
+		"user clicks on the close button of the main window."),
+	close_action_exit ("Exit",
+		"Choice for the 'When closing the program window' option: The " +
+		"program exits."),
+	close_action_minimize ("Minimize to taskbar",
+		"Choice for the 'When closing the program window' option: The window " +
+		"is minimized to the taskbar instead of exiting."),
+	close_action_tray ("Hide in system tray",
+		"Choice for the 'When closing the program window' option: The window " +
+		"is hidden in the system tray instead of exiting."),
+	pref_start_with_windows ("Start DocFetcher with Windows",
+		Comments.prefOption + "If checked, the program is started " +
+		"automatically when the user logs on to Windows."),
+	autostart_failed (
+		"The Windows startup entry could not be changed: {0}",
+		"Error message shown when registering or unregistering the program " +
+		"as a Windows startup program failed. The reason is inserted in the " +
+		"{0} slot."),
+	exit_app ("E&xit DocFetcher\tCtrl+Q",
+		"Menu entry that exits the program. The '\tCtrl+Q' is a keyboard " +
+		"shortcut and might need translation; the '&' marks the mnemonic " +
+		"character."),
+	
+	rebuild_outdated_indexes_title ("Outdated Indexes",
+		"Window title of the dialog asking the user to rebuild indexes that " +
+		"were created by an older program version."),
+	rebuild_outdated_indexes_msg (
+		"The following indexes were created by an older version of {0} and " +
+		"lack some information (page counts, text recognized in scanned " +
+		"documents). Rebuild them now? The rebuild runs in the " +
+		"background.\n\n{1}",
+		"Message asking the user to rebuild outdated indexes. The program " +
+		"name is inserted in the {0} slot, the list of index names in the " +
+		"{1} slot."),
+	rebuild_now ("&Rebuild Now",
+		"Button label for rebuilding the outdated indexes immediately."),
+	later ("&Later",
+		"Button label for postponing an action; the user is asked again " +
+		"the next time the program starts."),
+	dont_ask_again ("&Don't Ask Again",
+		"Button label for permanently dismissing a question."),
+	
+	// Renaming and moving documents from the result table
+	undo_nothing ("There is nothing to undo.",
+		"Message shown when Ctrl+Z is pressed but no file operation has " +
+		"been carried out yet."),
+	undo_rename ("Undo the renaming of ''{0}''?",
+		"Confirmation before undoing a renaming. The file name is inserted " +
+		"in the {0} slot."),
+	undo_move ("Move {0} file(s) back? ({1})",
+		"Confirmation before undoing a move. The number of files is " +
+		"inserted in the {0} slot, the first file name in the {1} slot."),
+	undo_delete_in_trash (
+		"The last operation deleted {0} file(s), starting with ''{1}''. " +
+		"Deleted files are in the recycle bin and can be restored from " +
+		"there.",
+		"Message shown when the user tries to undo a deletion. The number " +
+		"of files is inserted in the {0} slot, the first file name in the " +
+		"{1} slot."),
+	menu_undo ("&Undo file operation\tCtrl+Z",
+		"Menu entry that undoes the last renaming or moving of files."),
+	show_in_folder_panel ("Show in Folder View",
+		"Context menu entry of the result table that opens the file's " +
+		"folder in the folder browser, in contrast to 'Open Parent Folder', " +
+		"which opens the system's file manager."),
+	pref_sync_folder_view (
+		"Show the folder of the selected search result in the folder view",
+		Comments.prefOption + "If checked, clicking a search result opens " +
+		"its folder in the folder browser."),
+	delete_document ("Delete...\tDel",
+		"Context menu entry of the result table for deleting the selected " +
+		"files. The '\tDel' is a keyboard shortcut."),
+	confirm_delete_trash (
+		"Move {0} file(s) to the recycle bin?\n\n{1}",
+		"Confirmation before deleting files. The number of files is " +
+		"inserted in the {0} slot, their names in the {1} slot."),
+	confirm_delete_permanently (
+		"Delete {0} file(s) permanently? This cannot be undone.\n\n{1}",
+		"Confirmation before deleting files on a system without a recycle " +
+		"bin. The number of files is inserted in the {0} slot, their names " +
+		"in the {1} slot."),
+	confirm_delete_folder_trash (
+		"Move the folder ''{0}'' with {1} file(s) to the recycle bin?",
+		"Confirmation before deleting a folder. The folder name is " +
+		"inserted in the {0} slot, the number of files it contains in the " +
+		"{1} slot."),
+	confirm_delete_folder_permanently (
+		"Delete the folder ''{0}'' with {1} file(s) permanently? This cannot " +
+		"be undone.",
+		"Confirmation before deleting a folder on a system without a " +
+		"recycle bin. The folder name is inserted in the {0} slot, the " +
+		"number of files it contains in the {1} slot."),
+	delete_folder_index_root (
+		"''{0}'' is the root folder of an index and is therefore not deleted " +
+		"here. Remove the index first, then delete the folder in the file " +
+		"manager.",
+		"Error message shown when the user tries to delete the root folder " +
+		"of an index. The folder name is inserted in the {0} slot."),
+	rename_folder_title ("Rename Folder",
+		"Title of the dialog for renaming a folder in the folder browser."),
+	rename_folder_msg ("Please enter the new folder name:",
+		"Message of the dialog for renaming a folder."),
+	rename_folder_failed ("''{0}'' cannot be used as a folder name.",
+		"Error message for an unusable folder name, which is inserted in " +
+		"the {0} slot."),
+	rename_folder_index_root (
+		"''{0}'' is the root folder of an index and is therefore not renamed " +
+		"here. Remove the index first, rename the folder in the file " +
+		"manager, and create the index again.",
+		"Error message shown when the user tries to rename the root folder " +
+		"of an index. The folder name is inserted in the {0} slot."),
+	new_folder ("New Folder...",
+		"Button in the folder browser for creating a subfolder."),
+	new_folder_title ("New Folder",
+		"Title of the dialog asking for the name of a new folder."),
+	new_folder_msg ("Please enter the name of the new folder:",
+		"Message of the dialog asking for the name of a new folder."),
+	new_folder_failed ("The folder could not be created:\n{0}",
+		"Error message when a new folder couldn't be created. The path is " +
+		"inserted in the {0} slot."),
+	rename_document ("Rename...\tF2",
+		"Context menu entry of the result table for renaming the selected " +
+		"file. The '\tF2' is a keyboard shortcut."),
+	rename_document_title ("Rename Document",
+		"Window title of the dialog for renaming a file."),
+	rename_document_msg ("New file name:",
+		"Label of the text field in the dialog for renaming a file."),
+	move_to_folder ("Move to Folder...",
+		"Context menu entry of the result table for moving the selected " +
+		"files into another folder."),
+	move_to_folder_title ("Move to Folder",
+		"Window title of the dialog for moving files into another folder."),
+	move_suggestions_label (
+		"Suggested folders, based on documents with similar content:",
+		"Label above the list of suggested target folders in the 'Move to " +
+		"Folder' dialog."),
+	computing_suggestions ("Looking for similar documents...",
+		"Placeholder shown in the 'Move to Folder' dialog while the folder " +
+		"suggestions are being computed."),
+	no_suggestions (
+		"No similar documents were found in the indexes. Use 'Browse...' to " +
+		"choose a folder.",
+		"Message shown in the 'Move to Folder' dialog when no folder could be " +
+		"suggested."),
+	move_bt ("&Move",
+		"Label of the button in the 'Move to Folder' dialog that moves the " +
+		"files."),
+	folder_col ("Folder",
+		"Header of the folder column in the 'Move to Folder' dialog."),
+	match_col ("Match",
+		"Header of the column in the 'Move to Folder' dialog showing how well " +
+		"a suggested folder matches, as a percentage."),
+	target_folder_label ("Target folder:",
+		"Label of the field showing the chosen target folder in the 'Move to " +
+		"Folder' dialog."),
+	only_plain_files (
+		"This operation is only available for files on disk, not for emails " +
+		"or files inside archives.",
+		"Error message shown when the user tries to rename or move an email " +
+		"or an archive entry."),
+	file_exists_error (
+		"A file with this name already exists:\n{0}",
+		"Error message shown when renaming or moving a file would overwrite " +
+		"an existing file. The path is inserted in the {0} slot."),
+	file_operation_failed (
+		"The file could not be renamed or moved:\n{0}",
+		"Error message shown when renaming or moving a file failed. The " +
+		"reason is inserted in the {0} slot."),
+	copied_keep_original_msg (
+		"The document was copied to the target folder. Do you want to keep " +
+		"the original as well? Choose 'Remove Original' to avoid duplicates.",
+		"Question asked after the user copied a document by dragging it with " +
+		"the Ctrl key into another program, e.g. Windows Explorer."),
+	keep_both_bt ("&Keep Both",
+		"Button label: keep both the original and the copied document."),
+	remove_original_bt ("&Remove Original",
+		"Button label: delete the original document after it was copied."),
+	remove_original_failed (
+		"The original document could not be removed. It may still be in use " +
+		"by the copy operation; please remove it manually:\n{0}",
+		"Error message shown when deleting the original document after a " +
+		"copy failed. The path is inserted in the {0} slot."),
+	
+	match_filenames ("Also match file names (any part of the name)",
+		"Checkbox on the search settings dialog: If checked, the search " +
+		"terms are additionally matched against the file names, as " +
+		"substrings."),
+	pref_folder_path_segments ("Path segments shown for suggested folders:",
+		Comments.prefOption + "How many trailing parts of a folder path are " +
+		"shown in the first column of the 'Move to Folder' dialog, e.g. 2 " +
+		"shows 'Projects/Reports'."),
+	
+	// Inbox tab and name suggestions
+	search_tab ("Search",
+		"Label of the main window tab containing the search field and the " +
+		"search results."),
+	pref_inbox_folders ("Inbox folders:",
+		Comments.prefOption + "List of folders each of which is shown on its " +
+		"own tab in the main window, typically where a scanner saves new " +
+		"documents."),
+	pref_inbox_folders_hint (
+		"Each folder is shown on its own tab, where its files can be renamed " +
+		"and moved. The folders are indexed automatically. The tab is named " +
+		"after the last part of the folder path unless a name is set.",
+		"Explanatory text below the 'Inbox folders' list on the preferences " +
+		"dialog."),
+	pref_move_targets ("Fixed move targets:",
+		Comments.prefOption + "List of folders that are always offered at " +
+		"the top of the 'Move To' menu and of the move dialog."),
+	pref_move_targets_hint (
+		"These folders are always listed first in the 'Move To' menu and in " +
+		"the move dialog, above the folders suggested by content.",
+		"Explanatory text below the 'Fixed move targets' list on the " +
+		"preferences dialog."),
+	move_target_fixed ("fixed",
+		"Shown in the 'Match' column of the move dialog for a fixed move " +
+		"target instead of a percentage."),
+	move_target_recent ("recently used",
+		"Shown in the 'Match' column of the move dialog for a recently used " +
+		"move target instead of a percentage."),
+	inbox_col_tab_name ("Tab Name",
+		"Column header of the inbox folder list on the preferences dialog: " +
+		"the name of the tab in the main window."),
+	add_inbox_folder_bt ("Add...",
+		"Button on the preferences dialog for adding an inbox folder."),
+	rename_inbox_folder_title ("Rename Inbox Tab",
+		"Title of the dialog for changing the name of an inbox tab."),
+	rename_inbox_folder_msg (
+		"Please enter the tab name (leave empty to use the folder name):",
+		"Message on the dialog for changing the name of an inbox tab."),
+	inbox_folder_label ("Inbox folder: {0}",
+		"Label on the 'Inbox' tab showing the inbox folder. The folder path " +
+		"is inserted in the {0} slot."),
+	inbox_files_count ("{0} files",
+		"Label on the 'Inbox' tab showing the number of listed files, " +
+		"inserted in the {0} slot."),
+	inbox_not_indexed (
+		"The inbox folder is being indexed. Name and folder suggestions " +
+		"will be available once indexing has finished.",
+		"Message shown on an inbox tab while the inbox folder has no " +
+		"index yet."),
+	inbox_folder_missing (
+		"The inbox folder does not exist:\n{0}",
+		"Message shown on the 'Inbox' tab when the configured folder is " +
+		"missing. The path is inserted in the {0} slot."),
+	folders_tab ("Folders",
+		"Label of the main window tab that browses the indexed folders."),
+	folder_roots_bt ("Indexed folders",
+		"Tooltip of the button that returns to the list of root folders in " +
+		"the 'Folders' tab."),
+	folder_up ("Up",
+		"Tooltip of the button that goes to the parent folder in the " +
+		"'Folders' tab."),
+	folder_roots ("Indexed folders and fixed move targets",
+		"Shown instead of a path on the 'Folders' tab while the list of " +
+		"root folders is displayed."),
+	refresh ("Refresh",
+		"Label of the button that reloads the file list on the 'Inbox' tab."),
+	rename_to_submenu ("Rename To",
+		"Context menu entry of the result table containing suggested file " +
+		"names; selecting one renames the file."),
+	suggestions_computing ("(computing suggestions...)",
+		"Disabled entry in the 'Rename To' submenu while the name " +
+		"suggestions are being computed."),
+	suggestions_unavailable ("(no suggestion available)",
+		"Disabled entry in the 'Rename To' submenu when no suggestion could " +
+		"be computed, e.g. because the document couldn't be parsed."),
+	suggested_keywords ("Suggested keywords (click to add):",
+		"Label above the list of suggested keywords in the rename dialog."),
+	use_current_name ("Use current name",
+		"Link in the rename dialog that resets the name field to the " +
+		"file's current name."),
+	use_suggested_name ("Use suggested name",
+		"Link in the rename dialog that fills the name field with the " +
+		"suggested name."),
+	
+	move_to_submenu ("Move To",
+		"Context menu entry of the result table containing suggested target " +
+		"folders; selecting one moves the selected files there."),
+	move_to_other_folder ("Other Folder...",
+		"Entry in the 'Move To' submenu that opens the dialog for choosing " +
+		"any folder."),
+	
+	// Search settings dialog (document types and search scope filters)
+	search_settings_title ("Search Settings",
+		"Window title of the dialog containing the search filters, i.e. the " +
+		"'Document Types' list and the 'Search Scope' tree."),
+	search_settings_bt ("Search Settings...",
+		"Label of the button next to the 'Search' button that opens the " +
+		"search settings dialog."),
+	
+	// Rich document preview
+	preview_render_failed (
+		"The document could not be rendered for preview: {0}",
+		"Error message shown in the preview pane when converting a document " +
+		"(e.g. PDF, Word, Excel) into a viewable form failed. The reason will " +
+		"be inserted in the {0} slot."),
+	zoom_in ("Zoom In",
+		"Tooltip of the button that enlarges the page in the PDF preview."),
+	zoom_out ("Zoom Out",
+		"Tooltip of the button that shrinks the page in the PDF preview."),
+	page_of ("Page {0} of {1}",
+		"Label showing the current page number and the total number of pages " +
+		"in the PDF preview."),
+	image_dimensions ("{0} x {1} pixels",
+		"Label on the image preview toolbar showing the width and height " +
+		"of the image, inserted in the {0} and {1} slots."),
+	unsupported_image_format ("Unsupported image format.",
+		"Error shown in the preview pane when an image file can't be decoded."),
 	;
 	
 	private static boolean checkEnabled = true;

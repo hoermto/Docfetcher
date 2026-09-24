@@ -13,7 +13,13 @@ package net.sourceforge.docfetcher.model.search;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.StringReader;
+import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -28,12 +34,14 @@ import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.model.Fields;
 import net.sourceforge.docfetcher.model.IndexLoadingProblems.CorruptedIndex;
 import net.sourceforge.docfetcher.model.IndexRegistry;
+import net.sourceforge.docfetcher.model.DocumentType;
 import net.sourceforge.docfetcher.model.IndexRegistry.ExistingIndexesHandler;
 import net.sourceforge.docfetcher.model.LuceneIndex;
 import net.sourceforge.docfetcher.model.Path;
 import net.sourceforge.docfetcher.model.PendingDeletion;
 import net.sourceforge.docfetcher.model.index.DecoratedMultiReader;
 import net.sourceforge.docfetcher.model.index.IndexingConfig;
+import net.sourceforge.docfetcher.model.parse.ParseService;
 import net.sourceforge.docfetcher.model.index.file.FileFactory;
 import net.sourceforge.docfetcher.model.index.outlook.OutlookMailFactory;
 import net.sourceforge.docfetcher.model.parse.Parser;
@@ -49,8 +57,11 @@ import net.sourceforge.docfetcher.util.annotations.VisibleForPackageGroup;
 import net.sourceforge.docfetcher.util.collect.AlphanumComparator;
 import net.sourceforge.docfetcher.util.collect.LazyList;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.queries.mlt.MoreLikeThis;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
@@ -75,6 +86,14 @@ import com.google.common.io.Closeables;
 @ThreadSafe
 public final class Searcher {
 	
+	private static boolean isExcluded(	@NotNull File folder,
+										@NotNull Collection<File> excludeFolders) {
+		for (File excluded : excludeFolders)
+			if (Util.isCanonicallyEqual(folder, excluded))
+				return true;
+		return false;
+	}
+
 	/**
 	 * A single page of results.
 	 */
@@ -335,6 +354,333 @@ public final class Searcher {
 		stopped =true;
 	}
 	
+	/**
+	 * Suggests folders into which a document with the given text could be
+	 * moved: The indexed documents most similar to the text (by keyword
+	 * usage) are looked up, and their folders are ranked by the accumulated
+	 * similarity. Folders equal to the given one are excluded, as are folders
+	 * that don't exist on disk (e.g. archive contents). Returns at most
+	 * {@code maxFolders} suggestions, best first, with relevances normalized
+	 * to 0..1.
+	 * <p>
+	 * This may take a moment and should be run in a non-GUI thread.
+	 */
+	@ImmutableCopy
+	@NotNull
+	@ThreadSafe
+	public List<FolderSuggestion> suggestFolders(	@NotNull String text,
+													@NotNull Collection<File> excludeFolders,
+													int maxFolders)
+			throws SearchException, CheckedOutOfMemoryError {
+		Util.checkNotNull(text, excludeFolders);
+		readLock.lock();
+		try {
+			checkIndexesExist();
+			
+			IndexReader reader = luceneSearcher.getIndexReader();
+			MoreLikeThis mlt = new MoreLikeThis(reader);
+			mlt.setAnalyzer(IndexRegistry.getAnalyzer());
+			mlt.setFieldNames(new String[] { Fields.CONTENT.key() });
+			mlt.setMinTermFreq(1);
+			mlt.setMinDocFreq(1);
+			mlt.setMaxQueryTerms(40);
+			Query query = mlt.like(Fields.CONTENT.key(), new StringReader(text));
+			
+			int maxDocs = 200;
+			ScoreDoc[] scoreDocs = luceneSearcher.search(query, maxDocs).scoreDocs;
+			
+			// Accumulate the scores of the similar documents per folder
+			Map<File, Double> folderScores = new HashMap<File, Double>();
+			for (ScoreDoc scoreDoc : scoreDocs) {
+				Document doc = luceneSearcher.doc(scoreDoc.doc);
+				String uid = doc.get(Fields.UID.key());
+				if (uid == null || DocumentType.isEmailType(uid))
+					continue;
+				File folder;
+				try {
+					File file = DocumentType.extractPath(uid).getCanonicalFile();
+					folder = Util.getParentFile(file);
+				}
+				catch (RuntimeException e) {
+					continue;
+				}
+				if (folder == null || !folder.isDirectory())
+					continue; // e.g. archive entries
+				if (isExcluded(folder, excludeFolders))
+					continue;
+				Double sum = folderScores.get(folder);
+				folderScores.put(folder, (sum == null ? 0 : sum) + scoreDoc.score);
+			}
+			
+			List<Map.Entry<File, Double>> entries = new ArrayList<Map.Entry<File, Double>>(folderScores.entrySet());
+			Collections.sort(entries, new Comparator<Map.Entry<File, Double>>() {
+				public int compare(Map.Entry<File, Double> e1, Map.Entry<File, Double> e2) {
+					return Double.compare(e2.getValue(), e1.getValue());
+				}
+			});
+			
+			List<FolderSuggestion> suggestions = new ArrayList<FolderSuggestion>();
+			double max = entries.isEmpty() ? 1 : entries.get(0).getValue();
+			for (Map.Entry<File, Double> entry : entries) {
+				if (suggestions.size() >= maxFolders)
+					break;
+				double relevance = max > 0 ? entry.getValue() / max : 0;
+				suggestions.add(new FolderSuggestion(entry.getKey(), relevance));
+			}
+			return suggestions;
+		}
+		catch (IOException e) {
+			throw new SearchException(e.getMessage());
+		}
+		catch (OutOfMemoryError e) {
+			throw new CheckedOutOfMemoryError(e);
+		}
+		finally {
+			readLock.unlock();
+		}
+	}
+	
+	/**
+	 * Lists the files located directly in the given folder (not in its
+	 * subfolders), whether they are indexed or not. Indexed files are
+	 * returned with their index data (title, page count, etc.); for the other
+	 * files, the data is derived from the file itself. {@code index} is the
+	 * index covering the folder, or null if there is none. The results carry
+	 * a match-all query, i.e. nothing is highlighted in the preview.
+	 */
+	@ImmutableCopy
+	@NotNull
+	@ThreadSafe
+	public List<ResultDocument> listFolder(	@Nullable LuceneIndex index,
+											@NotNull File folder)
+			throws SearchException, CheckedOutOfMemoryError {
+		Util.checkNotNull(folder);
+		IndexingConfig config = index != null ? index.getConfig() : new IndexingConfig();
+		
+		// Indexed documents by canonical file path (Unicode-normalized, since
+		// the index stores composed names while the disk may use decomposed ones)
+		Map<String, ResultDocument> indexed = new HashMap<String, ResultDocument>();
+		if (index != null) {
+			for (ResultDocument doc : listIndexedFolder(index, folder)) {
+				File file = Util.getCanonicalFile(doc.getPath().getCanonicalFile());
+				indexed.put(normalize(file.getPath()), doc);
+			}
+		}
+		
+		List<ResultDocument> results = new ArrayList<ResultDocument>();
+		File[] files = folder.listFiles();
+		if (files == null)
+			return results;
+		for (File file : files) {
+			if (!file.isFile() || file.isHidden())
+				continue;
+			ResultDocument doc = indexed.get(normalize(Util.getCanonicalFile(file).getPath()));
+			results.add(doc != null ? doc : createFileDocument(config, file));
+		}
+		return results;
+	}
+	
+	/**
+	 * Lists the subfolders and the files of the given folder, for the folder
+	 * browser: the subfolders come first (as folder rows), then the files as
+	 * returned by {@link #listFolder}. {@code index} is the index covering
+	 * the folder, or null if there is none.
+	 */
+	@ImmutableCopy
+	@NotNull
+	@ThreadSafe
+	public List<ResultDocument> listFolderEntries(	@Nullable LuceneIndex index,
+													@NotNull File folder)
+			throws SearchException, CheckedOutOfMemoryError {
+		Util.checkNotNull(folder);
+		IndexingConfig config = index != null ? index.getConfig() : new IndexingConfig();
+		List<ResultDocument> entries = new ArrayList<ResultDocument>();
+		File[] children = folder.listFiles();
+		if (children != null) {
+			for (File child : children)
+				if (child.isDirectory() && !child.isHidden())
+					entries.add(createFolderDocument(config, child));
+		}
+		entries.addAll(listFolder(index, folder));
+		return entries;
+	}
+	
+	/**
+	 * Creates a folder row for the folder browser. {@code index} is the
+	 * index covering the folder, or null if there is none.
+	 */
+	@NotNull
+	@ThreadSafe
+	public ResultDocument createFolderRow(	@Nullable LuceneIndex index,
+											@NotNull File folder) {
+		return createFolderRow(index, folder, null);
+	}
+	
+	/**
+	 * Creates a folder row for the folder browser, optionally with a display
+	 * name of its own (used for the '..' entry).
+	 */
+	@NotNull
+	@ThreadSafe
+	public ResultDocument createFolderRow(	@Nullable LuceneIndex index,
+											@NotNull File folder,
+											@Nullable String displayName) {
+		IndexingConfig config = index != null ? index.getConfig() : new IndexingConfig();
+		return createFolderDocument(config, folder, displayName);
+	}
+	
+	/** Creates a folder row for the folder browser. */
+	@NotNull
+	private ResultDocument createFolderDocument(@NotNull IndexingConfig config,
+												@NotNull File folder) {
+		return createFolderDocument(config, folder, null);
+	}
+	
+	@NotNull
+	private ResultDocument createFolderDocument(@NotNull IndexingConfig config,
+												@NotNull File folder,
+												@Nullable String displayName) {
+		String name = displayName != null
+			? displayName
+			: (folder.getName().isEmpty() ? folder.getPath() : folder.getName());
+		Document doc = new Document();
+		doc.add(Fields.UID.create(DocumentType.FILE.createUniqueId(config.getStorablePath(folder))));
+		doc.add(Fields.FILENAME.create(name));
+		doc.add(Fields.TYPE.create(""));
+		doc.add(Fields.PARSER.create(""));
+		doc.add(Fields.TITLE.create(name));
+		doc.add(Fields.SIZE.create(0L));
+		doc.add(Fields.LAST_MODIFIED.create(String.valueOf(folder.lastModified())));
+		ResultDocument result = new ResultDocument(
+			doc, 0, new MatchAllDocsQuery(), false, config, fileFactory,
+			outlookMailFactory);
+		result.setFolder(true);
+		return result;
+	}
+	
+	@NotNull
+	private static String normalize(@NotNull String path) {
+		return Normalizer.normalize(path, Normalizer.Form.NFC);
+	}
+	
+	/**
+	 * Creates a result document for a file that is not (yet) in an index,
+	 * with the data that can be read from the file system.
+	 */
+	@NotNull
+	private ResultDocument createFileDocument(	@NotNull IndexingConfig config,
+												@NotNull File file) {
+		String filename = file.getName();
+		Document doc = new Document();
+		doc.add(Fields.UID.create(DocumentType.FILE.createUniqueId(config.getStorablePath(file))));
+		doc.add(Fields.FILENAME.create(filename));
+		doc.add(Fields.TYPE.create(Util.getExtension(filename)));
+		doc.add(Fields.PARSER.create(ParseService.getParserName(config, filename)));
+		doc.add(Fields.TITLE.create(Util.splitFilename(filename)[0]));
+		doc.add(Fields.SIZE.create(file.length()));
+		doc.add(Fields.LAST_MODIFIED.create(String.valueOf(file.lastModified())));
+		return new ResultDocument(
+			doc, 0, new MatchAllDocsQuery(), false, config, fileFactory,
+			outlookMailFactory);
+	}
+	
+	/**
+	 * Lists the indexed documents located directly in the given folder (not
+	 * in its subfolders). The folder must be covered by the given index.
+	 */
+	@NotNull
+	private List<ResultDocument> listIndexedFolder(	@NotNull LuceneIndex index,
+													@NotNull File folder)
+			throws SearchException, CheckedOutOfMemoryError {
+		// The UIDs contain the path in the form the index stores it
+		Path folderPath = Util.isCanonicallyEqual(index.getCanonicalRootFile(), folder)
+			? index.getRootFolder().getPath()
+			: index.getConfig().getStorablePath(folder);
+		String prefix = DocumentType.FILE.createUniqueId(folderPath) + "/";
+		
+		readLock.lock();
+		try {
+			checkIndexesExist();
+			Query query = new MatchAllDocsQuery();
+			BooleanQuery.Builder builder = new BooleanQuery.Builder();
+			builder.add(new PrefixQuery(new Term(Fields.UID.key(), prefix)), BooleanClause.Occur.FILTER);
+			builder.add(query, BooleanClause.Occur.MUST);
+			int maxResults = Math.max(1, MAX_RESULTS);
+			ScoreDoc[] scoreDocs = luceneSearcher.search(builder.build(), maxResults).scoreDocs;
+			
+			List<ResultDocument> results = new ArrayList<ResultDocument>();
+			for (ScoreDoc scoreDoc : scoreDocs) {
+				Document doc = luceneSearcher.doc(scoreDoc.doc);
+				String uid = doc.get(Fields.UID.key());
+				if (uid == null)
+					continue;
+				// Exclude documents in subfolders
+				Path path = DocumentType.extractPath(uid);
+				if (!path.splitAtLastSeparator().getLeft().equals(folderPath))
+					continue;
+				LuceneIndex docIndex = indexes.get(((DecoratedMultiReader) luceneSearcher.getIndexReader()).decoratedReaderIndex(scoreDoc.doc));
+				results.add(new ResultDocument(
+					doc, scoreDoc.score, query, false, docIndex.getConfig(),
+					fileFactory, outlookMailFactory));
+			}
+			return results;
+		}
+		catch (IOException e) {
+			throw new SearchException(e.getMessage());
+		}
+		catch (OutOfMemoryError e) {
+			throw new CheckedOutOfMemoryError(e);
+		}
+		finally {
+			readLock.unlock();
+		}
+	}
+	
+	/**
+	 * Returns the terms of the given text that characterize it best, i.e.
+	 * terms that are frequent in the text but rare across all indexed
+	 * documents (TF-IDF), best first, lowercased as indexed. Returns at most
+	 * {@code maxTerms} terms.
+	 */
+	@ImmutableCopy
+	@NotNull
+	@ThreadSafe
+	public List<String> extractKeywords(@NotNull String text, int maxTerms)
+			throws SearchException, CheckedOutOfMemoryError {
+		Util.checkNotNull(text);
+		readLock.lock();
+		try {
+			checkIndexesExist();
+			MoreLikeThis mlt = new MoreLikeThis(luceneSearcher.getIndexReader());
+			mlt.setAnalyzer(IndexRegistry.getAnalyzer());
+			mlt.setFieldNames(new String[] { Fields.CONTENT.key() });
+			mlt.setMinTermFreq(1);
+			mlt.setMinDocFreq(1);
+			mlt.setMinWordLen(3);
+			/*
+			 * MoreLikeThis pops its priority queue lowest score first, so the
+			 * returned array is in ascending order and a limit would cut off
+			 * the best terms. Retrieve all terms and reverse them instead.
+			 */
+			mlt.setMaxQueryTerms(5000);
+			String[] terms = mlt.retrieveInterestingTerms(new StringReader(text), Fields.CONTENT.key());
+			List<String> ranked = new ArrayList<String>(Arrays.asList(terms));
+			Collections.reverse(ranked);
+			if (ranked.size() > maxTerms)
+				ranked = new ArrayList<String>(ranked.subList(0, maxTerms));
+			return ranked;
+		}
+		catch (IOException e) {
+			throw new SearchException(e.getMessage());
+		}
+		catch (OutOfMemoryError e) {
+			throw new CheckedOutOfMemoryError(e);
+		}
+		finally {
+			readLock.unlock();
+		}
+	}
+	
 	@ImmutableCopy
 	@NotNull
 	@ThreadSafe
@@ -521,6 +867,15 @@ public final class Searcher {
 		try {
 			Query query = queryParser.parse(queryString);
 			boolean isPhraseQuery = queryParser.isPhraseQuery();
+			if (SettingsConf.Bool.MatchFilenames.get()) {
+				Query filenameQuery = createFilenameQuery(queryString);
+				if (filenameQuery != null) {
+					BooleanQuery.Builder builder = new BooleanQuery.Builder();
+					builder.add(query, BooleanClause.Occur.SHOULD);
+					builder.add(filenameQuery, BooleanClause.Occur.SHOULD);
+					query = builder.build();
+				}
+			}
 			return new QueryWrapper(query, isPhraseQuery);
 		}
 		catch (TooComplexToDeterminizeException e) {
@@ -615,6 +970,54 @@ public final class Searcher {
 		synchronized (this) {
 			deletionThread.interrupt();
 		}
+	}
+	
+	/**
+	 * Builds a query that matches the search terms as case-insensitive
+	 * substrings of the file names, so that e.g. "invoice" also finds
+	 * "myinvoice_2024.pdf". The terms are taken from the query string by
+	 * running it through the analyzer, which drops the query syntax. Returns
+	 * null if the query string yields no terms.
+	 */
+	@Nullable
+	private static Query createFilenameQuery(@NotNull String queryString) {
+		List<String> terms = new ArrayList<String>();
+		try {
+			TokenStream stream = IndexRegistry.getAnalyzer().tokenStream(
+				Fields.FILENAME.key(), new StringReader(queryString));
+			CharTermAttribute termAttr = stream.addAttribute(CharTermAttribute.class);
+			stream.reset();
+			while (stream.incrementToken()) {
+				String term = termAttr.toString().trim();
+				// Wildcard characters are query syntax, not part of the name
+				term = term.replace("*", "").replace("?", "");
+				if (!term.isEmpty() && !terms.contains(term))
+					terms.add(term);
+			}
+			stream.end();
+			stream.close();
+		}
+		catch (IOException e) {
+			return null;
+		}
+		if (terms.isEmpty())
+			return null;
+		
+		BooleanClause.Occur occur = SettingsConf.Bool.UseOrOperator.get()
+			? BooleanClause.Occur.SHOULD
+			: BooleanClause.Occur.MUST;
+		BooleanQuery.Builder builder = new BooleanQuery.Builder();
+		for (String term : terms) {
+			WildcardQuery wildcard = new WildcardQuery(
+				new Term(Fields.FILENAME.key(), "*" + term + "*"));
+			/*
+			 * Constant score rewriting avoids the boolean clause limit that
+			 * scoring rewrites can hit when a substring matches many names.
+			 */
+			wildcard.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+			builder.add(wildcard, occur);
+		}
+		return builder.build();
 	}
 	
 	private static final class QueryWrapper {

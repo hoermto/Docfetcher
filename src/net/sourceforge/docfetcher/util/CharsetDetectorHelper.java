@@ -22,6 +22,7 @@ import java.util.Properties;
 
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.NotThreadSafe;
+import net.sourceforge.docfetcher.util.annotations.ThreadSafe;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 
 import org.mozilla.universalchardet.UniversalDetector;
@@ -68,9 +69,15 @@ public final class CharsetDetectorHelper {
 		return toString(bytes);
 	}
 	
+	/*
+	 * The shared charset detector is not thread-safe, and this method can be
+	 * called concurrently, e.g. by the indexing thread, the preview thread and
+	 * the name suggestion thread. Detection is cheap, so serializing it is
+	 * fine.
+	 */
 	@NotNull
-	@NotThreadSafe
-	public static String toString(@NotNull byte[] bytes)
+	@ThreadSafe
+	public static synchronized String toString(@NotNull byte[] bytes)
 			throws IOException {
 		if (!charsetOverride.trim().isEmpty()) {
 			try {

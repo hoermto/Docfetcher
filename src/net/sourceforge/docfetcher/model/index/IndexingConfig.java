@@ -60,7 +60,13 @@ public class IndexingConfig implements Serializable {
 	
 	private static final long serialVersionUID = 1L;
 	
-	private static final List<String> defaultZipExtensions = Arrays.asList("zip", "jar");
+	/*
+	 * Empty by default: a new index does not look into zip and jar archives,
+	 * which is what most users want and keeps indexing fast. The extensions
+	 * can be added in the indexing dialog, and existing indexes keep the
+	 * extensions stored with them.
+	 */
+	private static final List<String> defaultZipExtensions = Collections.emptyList();
 	private static final List<String> defaultTextExtensions = Arrays.asList("txt", "java", "cpp", "py");
     private static final List<PatternAction> defaultPatternActions = Arrays.asList(new PatternAction[] { new PatternAction(".*\\.class"), 
           new PatternAction(".*\\.pyc"), 

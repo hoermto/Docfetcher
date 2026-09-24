@@ -24,6 +24,12 @@ public abstract class Document<D extends Document<D, F>, F extends Folder<D, F>>
 	private static final long serialVersionUID = 1L;
 	
 	@NotNull F parent;
+	
+	/** The folder containing this document. */
+	@NotNull
+	public final F getParent() {
+		return parent;
+	}
 	private long lastModified = -1;
 	
 	// will replace document with identical name in parent
