@@ -71,6 +71,7 @@ public abstract class TwoPanelForm extends Composite {
 		
 		sash = new SashForm(secondControl, SWT.VERTICAL);
 		sash.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
+		UtilGui.paintSashHandles(sash);
 		
 		firstSubControlWrapper = new Composite(sash, SWT.NONE);
 		firstSubControlWrapper.setLayout(UtilGui.createGridLayout(1, false, 0, 0));

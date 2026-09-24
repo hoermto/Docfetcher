@@ -119,8 +119,11 @@ public final class Application {
 
 	// TODO post-release-1.1: review visibility of all DocFetcher classes
 
-	/** The widths of the sashes in pixels */
-	private static final int sashWidth = 5;
+	/**
+	 * The width of the sashes between the panels, in pixels. Wide enough to
+	 * be grabbed easily with the mouse.
+	 */
+	private static final int sashWidth = 9;
 
 	private static volatile IndexRegistry indexRegistry;
 	private static volatile FolderWatcher folderWatcher;
@@ -1338,6 +1341,7 @@ public final class Application {
 		 */
 		folderSash = new SashForm(parent, SWT.HORIZONTAL);
 		folderSash.setSashWidth(sashWidth);
+		UtilGui.paintSashHandles(folderSash);
 		mainTabFolder = new TabFolder(folderSash, SWT.TOP);
 		folderPanelHolder = new Composite(folderSash, SWT.NONE);
 		folderPanelHolder.setLayout(new FillLayout());

@@ -157,4 +157,10 @@
     is now shown and hidden with `View > Preview panel` (F4, a check item that follows the stored setting),
     its position stays in the preferences. Application test: arrows gone, menu entry hides and shows the pane
     and its check mark follows.
+- add larger handles in the split between the panes to easily grab and change the size
+  - The sashes of the main window are 9 pixels wide instead of 5, and `UtilGui.paintSashHandles` draws three
+    dots in the middle of each one, so the separator can be seen and grabbed. The sashes of a `SashForm` are
+    created while it is laid out, so the painter is attached on resize (and once more via asyncExec, after the
+    layout). Test `UtilGuiTest` (skips without a display); in the GUI: grip visible on both sashes, dragging
+    the separator still resizes the panels.
 
