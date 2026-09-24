@@ -1,6 +1,8 @@
 ==== 2026-09-24 - DocFetcher 2.6 ====
 
 === Bugfixes ===
+  * Folders can now be deleted in the folder browser like files ('Delete...' or the Del key): the folder goes to the recycle bin with its contents, and the confirmation says how many files that are. The root folder of an index is refused with an explanation.
+  * German messages that contain a file or folder name showed the placeholder '{0}' instead of the name.
 
 === Features ===
 

@@ -131,3 +131,14 @@
     (`checksNamesForFilesAndFolders`), `FileOperationHistoryTest`; in the GUI: index root refused, rename via
     F2 and via the context menu (with a space in the name), invalid name rejected, undo through
     `File > Undo file operation` (Ctrl+Z can't be tested on Xephyr, see `skill.md`).
+- folders need to be renamed and deleted like files (currently an error)
+  - Renaming was done in 2.5. Deleting now works for folder rows as well: `Delete...` in the context menu and
+    the `Del` key move a single selected folder with its contents to the recycle bin after a confirmation that
+    names the folder and the number of files inside (`UtilFile.countFiles`); without a recycle bin the folder is
+    deleted permanently, which the confirmation says, and the new `UtilFile.deletePermanently` removes the
+    contents first. The root folder of an index is refused with an explanation, as when renaming (shared
+    `isIndexRoot`). Also fixed: German messages containing a file or folder name printed the placeholder `{0}`,
+    because MessageFormat treats a single quote as an escape - the German file now uses `''{0}''` everywhere.
+    Tests: `UtilFileTest` (7 tests); in the GUI: folder with subfolder and 2 files deleted (confirmation counted
+    2 files), index root refused.
+

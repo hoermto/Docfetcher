@@ -689,7 +689,7 @@ public final class ResultPanel {
 				List<ResultDocument> sel = viewer.getSelection();
 				if (sel.size() != 1)
 					return false;
-				return sel.get(0).isPlainFileOnDisk() || isRenamableFolder(sel.get(0));
+				return sel.get(0).isPlainFileOnDisk() || isEditableFolder(sel.get(0));
 			}
 			public void run() {
 				renameSelection();
@@ -742,6 +742,8 @@ public final class ResultPanel {
 				List<ResultDocument> sel = viewer.getSelection();
 				if (sel.isEmpty())
 					return false;
+				if (sel.size() == 1 && sel.get(0).isFolder())
+					return isEditableFolder(sel.get(0));
 				for (ResultDocument doc : sel)
 					if (!doc.isPlainFileOnDisk())
 						return false;
@@ -825,13 +827,58 @@ public final class ResultPanel {
 	}
 	
 	/**
-	 * Returns true if the given row is a folder that may be renamed, i.e. a
-	 * real subfolder, not the '..' entry.
+	 * Returns true if the given row is a folder that may be renamed or
+	 * deleted, i.e. a real subfolder, not the '..' entry.
 	 */
-	private static boolean isRenamableFolder(@NotNull ResultDocument doc) {
+	private static boolean isEditableFolder(@NotNull ResultDocument doc) {
 		if (!doc.isFolder() || doc.isParentRow())
 			return false;
 		return doc.getPath().getCanonicalFile().isDirectory();
+	}
+	
+	/**
+	 * Returns true if the given folder is the root folder of an index, which
+	 * must not be renamed or deleted here, since that would leave the index
+	 * pointing at a folder that doesn't exist any more.
+	 */
+	private boolean isIndexRoot(@NotNull File folder) {
+		for (LuceneIndex index : indexRegistry.getIndexes())
+			if (Util.isCanonicallyEqual(index.getCanonicalRootFile(), folder))
+				return true;
+		return false;
+	}
+	
+	/**
+	 * Deletes the folder of the given row with its contents, after a
+	 * confirmation that says how many files are affected.
+	 */
+	private void deleteFolder(@NotNull ResultDocument doc) {
+		File folder = doc.getPath().getCanonicalFile();
+		if (!folder.isDirectory())
+			return;
+		if (isIndexRoot(folder)) {
+			AppUtil.showError(Msg.delete_folder_index_root.format(
+				folder.getName()), true, true);
+			return;
+		}
+		
+		int fileCount = UtilFile.countFiles(folder);
+		String msg = UtilFile.isTrashSupported()
+			? Msg.confirm_delete_folder_trash.format(folder.getName(), fileCount)
+			: Msg.confirm_delete_folder_permanently.format(folder.getName(), fileCount);
+		if (!AppUtil.showConfirmation(msg, true))
+			return;
+		
+		if (!UtilFile.delete(folder)) {
+			AppUtil.showError(Msg.file_operation_failed.format(folder.getPath()), true, true);
+			return;
+		}
+		viewer.removeElements(Collections.singletonList(doc));
+		viewer.refresh();
+		updateIndexesFor(Collections.singletonList(folder));
+		FileOperationHistory.getInstance().add(FileOperationHistory.Kind.DELETE,
+			Collections.singletonList(folder), Collections.<File> emptyList());
+		evtDocumentsChanged.fire(null);
 	}
 	
 	/**
@@ -843,12 +890,10 @@ public final class ResultPanel {
 		File folder = doc.getPath().getCanonicalFile();
 		if (!folder.isDirectory())
 			return;
-		for (LuceneIndex index : indexRegistry.getIndexes()) {
-			if (Util.isCanonicallyEqual(index.getCanonicalRootFile(), folder)) {
-				AppUtil.showError(Msg.rename_folder_index_root.format(
-					folder.getName()), true, true);
-				return;
-			}
+		if (isIndexRoot(folder)) {
+			AppUtil.showError(Msg.rename_folder_index_root.format(
+				folder.getName()), true, true);
+			return;
 		}
 		
 		InputDialog dialog = new InputDialog(getControl().getShell(),
@@ -1152,6 +1197,11 @@ public final class ResultPanel {
 		List<ResultDocument> sel = viewer.getSelection();
 		if (sel.isEmpty())
 			return;
+		if (sel.size() == 1 && sel.get(0).isFolder()) {
+			if (isEditableFolder(sel.get(0)))
+				deleteFolder(sel.get(0));
+			return;
+		}
 		for (ResultDocument doc : sel) {
 			if (!doc.isPlainFileOnDisk()) {
 				AppUtil.showError(Msg.only_plain_files.get(), true, true);

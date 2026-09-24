@@ -82,6 +82,34 @@ public final class UtilFileTest {
 	}
 
 	@Test
+	public void countsTheFilesOfAFolder() throws Exception {
+		File dir = createDir();
+		File sub = new File(dir, "sub");
+		File subsub = new File(sub, "deeper");
+		assertTrue(subsub.mkdirs());
+		java.nio.file.Files.write(new File(dir, "a.txt").toPath(), "a".getBytes("UTF-8"));
+		java.nio.file.Files.write(new File(sub, "b.txt").toPath(), "b".getBytes("UTF-8"));
+		java.nio.file.Files.write(new File(subsub, "c.txt").toPath(), "c".getBytes("UTF-8"));
+		assertEquals("Files of the subfolders are counted too", 3, UtilFile.countFiles(dir));
+		assertEquals(1, UtilFile.countFiles(subsub));
+		// An empty folder and a file have no files inside
+		assertEquals(0, UtilFile.countFiles(new File(sub, "empty")));
+		assertEquals(0, UtilFile.countFiles(new File(dir, "a.txt")));
+		assertTrue(UtilFile.deletePermanently(dir));
+	}
+
+	@Test
+	public void deletesAFolderWithItsContents() throws Exception {
+		File dir = createDir();
+		File sub = new File(dir, "sub");
+		assertTrue(sub.mkdir());
+		java.nio.file.Files.write(new File(sub, "doc.txt").toPath(), "x".getBytes("UTF-8"));
+		assertTrue(UtilFile.deletePermanently(sub));
+		assertFalse("Folder and contents are gone", sub.exists());
+		assertTrue(dir.delete());
+	}
+
+	@Test
 	public void rejectsImpossibleFolderNames() throws Exception {
 		File dir = createDir();
 		assertNull(UtilFile.createFolder(dir, ""));

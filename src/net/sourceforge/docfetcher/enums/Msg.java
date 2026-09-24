@@ -979,6 +979,23 @@ public enum Msg {
 		"Confirmation before deleting files on a system without a recycle " +
 		"bin. The number of files is inserted in the {0} slot, their names " +
 		"in the {1} slot."),
+	confirm_delete_folder_trash (
+		"Move the folder ''{0}'' with {1} file(s) to the recycle bin?",
+		"Confirmation before deleting a folder. The folder name is " +
+		"inserted in the {0} slot, the number of files it contains in the " +
+		"{1} slot."),
+	confirm_delete_folder_permanently (
+		"Delete the folder ''{0}'' with {1} file(s) permanently? This cannot " +
+		"be undone.",
+		"Confirmation before deleting a folder on a system without a " +
+		"recycle bin. The folder name is inserted in the {0} slot, the " +
+		"number of files it contains in the {1} slot."),
+	delete_folder_index_root (
+		"''{0}'' is the root folder of an index and is therefore not deleted " +
+		"here. Remove the index first, then delete the folder in the file " +
+		"manager.",
+		"Error message shown when the user tries to delete the root folder " +
+		"of an index. The folder name is inserted in the {0} slot."),
 	rename_folder_title ("Rename Folder",
 		"Title of the dialog for renaming a folder in the folder browser."),
 	rename_folder_msg ("Please enter the new folder name:",
