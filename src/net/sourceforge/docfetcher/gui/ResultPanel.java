@@ -682,6 +682,33 @@ public final class ResultPanel {
 			}
 		});
 		
+		String openFolderLabel = Util.IS_WINDOWS
+			? Msg.open_in_explorer.get()
+			: Msg.open_in_file_manager.get();
+		menuManager.add(new MenuAction(openFolderLabel) {
+			public boolean isEnabled() {
+				List<ResultDocument> sel = viewer.getSelection();
+				if (sel.isEmpty())
+					return false;
+				for (ResultDocument doc : sel)
+					if (!isEditableFolder(doc))
+						return false;
+				return true;
+			}
+			public void run() {
+				MultiFileLauncher launcher = new MultiFileLauncher();
+				for (ResultDocument doc : viewer.getSelection()) {
+					File folder = doc.getPath().getCanonicalFile();
+					if (folder.isDirectory())
+						launcher.addFile(folder);
+					else
+						launcher.addMissing(folder.getPath());
+				}
+				if (launcher.launch() && SettingsConf.Bool.HideOnOpen.get())
+					evtHideInSystemTray.fire(null);
+			}
+		});
+		
 		menuManager.addSeparator();
 		
 		menuManager.add(new MenuAction(Msg.rename_document.get()) {

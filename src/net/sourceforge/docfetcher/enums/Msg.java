@@ -779,6 +779,12 @@ public enum Msg {
 	send_date ("Send Date"),
 	open ("Open"),
 	open_parent ("Open Parent Folder"),
+	open_in_explorer ("Open in Explorer",
+		"Context menu entry that opens the selected folders in the Windows " +
+		"file manager."),
+	open_in_file_manager ("Open in File Manager",
+		"Context menu entry that opens the selected folders in the file " +
+		"manager, on systems other than Windows."),
 	open_limit ("The number of entries that can be opened simultaneously is limited to {0}."),
 	
 	// Settings dialog: tabs, preview position, index management

@@ -19,7 +19,6 @@
 
 ## changes
 
-[] on folder also support "open in exploer"
 [] by default disable archive (zip, jar) search
 
 

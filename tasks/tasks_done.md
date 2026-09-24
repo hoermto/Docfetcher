@@ -163,4 +163,10 @@
     created while it is laid out, so the painter is attached on resize (and once more via asyncExec, after the
     layout). Test `UtilGuiTest` (skips without a display); in the GUI: grip visible on both sashes, dragging
     the separator still resizes the panels.
+- on folder also support "open in explorer"
+  - New context menu entry for folder rows, labelled `Open in Explorer` on Windows and `Open in File Manager`
+    elsewhere (like the existing `Copy` / `Copy (Mac OS X)` pair). It hands the selected folders to
+    `MultiFileLauncher`, the same launcher `Open Parent Folder` uses, and is only enabled when every selected
+    row is a real folder (not the `..` row). Application test: entry shown and enabled on a folder row,
+    launching it reported no error.
 
