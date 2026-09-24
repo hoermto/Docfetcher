@@ -35,6 +35,7 @@ import net.sourceforge.docfetcher.model.parse.Parser;
 import net.sourceforge.docfetcher.model.search.PhraseDetectingQueryParser;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.model.search.SearchException;
+import net.sourceforge.docfetcher.model.search.FolderSearch;
 import net.sourceforge.docfetcher.model.search.Searcher;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.CheckedOutOfMemoryError;
@@ -79,6 +80,7 @@ public final class SearchQueue {
 	@Nullable private volatile Set<String> listDocIds;
 	@Nullable private volatile String lastSearchQuery; // last query that was run
 	@Nullable private List<ResultDocument> results;
+	@Nullable private List<ResultDocument> folderResults;
 	
 	/** Upper bound for the file existence checks per search, see removeMissingFiles. */
 	private static final int MAX_EXISTENCE_CHECKS = 2000;
@@ -283,10 +285,14 @@ public final class SearchQueue {
 				if (searcher == null)
 					return false;
 				
-				if (query != null)
+				if (query != null) {
 					results = removeMissingFiles(searcher.search(query));
-				else if (listDocIds != null)
+					folderResults = findFolders(searcher, indexRegistry, query);
+				}
+				else if (listDocIds != null) {
 					results = searcher.list(listDocIds);
+					folderResults = null;
+				}
 				else
 					throw new IllegalStateException();
 			}
@@ -343,6 +349,14 @@ public final class SearchQueue {
 				continue;
 			visibleResults.add(doc);
 		}
+		
+		/*
+		 * Folders aren't indexed, so they aren't affected by the file type
+		 * and location filters; they are simply put in front of the
+		 * documents, where the sorting keeps them.
+		 */
+		if (folderResults != null)
+			visibleResults.addAll(0, folderResults);
 		
 		boolean filesFound = false;
 		boolean emailsFound = false;
@@ -432,6 +446,25 @@ public final class SearchQueue {
 		for (LuceneIndex index : affected)
 			indexRegistry.getQueue().addTask(index, IndexAction.UPDATE); // Rejected if queued
 		return existing;
+	}
+	
+	/**
+	 * Returns folder rows for the folders whose name matches the search
+	 * terms, so that the results list folders as well as documents.
+	 */
+	@NotNull
+	private static List<ResultDocument> findFolders(	@NotNull Searcher searcher,
+													@NotNull IndexRegistry indexRegistry,
+													@NotNull String query) {
+		List<ResultDocument> rows = new ArrayList<ResultDocument>();
+		List<String> terms = FolderSearch.extractTerms(query);
+		if (terms.isEmpty())
+			return rows;
+		List<LuceneIndex> indexes = indexRegistry.getIndexes();
+		for (File folder : FolderSearch.find(
+				FolderPanel.getRootFolders(indexRegistry), terms))
+			rows.add(searcher.createFolderRow(findIndexFor(indexes, folder), folder));
+		return rows;
 	}
 	
 	@Nullable

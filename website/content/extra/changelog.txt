@@ -5,6 +5,7 @@
   * German messages that contain a file or folder name showed the placeholder '{0}' instead of the name.
 
 === Features ===
+  * A search now lists folders as well: folders of your indexes and move targets whose name contains all the search terms are shown above the documents, and a double-click opens them in the folder browser.
 
 ==== 2026-09-22 - DocFetcher 2.5 ====
 

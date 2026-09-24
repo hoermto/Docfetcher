@@ -19,7 +19,6 @@
 
 ## changes
 
-[] search also should list folders
 [] remove the arrows to make the doc view pane invisible. 
 [] add larger handles in the split between the panes to easily grab anc change the size
 [] on folder also support "open in exploer"

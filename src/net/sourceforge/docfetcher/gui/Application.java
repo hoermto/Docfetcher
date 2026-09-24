@@ -1651,6 +1651,12 @@ public final class Application {
 				showInFolderView(eventData);
 			}
 		});
+		// Double-click on a folder among the search results opens it
+		resultPanel.evtFolderOpened.add(new Event.Listener<File>() {
+			public void update(File eventData) {
+				showInFolderView(eventData);
+			}
+		});
 
 		comp.setLayout(new FormLayout());
 		FormDataFactory fdf = FormDataFactory.getInstance();

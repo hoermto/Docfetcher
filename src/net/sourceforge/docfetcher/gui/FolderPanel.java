@@ -273,6 +273,15 @@ public final class FolderPanel {
 	/** The folders listed at the root level: indexes and fixed move targets. */
 	@NotNull
 	private List<File> getRootFolders() {
+		return getRootFolders(indexRegistry);
+	}
+	
+	/**
+	 * The folders the browser lists at its root level: the root folders of the
+	 * document indexes and the fixed move targets, sorted by path.
+	 */
+	@NotNull
+	public static List<File> getRootFolders(@NotNull IndexRegistry indexRegistry) {
 		List<File> roots = new ArrayList<File>();
 		for (LuceneIndex index : indexRegistry.getIndexes()) {
 			if (index.isEmailIndex())

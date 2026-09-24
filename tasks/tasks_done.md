@@ -141,4 +141,14 @@
     because MessageFormat treats a single quote as an escape - the German file now uses `''{0}''` everywhere.
     Tests: `UtilFileTest` (7 tests); in the GUI: folder with subfolder and 2 files deleted (confirmation counted
     2 files), index root refused.
+- search also should list folders
+  - New `FolderSearch` (model/search): `extractTerms` reduces a query to its plain words (operators, field
+    names, wildcards, quotes and single characters dropped), `find` walks the root folders of the folder
+    browser breadth-first and returns the folders whose name contains all the terms, capped at 50 hits and
+    20000 visited folders. `SearchQueue` puts those folder rows in front of the document hits, where the
+    group comparator of the result table keeps them; the type and location filters don't apply to them.
+    `FolderPanel.getRootFolders(IndexRegistry)` is now static, so the search reuses the browser's root list.
+    A double-click on a folder hit opens it in the visible folder browser (`evtFolderOpened`). Tests:
+    `FolderSearchTest`; in the GUI: search for "rechnung" listed "Rechnungen 2026" above the documents and
+    the double-click opened it.
 
