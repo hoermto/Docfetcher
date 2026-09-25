@@ -155,6 +155,7 @@ public final class Application {
 	@Nullable private static TabItem foldersTab;
 	private static SashForm folderSash;
 	private static Composite folderPanelHolder;
+	private static Composite firstFolderHolder;
 	private static PreviewPanel previewPanel;
 	private static volatile StatusBarPart indexingStatus;
 	// Tasks of the current batch of indexing jobs, for the overall progress
@@ -609,7 +610,7 @@ public final class Application {
 					requestExit();
 				}
 				else if (k == SWT.F3) {
-					toggleFolderPanel();
+					cyclePaneMode();
 				}
 				else if (k == SWT.F4) {
 					togglePreviewPanel();
@@ -1366,6 +1367,9 @@ public final class Application {
 		UtilGui.paintSashHandles(folderSash);
 		mainTabFolder = new TabFolder(folderSash, SWT.TOP);
 		initInboxTabDrop();
+		// Place of the Folders tab's browser in the three-pane mode
+		firstFolderHolder = new Composite(folderSash, SWT.NONE);
+		firstFolderHolder.setLayout(new FillLayout());
 		folderPanelHolder = new Composite(folderSash, SWT.NONE);
 		folderPanelHolder.setLayout(new FillLayout());
 		
@@ -1392,37 +1396,136 @@ public final class Application {
 				}
 			}
 		});
-		applyFolderPanelMode();
-		folderSash.setWeights(SettingsConf.IntArray.FolderSashWeights.get());
+		applyPaneMode();
 		folderSash.addControlListener(new ControlAdapter() {
 			public void controlResized(ControlEvent e) {
-				if (folderSash.getMaximizedControl() == null)
-					SettingsConf.IntArray.FolderSashWeights.set(folderSash.getWeights());
+				saveFolderSashWeights();
+			}
+		});
+		// The toolbar buttons and the View menu change the setting
+		SettingsConf.Int.PaneMode.evtChanged.add(new Event.Listener<Integer>() {
+			public void update(Integer eventData) {
+				UtilGui.runAsyncExec(folderSash, new Runnable() {
+					public void run() {
+						applyPaneMode();
+					}
+				});
 			}
 		});
 		return folderSash;
 	}
+
+	/**
+	 * The number of panes next to the document view: 1 = the tabs (Folders,
+	 * inboxes, Search), 2 = plus a folder browser, 3 = the inbox and search
+	 * tabs, the Folders tab's browser as a pane of its own and the other
+	 * folder browser. Settings of older versions only knew whether the folder
+	 * panel was shown.
+	 */
+	static int getPaneMode() {
+		int mode = SettingsConf.Int.PaneMode.get();
+		if (mode < 1 || mode > 3)
+			mode = SettingsConf.Bool.ShowFolderPanel.get() ? 2 : 1;
+		return mode;
+	}
+
+	/** Switches to the next pane mode: 1 -> 2 -> 3 -> 1 (F3). */
+	private static void cyclePaneMode() {
+		SettingsConf.Int.PaneMode.set(getPaneMode() % 3 + 1);
+	}
+
+	/** Stores the widths of the panes of the current mode. */
+	private static void saveFolderSashWeights() {
+		if (folderSash.getMaximizedControl() != null || appliedPaneMode < 2)
+			return;
+		int[] weights = folderSash.getWeights(); // Tabs, first folder place, folder panel
+		if (appliedPaneMode == 3)
+			SettingsConf.IntArray.FolderSashWeights3.set(weights);
+		else
+			SettingsConf.IntArray.FolderSashWeights.set(new int[] { weights[0], weights[2] });
+	}
+
+	private static int appliedPaneMode = 0;
 	
 	/**
-	 * Shows the folder browser either as a tab or as a panel of its own,
-	 * according to the settings.
+	 * Arranges the panes for the pane mode (see {@link #getPaneMode()}). The
+	 * browser of the Folders tab moves between the tab and its own pane, so
+	 * it keeps its folder and its sync with the folder panel.
 	 */
-	private static void applyFolderPanelMode() {
-		// The 'Folders' tab always exists, after the inbox tabs
-		if (foldersTab == null) {
-			foldersTab = new TabItem(mainTabFolder, SWT.NONE, inboxTabs.size());
-			foldersTab.setText(Msg.folders_tab.get());
-			folderTabPanel = createFolderPanel(
-				mainTabFolder, SettingsConf.Str.LastBrowsedFolder);
-			foldersTab.setControl(folderTabPanel.getControl());
+	private static void applyPaneMode() {
+		saveFolderSashWeights(); // Of the mode that is left
+		int mode = getPaneMode();
+		appliedPaneMode = mode;
+		SettingsConf.Bool.ShowFolderPanel.set(mode >= 2);
+		if (folderTabPanel == null)
+			folderTabPanel = createFolderPanel(mainTabFolder, SettingsConf.Str.LastBrowsedFolder);
+		if (mode == 3) {
+			if (foldersTab != null) {
+				foldersTab.dispose(); // Doesn't dispose the browser
+				foldersTab = null;
+			}
+			moveFolderTabPanel(firstFolderHolder);
+			// The tab folder hides the controls of the tabs that aren't in front
+			folderTabPanel.getControl().setVisible(true);
+			folderTabPanel.setShowLabel(true);
 		}
-		
-		/*
-		 * The second browser next to the tabs is shown on demand. Both
-		 * browsers work the same way and are independent of each other, so
-		 * that documents can be dragged from one folder to another.
-		 */
-		boolean showPanel = SettingsConf.Bool.ShowFolderPanel.get();
+		else {
+			// The 'Folders' tab comes after the inbox tabs
+			if (foldersTab != null && mainTabFolder.indexOf(foldersTab) != inboxTabs.size()) {
+				foldersTab.dispose();
+				foldersTab = null;
+			}
+			if (foldersTab == null) {
+				moveFolderTabPanel(mainTabFolder);
+				foldersTab = new TabItem(mainTabFolder, SWT.NONE, inboxTabs.size());
+				foldersTab.setText(Msg.folders_tab.get());
+				foldersTab.setControl(folderTabPanel.getControl());
+			}
+			folderTabPanel.setShowLabel(false);
+		}
+		applyFolderPanelMode(mode >= 2);
+		firstFolderHolder.setVisible(mode == 3);
+		folderSash.setMaximizedControl(mode == 1 ? mainTabFolder : null);
+		if (mode == 3) {
+			folderSash.setWeights(SettingsConf.IntArray.FolderSashWeights3.get());
+		}
+		else if (mode == 2) {
+			int[] w = SettingsConf.IntArray.FolderSashWeights.get();
+			folderSash.setWeights(new int[] { w[0], 1, w[1] });
+		}
+		firstFolderHolder.layout();
+		folderSash.layout(true, true);
+		DocToolBar.selectPaneMode(docToolBar, mode);
+	}
+
+	/**
+	 * Puts the browser of the Folders tab into the given parent. Where
+	 * controls can't be moved, it is created anew there, with a new sync.
+	 */
+	private static void moveFolderTabPanel(@NotNull Composite parent) {
+		Control control = folderTabPanel.getControl();
+		if (control.getParent() == parent)
+			return;
+		if (control.isReparentable()) {
+			control.setParent(parent);
+			return;
+		}
+		File folder = folderTabPanel.getFolder();
+		if (folderSync != null)
+			folderSync.dispose();
+		control.dispose();
+		folderTabPanel = createFolderPanel(parent, SettingsConf.Str.LastBrowsedFolder);
+		folderTabPanel.setFolder(folder);
+		if (folderPanel != null)
+			folderSync = new FolderSync(folderTabPanel, folderPanel);
+	}
+
+	/**
+	 * Shows or hides the folder browser next to the tabs. Both browsers work
+	 * the same way, so that documents can be dragged from one folder to
+	 * another; the sync couples them.
+	 */
+	private static void applyFolderPanelMode(boolean showPanel) {
 		if (showPanel && folderPanel == null) {
 			folderPanel = createFolderPanel(
 				folderPanelHolder, SettingsConf.Str.LastBrowsedFolderPanel);
@@ -1438,7 +1541,6 @@ public final class Application {
 			folderPanel.getControl().dispose();
 			folderPanel = null;
 		}
-		folderSash.setMaximizedControl(showPanel ? null : mainTabFolder);
 	}
 	
 	/**
@@ -1488,12 +1590,7 @@ public final class Application {
 		return null;
 	}
 
-	/** Shows or hides the folder browser next to the tabs. */
-	private static void toggleFolderPanel() {
-		SettingsConf.Bool.ShowFolderPanel.set(!SettingsConf.Bool.ShowFolderPanel.get());
-		applyFolderPanelMode();
-	}
-	
+
 	/** Shows or hides the preview pane, which has no toggle of its own. */
 	private static void togglePreviewPanel() {
 		if (twoPanelForm == null)
@@ -1599,7 +1696,7 @@ public final class Application {
 		
 		// The folders tab belongs after the inbox tabs
 		if (foldersTab != null && mainTabFolder.indexOf(foldersTab) != inboxTabs.size())
-			applyFolderPanelMode();
+			applyPaneMode();
 	}
 
 	@NotNull
@@ -1613,6 +1710,8 @@ public final class Application {
 		final ResultPanel inboxResults = inboxPanel.getResultPanel();
 		inboxResults.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
 			public void update(List<ResultDocument> eventData) {
+				// Follow first: the folder panel clears the preview on the way
+				followInFolderPanel(eventData);
 				if (!eventData.isEmpty())
 					previewPanel.setPreview(eventData.get(0));
 				showSelectedPath(eventData);
@@ -1710,6 +1809,20 @@ public final class Application {
 		panel.showFile(file);
 	}
 	
+	/**
+	 * Shows the document selected in the search results or an inbox in the
+	 * folder panel (the right one of the three-pane mode), if wanted; the
+	 * browser before it follows through the sync. Only the panel follows;
+	 * the Folders tab would steal the view.
+	 */
+	private static void followInFolderPanel(@NotNull List<ResultDocument> selection) {
+		if (!SettingsConf.Bool.SyncFolderView.get() || selection.size() != 1 || folderPanel == null)
+			return;
+		ResultDocument doc = selection.get(0);
+		if (doc.isPlainFileOnDisk())
+			folderPanel.showFile(doc.getPath().getCanonicalFile());
+	}
+
 	/** Creates the 'Folders' tab, which browses the indexed folders. */
 	@NotNull
 	private static FolderPanel createFolderPanel(	@NotNull Composite parent,
@@ -1772,12 +1885,7 @@ public final class Application {
 		// Optionally let the folder view follow the selected result
 		resultPanel.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
 			public void update(List<ResultDocument> eventData) {
-				if (!SettingsConf.Bool.SyncFolderView.get() || eventData.size() != 1)
-					return;
-				ResultDocument doc = eventData.get(0);
-				// Only the panel follows along; the tab would steal the view
-				if (doc.isPlainFileOnDisk() && folderPanel != null)
-					folderPanel.showFile(doc.getPath().getCanonicalFile());
+				followInFolderPanel(eventData);
 			}
 		});
 		resultPanel.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
@@ -1928,21 +2036,28 @@ public final class Application {
 		});
 
 		Menu viewMenu = createMenu(menuBar, Msg.menu_view.get());
-		final MenuItem folderPanelItem = new MenuItem(viewMenu, SWT.CHECK);
-		folderPanelItem.setText(Msg.menu_folder_panel.get());
-		folderPanelItem.setSelection(SettingsConf.Bool.ShowFolderPanel.get());
-		folderPanelItem.addSelectionListener(new SelectionAdapter() {
-			public void widgetSelected(SelectionEvent e) {
-				toggleFolderPanel();
-				folderPanelItem.setSelection(SettingsConf.Bool.ShowFolderPanel.get());
+		final Msg[] paneLabels = { Msg.menu_one_pane, Msg.menu_two_panes, Msg.menu_three_panes };
+		final MenuItem[] paneItems = new MenuItem[3];
+		for (int i = 0; i < 3; i++) {
+			final int mode = i + 1;
+			paneItems[i] = new MenuItem(viewMenu, SWT.RADIO);
+			paneItems[i].setText(paneLabels[i].get());
+			paneItems[i].setSelection(getPaneMode() == mode);
+			paneItems[i].addSelectionListener(new SelectionAdapter() {
+				public void widgetSelected(SelectionEvent e) {
+					if (((MenuItem) e.widget).getSelection())
+						SettingsConf.Int.PaneMode.set(mode);
+				}
+			});
+		}
+		SettingsConf.Int.PaneMode.evtChanged.add(new Event.Listener<Integer>() {
+			public void update(Integer eventData) {
+				for (int i = 0; i < 3; i++)
+					if (!paneItems[i].isDisposed())
+						paneItems[i].setSelection(eventData == i + 1);
 			}
 		});
-		SettingsConf.Bool.ShowFolderPanel.evtChanged.add(new Event.Listener<Boolean>() {
-			public void update(Boolean eventData) {
-				if (!folderPanelItem.isDisposed())
-					folderPanelItem.setSelection(eventData);
-			}
-		});
+		new MenuItem(viewMenu, SWT.SEPARATOR);
 		
 		final MenuItem previewPanelItem = new MenuItem(viewMenu, SWT.CHECK);
 		previewPanelItem.setText(Msg.menu_preview_panel.get());

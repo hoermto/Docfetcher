@@ -172,6 +172,12 @@ public final class SettingsConf {
 		 * move them to the recycle bin or keep them (ORIGINALS_* constants).
 		 */
 		RemoveOriginals (ORIGINALS_ASK),
+
+		/*
+		 * Panes next to the document view: 1, 2 or 3 (see
+		 * Application.getPaneMode); 0 = not set yet, taken from ShowFolderPanel.
+		 */
+		PaneMode (0),
 		;
 
 		public final Event<Integer> evtChanged = new Event<Integer> ();
@@ -263,6 +269,7 @@ public final class SettingsConf {
 	@Description("# Comma-separated lists of integers.")
 	public enum IntArray implements Storable {
 		FolderSashWeights (3, 2), // Tabs and folder panel
+		FolderSashWeights3 (3, 2, 2), // Three-pane mode: tabs, Folders tab's browser, folder panel
 		PreviewHighlighting (255, 255, 0),
 		Hotkey (SWT.CTRL, SWT.F8),
 

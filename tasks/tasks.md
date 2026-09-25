@@ -21,13 +21,6 @@
 ## changes
 [] add support for encrypted containers like cryptomator (follow you 1a) 1b) suggestions)
 ## features/stories
-[] UI: toolbar buttons to switch between 1, 2 and 3 panes (the document view always on the right)
-  - 1: one panel with the tabs Folders, inbox folders and Search
-  - 2: plus the folder pane (today's F3), with sync
-  - 3: left panel with inbox folders and Search (no Folders tab), then a folder pane, then the other folder pane; the folder panes are synced as today
-  - a click on a document in Search or an inbox shows it in the (right) folder pane, the pane before it follows to the parent
-  - answers: Folders tab gone in 3; 3 toolbar buttons + View menu, F3 cycles; the sync button applies to all modes; search and inbox clicks follow
-
 [] any ideas about document encryption?
   Analysis (v2.7, answer: encrypted folder + protect the index, write-up only for now):
   - What leaks today: the documents themselves, and in the app data folder the index (full text of every

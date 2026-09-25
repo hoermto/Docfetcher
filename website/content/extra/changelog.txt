@@ -3,6 +3,7 @@
 === Bugfixes ===
 
 === Features ===
+  * One, two or three panes next to the document view (toolbar buttons, View menu, F3 switches in turn): one pane shows only the tabs; two panes add the folder panel (as before); three panes show the inbox and search tabs, then the Folders browser and the folder panel side by side, synced. A click on a document in the search results or an inbox shows it in the folder panel, the browser before it follows to the parent folder.
 
 ==== 2026-09-25 - DocFetcher 2.7 ====
 

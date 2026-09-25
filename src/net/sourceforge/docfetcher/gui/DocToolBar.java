@@ -97,8 +97,11 @@ final class DocToolBar {
 					.create();
 				items.put(button.action, item);
 			}
-			if (i == 0)
+			if (i == 0) {
 				createSyncItem(); // After the folder navigation
+				new ToolItem(toolBar, SWT.SEPARATOR);
+				createPaneModeItems();
+			}
 		}
 
 		final Event.Listener<Void> stateListener = new Event.Listener<Void>() {
@@ -156,6 +159,46 @@ final class DocToolBar {
 			}
 		});
 		syncItem = item;
+	}
+
+	private final ToolItem[] paneItems = new ToolItem[3];
+
+	/**
+	 * Three buttons for the number of panes next to the document view (see
+	 * Application.getPaneMode); the pressed one shows the current mode.
+	 */
+	private void createPaneModeItems() {
+		Img[] images = { Img.TB_PANES1, Img.TB_PANES2, Img.TB_PANES3 };
+		Msg[] toolTips = { Msg.toolbar_one_pane, Msg.toolbar_two_panes, Msg.toolbar_three_panes };
+		for (int i = 0; i < 3; i++) {
+			final int mode = i + 1;
+			paneItems[i] = new ToolItemFactory(toolBar)
+				.style(SWT.RADIO)
+				.image(images[i].get())
+				.toolTip(toolTips[i].get())
+				.listener(new SelectionAdapter() {
+					public void widgetSelected(SelectionEvent e) {
+						if (((ToolItem) e.widget).getSelection())
+							SettingsConf.Int.PaneMode.set(mode);
+					}
+				})
+				.create();
+		}
+	}
+
+	/** Presses the button of the given pane mode; the tool bar may be null (at startup). */
+	static void selectPaneMode(@Nullable DocToolBar toolBar, int mode) {
+		if (toolBar == null)
+			return;
+		for (int i = 0; i < toolBar.paneItems.length; i++)
+			if (toolBar.paneItems[i] != null && !toolBar.paneItems[i].isDisposed())
+				toolBar.paneItems[i].setSelection(i + 1 == mode);
+	}
+
+	/** The button of a pane mode (1-3); for tests. */
+	@NotNull
+	ToolItem getPaneItem(int mode) {
+		return paneItems[mode - 1];
 	}
 
 	/** The sync toggle; for tests. */

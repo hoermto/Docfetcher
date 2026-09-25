@@ -67,8 +67,15 @@ public final class FolderBrowsingTest {
 				return CancelAction.DISCARD;
 			}
 		});
-		Util.deleteRecursively(root);
-		Util.deleteRecursively(indexDir);
+		// On Windows the index files may still be locked by the searcher
+		for (File dir : new File[] { root, indexDir }) {
+			try {
+				Util.deleteRecursively(dir);
+			}
+			catch (java.io.IOException e) {
+				dir.deleteOnExit();
+			}
+		}
 	}
 
 	private static File createDir(String prefix) throws Exception {

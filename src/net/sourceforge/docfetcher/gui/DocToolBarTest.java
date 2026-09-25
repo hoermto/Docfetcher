@@ -116,6 +116,36 @@ public final class DocToolBarTest {
 	}
 
 	@Test
+	public void paneModeButtonsSetTheMode() throws Exception {
+		Display display = GuiTestSupport.createDisplay();
+		Assume.assumeTrue(display != null);
+		int saved = SettingsConf.Int.PaneMode.get();
+		try {
+			Shell shell = new Shell(display);
+			shell.setLayout(new GridLayout(1, false));
+			DocToolBar toolBar = new DocToolBar(shell);
+			DocToolBar.selectPaneMode(toolBar, 2);
+			assertTrue(toolBar.getPaneItem(2).getSelection());
+			assertFalse(toolBar.getPaneItem(3).getSelection());
+			// A click on the button of mode 3 sets the mode
+			toolBar.getPaneItem(3).setSelection(true);
+			toolBar.getPaneItem(3).notifyListeners(SWT.Selection, new org.eclipse.swt.widgets.Event());
+			assertEquals(3, SettingsConf.Int.PaneMode.get());
+			assertEquals(3, Application.getPaneMode());
+			// Settings of older versions: from 'folder panel shown'
+			SettingsConf.Int.PaneMode.set(0);
+			SettingsConf.Bool.ShowFolderPanel.set(false);
+			assertEquals(1, Application.getPaneMode());
+			SettingsConf.Bool.ShowFolderPanel.set(true);
+			assertEquals(2, Application.getPaneMode());
+		}
+		finally {
+			SettingsConf.Int.PaneMode.set(saved);
+			display.dispose();
+		}
+	}
+
+	@Test
 	public void navigatesTheActiveFolderBrowser() throws Exception {
 		Display display = GuiTestSupport.createDisplay();
 		Assume.assumeTrue(display != null);

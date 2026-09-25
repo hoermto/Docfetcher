@@ -91,6 +91,9 @@ public enum Img implements FilenameProvider {
 	TB_REFRESH ("tb_refresh.png"),
 	TB_NEW_FOLDER ("tb_new_folder.png"),
 	TB_SYNC ("tb_sync.png"),
+	TB_PANES1 ("tb_panes1.png"),
+	TB_PANES2 ("tb_panes2.png"),
+	TB_PANES3 ("tb_panes3.png"),
 	;
 	
 	private static LazyImageCache lazyImageCache;

@@ -144,6 +144,27 @@ def icon_sync():
     return img
 
 
+def panes(count):
+    # A window: 'count' columns of lists on the left, the document view (blue lines) on the right
+    def draw():
+        img, d = new()
+        d.rounded_rectangle(u(0.5, 1.5, 15.5, 14.5), radius=U, fill=PAPER, outline=INK, width=int(1.1 * U))
+        d.rectangle(u(0.5, 1.5, 15.5, 3.5), fill=INK)  # Title bar
+        left, right = 1.6, 9.2
+        width = (right - left) / count
+        for i in range(count):
+            x0 = left + i * width
+            if i > 0:
+                d.rectangle(u(x0 - 0.4, 3.5, x0 + 0.1, 14), fill=INK)
+            for y in (5, 7, 9, 11):
+                d.rectangle(u(x0 + 0.5, y, x0 + width - 0.6, y + 0.8), fill=GRAY)
+        d.rectangle(u(9.6, 3.5, 10.1, 14), fill=INK)
+        for y in (5, 7, 9, 11):
+            d.rectangle(u(10.9, y, 14.4, y + 0.8), fill=BLUE)
+        return img
+    return draw
+
+
 def icon_split():
     img, d = new()
     # Blades crossing above the handles
@@ -179,6 +200,9 @@ ICONS = {
     "refresh": icon_refresh,
     "new_folder": icon_new_folder,
     "sync": icon_sync,
+    "panes1": panes(1),
+    "panes2": panes(2),
+    "panes3": panes(3),
 }
 
 
