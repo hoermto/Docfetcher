@@ -20,7 +20,6 @@
 
 ## changes
 
- [] change icon for mergeing docs with a stapler icon, if possible
 
 ## features/stories
 
