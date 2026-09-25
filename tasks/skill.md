@@ -13,6 +13,13 @@
   `%LOCALAPPDATA%\Coursier\cache\arc\https\cdn.azul.com\zulu\bin\zulu21*\...\bin\java.exe`; use that as `$JAVA`.
 - `dev/guitest/run-tests.sh` works in Git Bash too (it switches to `;` as classpath separator and the win32 SWT).
 - Windows Python needs `C:/...` paths, not `/c/...`.
+- Package on Windows: `build-jre.txt` has `jre_windows=D:/daten/Torsten/Projects/docfetcher-build-jre/windows`, a Java 21
+  runtime made with `jlink` from the Zulu JDK (`--add-modules java.se,jdk.unsupported,jdk.crypto.ec,jdk.crypto.cryptoki,
+  jdk.localedata,jdk.charsets,jdk.zipfs,jdk.management,jdk.net,jdk.accessibility --strip-debug --no-header-files
+  --no-man-pages`). The manual build needs the Python package Markdown (no `uv` here): use a venv with
+  `pip install markdown` and run `PATH="$JDK/bin:$PATH" <venv>/Scripts/python.exe build.py windows` (javac/jar
+  come from the PATH). Output: `build/DocFetcher-<version>-Windows-64bit-Portable.zip` and the non-portable folder;
+  the installer needs NSIS (`build-win-installer.nsi`), which is not installed. Afterwards `git checkout -- dist/`.
 
 ## Unit tests
 - JUnit 4 tests live next to the sources (`src/**/*Test.java`) and are compiled by `./mill compile`.
