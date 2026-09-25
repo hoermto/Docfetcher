@@ -37,7 +37,7 @@ public final class FileOperationHistory {
 
 	/** What was done with the files. */
 	public enum Kind {
-		RENAME, MOVE, DELETE, MERGE, SPLIT
+		RENAME, MOVE, DELETE, MERGE, SPLIT, COPY
 	}
 
 	/** One file operation, with the files it affected. */

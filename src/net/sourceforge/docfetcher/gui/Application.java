@@ -1446,7 +1446,7 @@ public final class Application {
 	 * from the folder browser, without bringing the tab to the front first.
 	 */
 	private static void initInboxTabDrop() {
-		DropTarget dropTarget = new DropTarget(mainTabFolder, DND.DROP_MOVE | DND.DROP_DEFAULT);
+		DropTarget dropTarget = new DropTarget(mainTabFolder, DND.DROP_MOVE | DND.DROP_COPY | DND.DROP_DEFAULT);
 		dropTarget.setTransfer(new Transfer[] { FileTransfer.getInstance() });
 		dropTarget.addDropListener(new DropTargetAdapter() {
 			public void dragEnter(DropTargetEvent event) {
@@ -1465,7 +1465,8 @@ public final class Application {
 				List<File> files = new ArrayList<File>();
 				for (String path : (String[]) event.data)
 					files.add(new File(path));
-				inboxTab.panel.getResultPanel().dropFiles(files, inboxTab.entry.getFolder());
+				inboxTab.panel.getResultPanel().dropFiles(files, inboxTab.entry.getFolder(),
+					event.detail == DND.DROP_COPY);
 				inboxTab.panel.refresh();
 			}
 			private void updateFeedback(DropTargetEvent event) {

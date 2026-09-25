@@ -19,8 +19,8 @@
 
 
 ## changes
-
-
+[] search in german language: find umlaut (u finds u and ü, and oppposite), and also usual other typical OCR issues (O and 0)
+[] add support for encrypted containers like cryptomator (follow you 1a) 1b) suggestions)
 ## features/stories
 
 [] any ideas about document encryption?
@@ -49,5 +49,3 @@
   - Suggested next step when wanted: story 'DocFetcher works with an encrypted container' = a)1 + a)2 +
     a manual section; about 1-2 days including tests.
 
-## collection, wait until confirmd
-[] v2.4 UI style follow W11 on Windows (keep open)

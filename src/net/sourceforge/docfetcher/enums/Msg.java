@@ -960,6 +960,8 @@ public enum Msg {
 	undo_move ("Move {0} file(s) back? ({1})",
 		"Confirmation before undoing a move. The number of files is " +
 		"inserted in the {0} slot, the first file name in the {1} slot."),
+	undo_copy ("Remove the {0} copied file(s)? ({1}) The originals stay.",
+		"Confirmation before undoing a copy (Ctrl + drag and drop): the number of copies in {0}, the name of the first copy in {1}."),
 	undo_delete_in_trash (
 		"The last operation deleted {0} file(s), starting with ''{1}''. " +
 		"Deleted files are in the recycle bin and can be restored from " +

@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import net.sourceforge.docfetcher.gui.ResultPanel.HeaderMode;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
+import net.sourceforge.docfetcher.util.UtilFile;
 
 /**
  * Tests that dragging files never deletes them: a drop that reports a move
@@ -69,14 +70,52 @@ public final class DragDropTest {
 
 			// E.g. dragged from the folder browser onto the inbox tab
 			File file = new File(support.root, "archive/c.txt");
-			inboxPanel.getResultPanel().dropFiles(Arrays.asList(file), inbox);
+			inboxPanel.getResultPanel().dropFiles(Arrays.asList(file), inbox, false);
 			assertTrue(new File(inbox, "c.txt").isFile());
 			assertTrue(!file.exists());
 			// And back, to leave the folder as it was
-			inboxPanel.getResultPanel().dropFiles(Arrays.asList(new File(inbox, "c.txt")), file.getParentFile());
+			inboxPanel.getResultPanel().dropFiles(Arrays.asList(new File(inbox, "c.txt")), file.getParentFile(), false);
 			assertTrue(file.isFile());
 		}
 		finally {
+			display.dispose();
+		}
+	}
+
+	@Test
+	public void ctrlDropCopiesAndNeverOverwrites() throws Exception {
+		Display display = GuiTestSupport.createDisplay();
+		Assume.assumeTrue(display != null);
+		try {
+			Shell shell = new Shell(display);
+			shell.setLayout(new FillLayout());
+			File inbox = new File(support.root, "inbox");
+			InboxPanel inboxPanel = new InboxPanel(shell, support.registry);
+			inboxPanel.setFolder(inbox);
+			File original = new File(support.root, "a.txt");
+			FileOperationHistory.getInstance().clear();
+
+			inboxPanel.getResultPanel().dropFiles(Arrays.asList(original), inbox, true);
+			File copy = new File(inbox, "a.txt");
+			assertTrue("Copied", copy.isFile());
+			assertTrue("Original stays", original.isFile());
+			// Copying again (or into the same folder) adds a number
+			inboxPanel.getResultPanel().dropFiles(Arrays.asList(original), inbox, true);
+			File second = new File(inbox, "a-2.txt");
+			assertTrue(second.isFile());
+			assertEquals("alpha document", new String(java.nio.file.Files.readAllBytes(copy.toPath()), "UTF-8"));
+
+			// Undo removes the last copy, the original stays
+			UtilFile.setTrashDisabled(true);
+			assertTrue(ResultPanel.undoMergeOrSplitWithoutAsking(support.registry));
+			assertTrue(!second.exists());
+			assertTrue(copy.isFile() && original.isFile());
+			assertTrue(ResultPanel.undoMergeOrSplitWithoutAsking(support.registry));
+			assertTrue(!copy.exists());
+			assertTrue(original.isFile());
+		}
+		finally {
+			UtilFile.setTrashDisabled(false);
 			display.dispose();
 		}
 	}

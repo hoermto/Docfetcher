@@ -227,3 +227,6 @@
     Tests: `FolderSyncTest` (all rules, switching off and on, dispose); in the GUI: click on inbox -> middle shows it, double-click Archiv in the middle -> left shows inbox with Archiv selected, double-click Belege (no subfolder) on the left -> middle empty with the note, '..' on the left -> middle shows Belege.
 - change icon for merging docs to a stapler icon (v2.7)
   - `icon_merge` in `dev/icons/make_toolbar_icons.py` draws a flat stapler seen from the side (dark base with anvil, blue arm, hinge), 16 px and @2x; used by the toolbar button and the merge dialog. Checked in the app at 200 %.
+- add ctrl + drag/drop to copy (v2.7)
+  - The drag source already offered only 'copy' when Ctrl was held at mouse down, but the drop targets of DocFetcher always moved. Now a copy drop copies (`ResultPanel.copyFilesTo`, also for the inbox tabs via `dropFiles(files, folder, copy)`): never overwriting, `UtilFile.getFreeFile` adds -2, -3 (also when copying into the same folder); history kind COPY, undone like merge/split by removing the created files (recycle bin), message 'Remove the n copied file(s)?'.
+    Test: `DragDropTest.ctrlDropCopiesAndNeverOverwrites` (copy, second copy numbered, both undone, original untouched). A real mouse drag can't be simulated by the test driver.

@@ -1493,7 +1493,8 @@ public final class ResultPanel {
 			return false;
 		}
 		if (entry.getKind() == FileOperationHistory.Kind.MERGE
-				|| entry.getKind() == FileOperationHistory.Kind.SPLIT)
+				|| entry.getKind() == FileOperationHistory.Kind.SPLIT
+				|| entry.getKind() == FileOperationHistory.Kind.COPY)
 			return undoMergeOrSplit(indexRegistry, entry, true);
 		
 		String what = entry.getKind() == FileOperationHistory.Kind.RENAME
@@ -1532,7 +1533,7 @@ public final class ResultPanel {
 	}
 	
 	/**
-	 * Undoes a merge or split: the created files go to the recycle bin, and
+	 * Undoes a merge, split or copy: the created files go to the recycle bin, and
 	 * the originals, if they were removed, are restored from their backups.
 	 */
 	private static boolean undoMergeOrSplit(@NotNull IndexRegistry indexRegistry,
@@ -1540,9 +1541,13 @@ public final class ResultPanel {
 											boolean ask) {
 		List<File> sources = entry.getSources();
 		List<File> targets = entry.getTargets();
-		String what = entry.getKind() == FileOperationHistory.Kind.MERGE
-			? Msg.undo_merge.format(sources.size(), targets.get(0).getName())
-			: Msg.undo_split.format(entry.getFirstName(), targets.size());
+		String what;
+		if (entry.getKind() == FileOperationHistory.Kind.MERGE)
+			what = Msg.undo_merge.format(sources.size(), targets.get(0).getName());
+		else if (entry.getKind() == FileOperationHistory.Kind.SPLIT)
+			what = Msg.undo_split.format(entry.getFirstName(), targets.size());
+		else
+			what = Msg.undo_copy.format(targets.size(), targets.get(0).getName());
 		if (ask && !AppUtil.showConfirmation(what, false))
 			return false;
 		FileOperationHistory history = FileOperationHistory.getInstance();
@@ -1668,7 +1673,10 @@ public final class ResultPanel {
 				List<File> files = new ArrayList<File>();
 				for (String path : (String[]) event.data)
 					files.add(new File(path));
-				moveFilesTo(files, target);
+				if (event.detail == DND.DROP_COPY)
+					copyFilesTo(files, target); // Ctrl was held
+				else
+					moveFilesTo(files, target);
 			}
 			
 			/** Accepts the drop only over a folder row. */
@@ -1725,9 +1733,44 @@ public final class ResultPanel {
 	 * Moves files dropped somewhere else, e.g. on the tab of an inbox, into
 	 * the given folder, like a drop on a folder row of this table.
 	 */
-	public void dropFiles(@NotNull List<File> files, @NotNull File targetDir) {
+	public void dropFiles(@NotNull List<File> files, @NotNull File targetDir, boolean copy) {
 		noteDropInDocFetcher();
-		moveFilesTo(files, targetDir);
+		if (copy)
+			copyFilesTo(files, targetDir);
+		else
+			moveFilesTo(files, targetDir);
+	}
+
+	/**
+	 * Copies the given files into the target folder, e.g. dragged with Ctrl.
+	 * An existing file is never overwritten: the copy gets a number instead
+	 * ({@code name-2.pdf}), also when copying into the same folder. The copy
+	 * can be undone, which removes the copies.
+	 */
+	void copyFilesTo(@NotNull List<File> files, @NotNull File targetDir) {
+		List<File> sources = new ArrayList<File>();
+		List<File> copies = new ArrayList<File>();
+		for (File file : files) {
+			if (!file.isFile())
+				continue;
+			File target = UtilFile.getFreeFile(new File(targetDir, file.getName()));
+			try {
+				java.nio.file.Files.copy(file.toPath(), target.toPath(),
+					java.nio.file.StandardCopyOption.COPY_ATTRIBUTES);
+			}
+			catch (IOException e) {
+				AppUtil.showError(Msg.file_operation_failed.format(e.toString()), true, true);
+				break;
+			}
+			sources.add(file);
+			copies.add(target);
+		}
+		if (copies.isEmpty())
+			return;
+		updateIndexesFor(copies);
+		FileOperationHistory.getInstance().add(FileOperationHistory.Kind.COPY, sources, copies);
+		evtDocumentsChanged.fire(null);
+		MoveTargets.addRecent(targetDir);
 	}
 	
 	/**
