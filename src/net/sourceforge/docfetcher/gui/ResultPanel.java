@@ -1661,6 +1661,7 @@ public final class ResultPanel {
 				updateFeedback(event);
 			}
 			public void drop(DropTargetEvent event) {
+				noteDropInDocFetcher(); // Whatever happens here, the source keeps its files
 				File target = getDropFolder(event);
 				if (target == null || !(event.data instanceof String[]))
 					return;
@@ -1794,6 +1795,7 @@ public final class ResultPanel {
 			private List<File> draggedFiles = Collections.emptyList();
 			
 			public void dragStart(DragSourceEvent event) {
+				droppedInDocFetcher = false;
 				draggedDocs = new ArrayList<ResultDocument>();
 				draggedFiles = new ArrayList<File>();
 				for (ResultDocument doc : viewer.getSelection()) {
@@ -1821,30 +1823,46 @@ public final class ResultPanel {
 				List<ResultDocument> docs = draggedDocs;
 				draggedFiles = Collections.emptyList();
 				draggedDocs = Collections.emptyList();
-				
-				if (event.detail == DND.DROP_COPY && lastDragWasCopy) {
-					askToRemoveOriginals(files);
-				}
-				else if (event.detail == DND.DROP_MOVE) {
-					// A target that doesn't move the files itself expects
-					// the source to delete them
-					for (File file : files)
-						if (file.exists())
-							file.delete();
-				}
-				// Targets that move the files themselves report no
-				// operation; in any case, drop rows of files that are gone
-				List<ResultDocument> gone = new ArrayList<ResultDocument>();
-				for (int i = 0; i < files.size(); i++)
-					if (!files.get(i).exists())
-						gone.add(docs.get(i));
-				if (!gone.isEmpty()) {
-					viewer.removeElements(gone);
-					updateIndexesFor(files);
-					evtDocumentsChanged.fire(null);
-				}
+				handleDragFinished(event.detail, droppedInDocFetcher, files, docs);
 			}
 		});
+	}
+
+	/**
+	 * Set by the drop targets of DocFetcher, which move the files themselves;
+	 * the drag source must then leave the files alone.
+	 */
+	private static boolean droppedInDocFetcher = false;
+
+	/** Tells the drag source that the files were dropped on a DocFetcher target. */
+	static void noteDropInDocFetcher() {
+		droppedInDocFetcher = true;
+	}
+
+	/**
+	 * What happens after dragged files were dropped. The source never deletes
+	 * a file after a move: DocFetcher's own targets move the files themselves
+	 * (or refuse, e.g. if the target folder is the same), and a program that
+	 * copies instead of moving leaves the original in place, where it stays.
+	 * Only an explicit copy (Ctrl) into another program asks whether the
+	 * originals should go to the recycle bin. Rows of files that are gone
+	 * are removed.
+	 */
+	void handleDragFinished(int detail,
+							boolean inDocFetcher,
+							@NotNull List<File> files,
+							@NotNull List<ResultDocument> docs) {
+		if (detail == DND.DROP_COPY && lastDragWasCopy && !inDocFetcher)
+			askToRemoveOriginals(files);
+		List<ResultDocument> gone = new ArrayList<ResultDocument>();
+		for (int i = 0; i < files.size(); i++)
+			if (!files.get(i).exists())
+				gone.add(docs.get(i));
+		if (!gone.isEmpty()) {
+			viewer.removeElements(gone);
+			updateIndexesFor(files);
+			evtDocumentsChanged.fire(null);
+		}
 	}
 	
 	/**
@@ -1866,7 +1884,7 @@ public final class ResultPanel {
 			// The copy may still be in progress; retry a few times
 			boolean deleted = false;
 			for (int attempt = 0; attempt < 10 && !deleted; attempt++) {
-				deleted = !file.exists() || file.delete();
+				deleted = !file.exists() || UtilFile.delete(file); // Recycle bin
 				if (!deleted) {
 					try {
 						Thread.sleep(300);

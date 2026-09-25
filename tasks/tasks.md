@@ -18,7 +18,6 @@
 ## bugs
 
 [] split pages: with page separation pages detected and auto split, dont split on empty pages (but keep empty pages out). With separator pages these are the only separator. Only of there is no separator page is detected, suggest splitting after white/empty pages
-[] in no circumstance a file has to be deleted on a move action. It happened that I accidently darg/dropped from folder pane into left inbox pane - it didnt work, but the doc disapeared from folder, was not in scan, not anywhere on disk, even not in bin
 
 ## changes
 
