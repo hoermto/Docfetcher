@@ -17,11 +17,19 @@
 
 ## bugs
 
+[] split pages: with page separation pages detected and auto split, dont split on empty pages (but keep empty pages out). With separator pages these are the only separator. Only of there is no separator page is detected, suggest splitting after white/empty pages
+[] in no circumstance a file has to be deleted on a move action. It happened that I accidently darg/dropped from folder pane into left inbox pane - it didnt work, but the doc disapeared from folder, was not in scan, not anywhere on disk, even not in bin
+
 ## changes
+
+[] allow moving docs from a folder view into a inbox folder.
+[] sync view: when have folder in left pane, i want to have a synced view with the folder in the middle (if shown) - similar to search view syncs with middle folders. On left habe a folder selected, show in middle folder view the content. jump into this folder, shows middle the content of this folder. When in middle pane jump into a folder, sync the same: left then shows the parent, middle the content of the selected content - so left is always the parent of the middle folder view
+ Add icon in icon bar to show sync symbol (toggle) to enable/disable this. 
+ [] change icon for mergeing docs with a stapler icon, if possible
 
 ## features/stories
 
-
+[] any ideas about document encryption? 
 
 ## collection, wait until confirmd
 [] v2.4 UI style follow W11 on Windows (keep open)
