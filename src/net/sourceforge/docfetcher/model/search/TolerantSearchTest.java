@@ -6,7 +6,7 @@
  * http://www.eclipse.org/legal/epl-v10.html
  *******************************************************************************/
 
-package net.sourceforge.docfetcher.model;
+package net.sourceforge.docfetcher.model.search;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -24,16 +24,20 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import net.sourceforge.docfetcher.enums.SettingsConf;
+import net.sourceforge.docfetcher.model.Cancelable;
+import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.index.IndexingReporter;
 import net.sourceforge.docfetcher.model.index.Task.CancelAction;
 import net.sourceforge.docfetcher.model.index.Task.CancelHandler;
 import net.sourceforge.docfetcher.model.index.file.FileIndex;
-import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.Util;
 
-/** Tests the tolerant search: umlauts and typical OCR errors. */
-public final class TolerantAnalyzerTest {
+/**
+ * Tests the tolerant search: umlauts and typical OCR errors, at search time
+ * only - the index keeps the words as they are.
+ */
+public final class TolerantSearchTest {
 
 	private static File root;
 	private static File indexDir;
@@ -105,19 +109,19 @@ public final class TolerantAnalyzerTest {
 
 	@Test
 	public void foldsUmlautsAndOcrErrors() {
-		assertEquals("muller", TolerantAnalyzer.fold("müller"));
-		assertEquals("strasse", TolerantAnalyzer.fold("straße"));
-		assertEquals("cafe", TolerantAnalyzer.fold("café"));
-		assertEquals("bonn", TolerantAnalyzer.fold("b0nn"));
-		assertEquals("hallo", TolerantAnalyzer.fold("ha11o"));
-		assertEquals("rechnungsnummer", TolerantAnalyzer.fold("rechnungsnummer"));
-		assertEquals("Numbers stay numbers", "4711", TolerantAnalyzer.fold("4711"));
-		assertEquals("2025", TolerantAnalyzer.fold("2025"));
+		assertEquals("muller", TolerantSearch.fold("müller"));
+		assertEquals("strasse", TolerantSearch.fold("straße"));
+		assertEquals("cafe", TolerantSearch.fold("café"));
+		assertEquals("bonn", TolerantSearch.fold("b0nn"));
+		assertEquals("hallo", TolerantSearch.fold("ha11o"));
+		assertEquals("rechnungsnummer", TolerantSearch.fold("rechnungsnummer"));
+		assertEquals("Numbers stay numbers", "4711", TolerantSearch.fold("4711"));
+		assertEquals("2025", TolerantSearch.fold("2025"));
 	}
 
 	@Test
-	public void indexesTheOriginalAndTheTolerantForm() throws Exception {
-		assertEquals("[herrn, müller, muller, b0nn, bonn, 4711]", tokens("Herrn Müller B0nn 4711").toString());
+	public void theIndexKeepsTheWordsAsTheyAre() throws Exception {
+		assertEquals("[herrn, müller, b0nn, 4711]", tokens("Herrn Müller B0nn 4711").toString());
 	}
 
 	@Test
@@ -139,6 +143,39 @@ public final class TolerantAnalyzerTest {
 	@Test
 	public void wildcardsAreTolerantToo() throws Exception {
 		assertEquals("[letter.txt, plain.txt]", search("Mül*").toString());
+		assertEquals("[letter.txt, plain.txt]", search("Mul*").toString());
+		assertEquals("[street.txt]", search("haupt*strasse").toString());
+	}
+
+	@Test
+	public void phrasesAreTolerantToo() throws Exception {
+		assertEquals("[letter.txt]", search("\"Herrn Muller\"").toString());
+		assertEquals("[scan.txt]", search("\"Stadtwerke Bonn\"").toString());
+		assertEquals("[]", search("\"Muller Herrn\"").toString());
+	}
+
+	@Test
+	public void switchedOffOnlyExactWordsAreFound() throws Exception {
+		SettingsConf.Bool.TolerantSearch.set(false);
+		try {
+			assertEquals("[plain.txt]", search("Muller").toString());
+			assertEquals("[]", search("Bonn").toString());
+		}
+		finally {
+			SettingsConf.Bool.TolerantSearch.set(true);
+		}
+	}
+
+	@Test
+	public void theMatchesAreHighlighted() throws Exception {
+		for (ResultDocument doc : registry.getSearcher().search("Muller")) {
+			if (!doc.getFilename().equals("letter.txt"))
+				continue;
+			HighlightedString text = doc.getHighlightedText();
+			assertEquals(1, text.getRangeCount());
+			return;
+		}
+		throw new AssertionError("letter.txt not found");
 	}
 
 }

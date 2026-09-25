@@ -51,11 +51,12 @@ public abstract class TreeIndex <
 	/**
 	 * Format version of indexes created or rebuilt by this program version.
 	 * Version 1 (DocFetcher 2.0) added page counts, version 2 (2.4) the text
-	 * recognized in images and scanned PDFs, version 3 (2.7) the tolerant forms
-	 * of the words (without umlauts, OCR errors corrected). Deserialized
-	 * indexes from older versions have version 0.
+	 * recognized in images and scanned PDFs. Version 3 (2.7) added the tolerant
+	 * forms of the words; they aren't needed anymore since the tolerant search
+	 * works at search time, so indexes of version 2 and 3 are both current.
+	 * Deserialized indexes from older versions have version 0.
 	 */
-	public static final int CURRENT_FORMAT_VERSION = 3;
+	public static final int CURRENT_FORMAT_VERSION = 2;
 	
 	private final IndexingConfig config;
 	private final F rootFolder;

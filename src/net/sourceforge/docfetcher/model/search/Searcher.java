@@ -135,6 +135,7 @@ public final class Searcher {
 	
 	@NotNull private IndexSearcher luceneSearcher; // guarded by read-write lock
 	@NotNull private List<LuceneIndex> indexes; // guarded by read-write lock
+	@NotNull private TolerantSearch tolerantSearch; // guarded by read-write lock
 	@Nullable private volatile IOException ioException;
 	
 	private final Lock readLock;
@@ -266,6 +267,7 @@ public final class Searcher {
             }
         }
         luceneSearcher = new IndexSearcher(new DecoratedMultiReader(readers.toArray(new IndexReader[readers.size()])));
+        tolerantSearch = new TolerantSearch(luceneSearcher.getIndexReader());
         return corrupted;
 	}
 
@@ -306,6 +308,7 @@ public final class Searcher {
 		readLock.lock();
 		try {
 			checkIndexesExist();
+			query = tolerant(query);
 			
 			// Perform search; might throw OutOfMemoryError
 			DelegatingCollector collector = new DelegatingCollector(){
@@ -796,6 +799,7 @@ public final class Searcher {
 		readLock.lock();
 		try {
 			checkIndexesExist();
+			query = tolerant(query);
 
 			// Perform search; might throw OutOfMemoryError
 			// Protect against integer overflow when calculating maxResults
@@ -900,6 +904,13 @@ public final class Searcher {
 			String msg = Msg.invalid_query.get() + "\n\n" + e.getMessage();
 			throw new SearchException(msg);
 		}
+	}
+	
+	/** Expands the words of the query to their tolerant variants, if wanted (see TolerantSearch). */
+	@NotNull
+	@NotThreadSafe
+	private Query tolerant(@NotNull Query query) throws IOException {
+		return SettingsConf.Bool.TolerantSearch.get() ? tolerantSearch.expand(query) : query;
 	}
 	
 	// Checks that all indexes still exist
