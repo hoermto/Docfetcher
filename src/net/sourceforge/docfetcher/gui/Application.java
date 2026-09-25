@@ -1828,6 +1828,11 @@ public final class Application {
 				openPrefDialog(false);
 			}
 		});
+		createMenuItem(fileMenu, Msg.print_separator_sheet.get(), Img.TB_SPLIT.get(), new Runnable() {
+			public void run() {
+				DocumentPrinter.printSeparatorSheet(shell);
+			}
+		});
 		createMenuItem(fileMenu, Msg.menu_indexes.get(), Img.FOLDER.get(), new Runnable() {
 			public void run() {
 				openPrefDialog(true);

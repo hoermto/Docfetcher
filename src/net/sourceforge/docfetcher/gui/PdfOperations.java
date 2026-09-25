@@ -21,6 +21,7 @@ import org.eclipse.swt.widgets.Shell;
 import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.model.pdf.PdfPages;
+import net.sourceforge.docfetcher.model.pdf.PdfPages.PageInfo;
 import net.sourceforge.docfetcher.model.pdf.PdfPages.Range;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.util.AppUtil;
@@ -136,20 +137,29 @@ final class PdfOperations {
 
 	/** Asks how to split the document, then splits it. */
 	static void split(@NotNull Host host, @NotNull ResultDocument doc) {
-		File file = doc.getPath().getCanonicalFile();
-		int pageCount;
-		try {
-			pageCount = PdfPages.getPageCount(file);
-		}
-		catch (IOException e) {
-			AppUtil.showError(Msg.split_failed.format(e.getMessage()), true, true);
+		final File file = doc.getPath().getCanonicalFile();
+		// Reads the text of the pages and looks for blank pages and separator sheets
+		final List<PageInfo> pages = new ArrayList<PageInfo>();
+		final IOException[] error = new IOException[1];
+		BusyIndicator.showWhile(host.getShell().getDisplay(), new Runnable() {
+			public void run() {
+				try {
+					pages.addAll(PdfPages.analyzePages(file));
+				}
+				catch (IOException e) {
+					error[0] = e;
+				}
+			}
+		});
+		if (error[0] != null) {
+			AppUtil.showError(Msg.split_failed.format(error[0].getMessage()), true, true);
 			return;
 		}
-		if (pageCount < 2) {
+		if (pages.size() < 2) {
 			AppUtil.showInfo(Msg.split_one_page.format(file.getName()));
 			return;
 		}
-		List<Range> ranges = new SplitDialog(host.getShell(), file, pageCount).open();
+		List<Range> ranges = new SplitDialog(host.getShell(), file, pages).open();
 		if (ranges != null)
 			split(host, doc, ranges, null);
 	}

@@ -9,59 +9,71 @@
 package net.sourceforge.docfetcher.gui;
 
 import java.io.File;
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.custom.BusyIndicator;
-import org.eclipse.swt.events.ModifyEvent;
-import org.eclipse.swt.events.ModifyListener;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
+import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Link;
 import org.eclipse.swt.widgets.Shell;
-import org.eclipse.swt.widgets.Text;
+import org.eclipse.swt.widgets.Table;
+import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.swt.widgets.TableItem;
 
 import net.sourceforge.docfetcher.enums.Img;
 import net.sourceforge.docfetcher.enums.Msg;
-import net.sourceforge.docfetcher.enums.SettingsConf;
+import net.sourceforge.docfetcher.model.pdf.DocumentStarts;
+import net.sourceforge.docfetcher.model.pdf.DocumentStarts.Reason;
+import net.sourceforge.docfetcher.model.pdf.DocumentStarts.Suggestion;
 import net.sourceforge.docfetcher.model.pdf.PdfPages;
+import net.sourceforge.docfetcher.model.pdf.PdfPages.PageInfo;
 import net.sourceforge.docfetcher.model.pdf.PdfPages.Range;
+import net.sourceforge.docfetcher.model.pdf.PdfPages.Role;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 
 /**
- * Asks how a PDF file is split: into single pages, at given page numbers or
- * automatically at blank separator pages. Below the choices, the dialog
- * shows which documents will be created.
+ * Asks where a PDF file is split. All pages are listed with the beginning of
+ * their text; a checkbox marks the pages where a new document starts, and
+ * separator pages (blank pages, separator sheets) are left out. The buttons at
+ * the top fill in a suggestion - at the separator pages, from the text of the
+ * pages, every page, or none - which the user can correct page by page.
  */
 final class SplitDialog {
 
+	/** The suggestions the buttons at the top fill in. */
+	enum Choice {
+		SEPARATORS, TEXT, EACH_PAGE, NONE
+	}
+
+	private static final int PREVIEW_CHARS = 70;
+
 	private final Shell shell;
 	private final File file;
-	private final int pageCount;
-	private final Button eachPageBt;
-	private final Button atPagesBt;
-	private final Button blankPagesBt;
-	private final Text pagesField;
+	private final List<PageInfo> pages;
+	private final Role[] roles;
+	private final String[] reasons;
+	private final Table table;
 	private final Label resultLabel;
 	private final Button okBt;
-	@Nullable private boolean[] blankPages; // Computed on demand
-	@Nullable private String blankPagesError;
-	@Nullable private List<Range> ranges;
 	@Nullable private List<Range> answer;
 
-	public SplitDialog(@NotNull Shell parent, @NotNull File file, int pageCount) {
-		Util.checkNotNull(parent, file);
+	public SplitDialog(@NotNull Shell parent, @NotNull File file, @NotNull List<PageInfo> pages) {
+		Util.checkNotNull(parent, file, pages);
 		this.file = file;
-		this.pageCount = pageCount;
+		this.pages = pages;
+		roles = new Role[pages.size()];
+		reasons = new String[pages.size()];
 
 		shell = new Shell(parent, SWT.PRIMARY_MODAL | SWT.DIALOG_TRIM | SWT.RESIZE);
 		shell.setText(Msg.split_title.get());
@@ -69,71 +81,92 @@ final class SplitDialog {
 		shell.setLayout(UtilGui.createGridLayout(1, false, 10, 6));
 
 		Label intro = new Label(shell, SWT.WRAP);
-		intro.setText(Msg.split_intro.format(file.getName(), pageCount));
+		intro.setText(Msg.split_intro.format(file.getName(), pages.size()));
 		intro.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
-		SelectionAdapter modeListener = new SelectionAdapter() {
-			public void widgetSelected(SelectionEvent e) {
-				if (((Button) e.widget).getSelection())
-					update();
-			}
-		};
-		eachPageBt = new Button(shell, SWT.RADIO);
-		eachPageBt.setText(Msg.split_each_page.get());
-		eachPageBt.addSelectionListener(modeListener);
+		Composite choiceComp = new Composite(shell, SWT.NONE);
+		choiceComp.setLayout(UtilGui.createGridLayout(5, false, 0, 5));
+		choiceComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		new Label(choiceComp, SWT.NONE).setText(Msg.split_suggestion.get());
+		createChoiceButton(choiceComp, Msg.split_suggest_separators.get(), Choice.SEPARATORS);
+		createChoiceButton(choiceComp, Msg.split_suggest_text.get(), Choice.TEXT);
+		createChoiceButton(choiceComp, Msg.split_suggest_each_page.get(), Choice.EACH_PAGE);
+		createChoiceButton(choiceComp, Msg.split_suggest_none.get(), Choice.NONE);
 
-		atPagesBt = new Button(shell, SWT.RADIO);
-		atPagesBt.setText(Msg.split_at_pages.get());
-		atPagesBt.addSelectionListener(modeListener);
-		Composite pagesComp = new Composite(shell, SWT.NONE);
-		pagesComp.setLayout(UtilGui.createGridLayout(2, false, 0, 5));
-		GridData pagesData = new GridData(SWT.FILL, SWT.CENTER, true, false);
-		pagesData.horizontalIndent = 20;
-		pagesComp.setLayoutData(pagesData);
-		pagesField = new Text(pagesComp, SWT.BORDER | SWT.SINGLE);
-		GridData fieldData = new GridData(SWT.LEFT, SWT.CENTER, false, false);
-		fieldData.widthHint = 150;
-		pagesField.setLayoutData(fieldData);
-		new Label(pagesComp, SWT.NONE).setText(Msg.split_at_pages_hint.get());
-		pagesField.addModifyListener(new ModifyListener() {
-			public void modifyText(ModifyEvent e) {
-				if (!atPagesBt.getSelection()) {
-					setMode(SettingsConf.SPLIT_AT_PAGES);
+		Label hint = new Label(shell, SWT.WRAP);
+		hint.setText(Msg.split_hint.get());
+		GridData hintData = new GridData(SWT.FILL, SWT.CENTER, true, false);
+		hintData.widthHint = 820;
+		hint.setLayoutData(hintData);
+
+		table = new Table(shell, SWT.CHECK | SWT.BORDER | SWT.FULL_SELECTION | SWT.MULTI | SWT.V_SCROLL);
+		table.setHeaderVisible(true);
+		GridData tableData = new GridData(SWT.FILL, SWT.FILL, true, true);
+		tableData.heightHint = 260;
+		table.setLayoutData(tableData);
+		addColumn(Msg.split_col_page.get(), 130);
+		addColumn(Msg.split_col_text.get(), 330);
+		addColumn(Msg.split_col_reason.get(), 340);
+		for (int i = 0; i < pages.size(); i++)
+			new TableItem(table, SWT.NONE);
+		table.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				if (e.detail != SWT.CHECK)
 					return;
-				}
-				update();
+				int index = table.indexOf((TableItem) e.item);
+				// A ticked separator is kept as the start of a document
+				setRole(index, ((TableItem) e.item).getChecked() || roles[index] == Role.SEPARATOR
+					? Role.START : Role.CONTINUE);
 			}
 		});
 
-		blankPagesBt = new Button(shell, SWT.RADIO);
-		blankPagesBt.setText(Msg.split_at_blank_pages.get());
-		blankPagesBt.addSelectionListener(modeListener);
-		Label explanation = new Label(shell, SWT.WRAP);
-		explanation.setText(Msg.split_at_blank_pages_info.get());
-		GridData explanationData = new GridData(SWT.FILL, SWT.CENTER, true, false);
-		explanationData.horizontalIndent = 20;
-		explanationData.widthHint = 460;
-		explanation.setLayoutData(explanationData);
+		Composite rowComp = new Composite(shell, SWT.NONE);
+		rowComp.setLayout(UtilGui.createGridLayout(2, false, 0, 10));
+		rowComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		Button leaveOutBt = new Button(rowComp, SWT.PUSH);
+		leaveOutBt.setText(Msg.split_leave_out.get());
+		leaveOutBt.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				for (int index : table.getSelectionIndices())
+					setRole(index, roles[index] == Role.SEPARATOR ? Role.CONTINUE : Role.SEPARATOR);
+			}
+		});
+		int withoutText = 0;
+		for (PageInfo page : pages)
+			if (page.text.isEmpty() && !page.blank)
+				withoutText++;
+		Label noTextLabel = new Label(rowComp, SWT.WRAP);
+		noTextLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		if (withoutText > 0)
+			noTextLabel.setText(Msg.split_pages_without_text.format(withoutText));
 
 		Label separator1 = new Label(shell, SWT.SEPARATOR | SWT.HORIZONTAL);
 		separator1.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 		resultLabel = new Label(shell, SWT.WRAP);
-		GridData resultData = new GridData(SWT.FILL, SWT.FILL, true, true);
-		resultData.widthHint = 480;
-		resultData.heightHint = 60;
+		GridData resultData = new GridData(SWT.FILL, SWT.CENTER, true, false);
+		resultData.heightHint = 40;
 		resultLabel.setLayoutData(resultData);
 
-		Label separator2 = new Label(shell, SWT.SEPARATOR | SWT.HORIZONTAL);
-		separator2.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		Composite buttonComp = new Composite(shell, SWT.NONE);
+		Composite bottomComp = new Composite(shell, SWT.NONE);
+		bottomComp.setLayout(UtilGui.createGridLayout(2, false, 0, 5));
+		bottomComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		Link printLink = new Link(bottomComp, SWT.NONE);
+		printLink.setText("<a>" + Msg.print_separator_sheet.get() + "</a>");
+		printLink.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, true, false));
+		printLink.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				DocumentPrinter.printSeparatorSheet(shell);
+			}
+		});
+		Composite buttonComp = new Composite(bottomComp, SWT.NONE);
 		buttonComp.setLayout(UtilGui.createGridLayout(2, true, 0, 5));
 		buttonComp.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
 		okBt = UtilGui.createPushButton(buttonComp, Msg.ok.get(), new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				if (ranges == null || ranges.size() < 2)
+				List<Range> ranges = getRanges();
+				if (ranges.size() < 2)
 					return;
 				answer = ranges;
-				SettingsConf.Int.SplitMode.set(getMode());
 				shell.close();
 			}
 		});
@@ -149,98 +182,153 @@ final class SplitDialog {
 		}
 		shell.setDefaultButton(okBt);
 
+		// Separator pages are the most reliable hint; without them, use the text
+		boolean hasSeparators = false;
+		for (PageInfo page : pages)
+			hasSeparators |= page.isSeparator();
+		apply(hasSeparators ? Choice.SEPARATORS : Choice.TEXT);
+
 		shell.pack();
 		Point size = shell.getSize();
 		UtilGui.setCenteredBounds(shell, size.x, size.y);
-		setMode(SettingsConf.Int.SplitMode.get());
 	}
 
-	private int getMode() {
-		if (eachPageBt.getSelection())
-			return SettingsConf.SPLIT_EACH_PAGE;
-		if (atPagesBt.getSelection())
-			return SettingsConf.SPLIT_AT_PAGES;
-		return SettingsConf.SPLIT_AT_BLANK_PAGES;
+	private void addColumn(@NotNull String label, int width) {
+		TableColumn column = new TableColumn(table, SWT.LEFT);
+		column.setText(label);
+		column.setWidth(width);
 	}
 
-	/** Selects the given mode (SPLIT_* constant) and updates the result. */
-	void setMode(int mode) {
-		eachPageBt.setSelection(mode == SettingsConf.SPLIT_EACH_PAGE);
-		atPagesBt.setSelection(mode == SettingsConf.SPLIT_AT_PAGES);
-		blankPagesBt.setSelection(mode != SettingsConf.SPLIT_EACH_PAGE
-			&& mode != SettingsConf.SPLIT_AT_PAGES);
-		update();
-	}
-
-	/** Enters page numbers for 'split at pages'; for tests. */
-	void setPages(@NotNull String pages) {
-		pagesField.setText(pages);
-	}
-
-	/** Computes the documents for the chosen mode and shows them. */
-	private void update() {
-		String error = null;
-		ranges = null;
-		if (eachPageBt.getSelection()) {
-			ranges = PdfPages.eachPage(pageCount);
-		}
-		else if (atPagesBt.getSelection()) {
-			List<Integer> pages = PdfPages.parsePageNumbers(pagesField.getText());
-			if (pages == null)
-				error = Msg.split_invalid_pages.get();
-			else
-				ranges = PdfPages.atPages(pageCount, pages);
-		}
-		else {
-			findBlankPages();
-			if (blankPagesError != null)
-				error = blankPagesError;
-			else
-				ranges = PdfPages.atBlankPages(blankPages);
-		}
-
-		String text;
-		if (error != null)
-			text = error;
-		else if (ranges.size() < 2)
-			text = Msg.split_nothing.get();
-		else
-			text = Msg.split_result.format(ranges.size(), join(ranges),
-				PdfPages.getPartFiles(file, ranges.size()).get(0).getName());
-		resultLabel.setText(text);
-		okBt.setEnabled(error == null && ranges.size() >= 2);
-	}
-
-	private void findBlankPages() {
-		if (blankPages != null || blankPagesError != null)
-			return;
-		BusyIndicator.showWhile(shell.getDisplay(), new Runnable() {
-			public void run() {
-				try {
-					blankPages = PdfPages.findBlankPages(file);
-				}
-				catch (IOException e) {
-					blankPagesError = Msg.split_failed.format(e.getMessage());
-				}
+	private void createChoiceButton(@NotNull Composite parent,
+									@NotNull String label,
+									@NotNull final Choice choice) {
+		Button button = new Button(parent, SWT.PUSH);
+		button.setText(label);
+		button.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				apply(choice);
 			}
 		});
 	}
 
-	@NotNull
-	private static String join(@NotNull List<Range> ranges) {
-		StringBuilder sb = new StringBuilder();
-		for (Range range : ranges) {
-			if (sb.length() > 0)
-				sb.append(", ");
-			sb.append(range);
+	/** Fills in the given suggestion. */
+	void apply(@NotNull Choice choice) {
+		List<Suggestion> suggestions;
+		if (choice == Choice.TEXT)
+			suggestions = DocumentStarts.suggest(pages);
+		else
+			suggestions = DocumentStarts.atSeparators(pages);
+		boolean first = true;
+		for (int i = 0; i < roles.length; i++) {
+			Suggestion suggestion = suggestions.get(i);
+			Role role = suggestion.role;
+			if (choice == Choice.EACH_PAGE && role != Role.SEPARATOR)
+				role = Role.START;
+			else if (choice == Choice.NONE)
+				role = first ? Role.START : Role.CONTINUE;
+			roles[i] = role;
+			reasons[i] = choice == Choice.TEXT || choice == Choice.SEPARATORS || role == Role.SEPARATOR
+				? getReasonText(suggestion)
+				: "";
+			first = false;
 		}
-		return sb.toString();
+		update();
 	}
 
-	/** The documents for the current choice, or null; for tests. */
-	@Nullable
+	/** Changes the role of one page, e.g. after a click on its checkbox. */
+	void setRole(int index, @NotNull Role role) {
+		roles[index] = role;
+		reasons[index] = Msg.split_reason_manual.get();
+		update();
+	}
+
+	@NotNull
+	private static String getReasonText(@NotNull Suggestion suggestion) {
+		Reason reason = suggestion.reason;
+		String detail = suggestion.detail == null ? "" : suggestion.detail;
+		switch (reason) {
+		case FIRST_PAGE: return Msg.split_reason_first_page.get();
+		case SEPARATOR: return Msg.split_reason_separator.get();
+		case AFTER_SEPARATOR: return Msg.split_reason_after_separator.get();
+		case PAGE_NUMBER_ONE: return Msg.split_reason_page_one.format(detail);
+		case PAGE_NUMBER_CONTINUES: return Msg.split_reason_page_continues.format(detail);
+		case AFTER_LAST_PAGE: return Msg.split_reason_after_last_page.format(detail);
+		case SALUTATION: return Msg.split_reason_salutation.get();
+		case SHARED_NUMBER: return Msg.split_reason_shared_number.format(detail);
+		case LITTLE_TEXT: return Msg.split_reason_little_text.get();
+		case DIFFERENT_TEXT: return Msg.split_reason_different_text.format(detail);
+		case SIMILAR_TEXT: return Msg.split_reason_similar_text.format(detail);
+		default: return "";
+		}
+	}
+
+	/** Shows the roles in the table and the resulting documents below it. */
+	private void update() {
+		// The first page that is kept always starts a document
+		for (int i = 0; i < roles.length; i++) {
+			if (roles[i] == Role.SEPARATOR)
+				continue;
+			roles[i] = Role.START;
+			break;
+		}
+		Color gray = shell.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY);
+		for (int i = 0; i < roles.length; i++) {
+			TableItem item = table.getItem(i);
+			boolean separator = roles[i] == Role.SEPARATOR;
+			item.setChecked(roles[i] == Role.START || separator);
+			item.setGrayed(separator); // A filled box: this page is left out
+			item.setForeground(separator ? gray : null);
+			item.setText(0, separator ? Msg.split_page_left_out.format(i + 1) : String.valueOf(i + 1));
+			item.setText(1, preview(pages.get(i)));
+			item.setText(2, reasons[i]);
+		}
+		List<Range> ranges = getRanges();
+		int leftOut = 0;
+		for (Role role : roles)
+			if (role == Role.SEPARATOR)
+				leftOut++;
+		if (ranges.size() < 2) {
+			resultLabel.setText(Msg.split_nothing.get());
+		}
+		else {
+			StringBuilder pagesText = new StringBuilder();
+			for (Range range : ranges) {
+				if (pagesText.length() > 0)
+					pagesText.append(", ");
+				pagesText.append(range);
+			}
+			String text = Msg.split_result.format(ranges.size(), pagesText,
+				PdfPages.getPartFiles(file, ranges.size()).get(0).getName());
+			if (leftOut > 0)
+				text += " " + Msg.split_left_out.format(leftOut);
+			resultLabel.setText(text);
+		}
+		okBt.setEnabled(ranges.size() >= 2);
+	}
+
+	/** The beginning of the text of the page, on one line. */
+	@NotNull
+	private static String preview(@NotNull PageInfo page) {
+		if (page.blank)
+			return Msg.split_blank_page.get();
+		String text = page.text.replaceAll("\\s+", " ").trim();
+		if (text.isEmpty())
+			return Msg.split_no_text.get();
+		return text.length() > PREVIEW_CHARS ? text.substring(0, PREVIEW_CHARS) + "..." : text;
+	}
+
+	/** The documents for the current roles of the pages. */
+	@NotNull
 	List<Range> getRanges() {
-		return ranges == null ? null : Collections.unmodifiableList(ranges);
+		return PdfPages.fromRoles(roles);
+	}
+
+	/** The current roles; for tests. */
+	@NotNull
+	List<Role> getRoles() {
+		List<Role> list = new ArrayList<Role>();
+		Collections.addAll(list, roles);
+		return list;
 	}
 
 	boolean isOkEnabled() {

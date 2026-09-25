@@ -6,6 +6,7 @@
   * German messages that contain a file or folder name showed the placeholder '{0}' instead of the name.
 
 === Features ===
+  * Splitting a scanned stack without blank pages (which many scanners leave out): the split dialog lists all pages with the beginning of their text and a tick for each page where a new document starts. Suggestions: at separator pages - blank pages or separator sheets printed with 'File > Print Separator Sheet...', recognized by their text even upside down -, or from the text (page numbers, salutations, shared invoice or customer numbers, text in common with the page before), with the reason for each page.
   * 'View > Icon size' chooses the size of all icons (Automatic, 100, 125, 150 or 200 %, like in the preferences); the default is now 200 %. A new size takes effect after a restart.
   * Merge and split PDF files, e.g. a stack of documents scanned in one go: 'Split PDF' creates numbered documents from single pages, from given page numbers or automatically at blank separator pages; 'Merge PDFs' puts the selected PDFs into one, in an order you choose. Afterwards the originals can be moved to the recycle bin (asked once, with 'Remember my choice'); Ctrl+Z undoes both.
   * 'Send by Email' in the toolbar and the context menu opens a new message in the default email program (Outlook, Thunderbird, ...) with all selected documents attached; nothing is sent without you.

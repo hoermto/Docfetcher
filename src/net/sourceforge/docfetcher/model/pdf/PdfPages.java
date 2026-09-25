@@ -64,6 +64,37 @@ public final class PdfPages {
 		}
 	}
 
+	/** What a page is in a split. */
+	public enum Role {
+		/** A new document starts with this page. */
+		START,
+		/** The page belongs to the document of the page before. */
+		CONTINUE,
+		/** A blank page or separator sheet, which is left out. */
+		SEPARATOR
+	}
+
+	/** What is known about a page for splitting. */
+	public static final class PageInfo {
+		/** The text of the page, e.g. from the text layer of the OCR. */
+		public final String text;
+		/** The page has no text and (almost) no ink. */
+		public final boolean blank;
+		/** The page is a separator sheet printed by DocFetcher. */
+		public final boolean separatorSheet;
+
+		public PageInfo(@NotNull String text, boolean blank, boolean separatorSheet) {
+			this.text = text;
+			this.blank = blank;
+			this.separatorSheet = separatorSheet;
+		}
+
+		/** Blank pages and separator sheets separate documents. */
+		public boolean isSeparator() {
+			return blank || separatorSheet;
+		}
+	}
+
 	/*
 	 * A page counts as blank if less than this share of its area (without
 	 * the margins, where scanners leave shadows) is dark and it has no text.
@@ -181,66 +212,51 @@ public final class PdfPages {
 	}
 
 	/**
-	 * Splits at blank pages, which separate the documents and are left out.
-	 * Several blank pages in a row count as one separator.
+	 * Returns the documents for the given roles of the pages: a document
+	 * starts at each START page and after each separator, which is left out.
+	 * Several separators in a row count as one.
 	 */
 	@NotNull
-	public static List<Range> atBlankPages(@NotNull boolean[] blank) {
+	public static List<Range> fromRoles(@NotNull Role[] roles) {
 		List<Range> ranges = new ArrayList<Range>();
 		int start = -1;
-		for (int i = 0; i <= blank.length; i++) {
-			boolean separator = i == blank.length || blank[i];
-			if (separator && start >= 0) {
+		for (int i = 0; i <= roles.length; i++) {
+			boolean end = i == roles.length || roles[i] != Role.CONTINUE;
+			if (end && start >= 0) {
 				ranges.add(new Range(start, i));
 				start = -1;
 			}
-			else if (!separator && start < 0) {
+			if (i < roles.length && roles[i] != Role.SEPARATOR && start < 0)
 				start = i;
-			}
 		}
 		return ranges;
 	}
 
 	/**
-	 * Parses page numbers like "3, 7 9;12". Returns null if the text contains
-	 * anything else than numbers and separators.
-	 */
-	public static List<Integer> parsePageNumbers(@NotNull String text) {
-		List<Integer> pages = new ArrayList<Integer>();
-		for (String part : text.trim().split("[\\s,;]+")) {
-			if (part.isEmpty())
-				continue;
-			try {
-				pages.add(Integer.parseInt(part));
-			}
-			catch (NumberFormatException e) {
-				return null;
-			}
-		}
-		return pages;
-	}
-
-	/**
-	 * Finds the blank pages: pages with (almost) no ink outside the margins
-	 * and no text. Each page is rendered at a low resolution for this.
+	 * Reads the text of each page and finds the blank pages (no text and
+	 * (almost) no ink outside the margins, for which pages without text are
+	 * rendered at a low resolution) and the separator sheets.
 	 */
 	@NotNull
-	public static boolean[] findBlankPages(@NotNull File pdf) throws IOException {
+	public static List<PageInfo> analyzePages(@NotNull File pdf) throws IOException {
 		PDDocument doc = PDDocument.load(pdf, MemoryUsageSetting.setupTempFileOnly());
 		try {
 			int count = doc.getNumberOfPages();
-			boolean[] blank = new boolean[count];
+			List<PageInfo> pages = new ArrayList<PageInfo>(count);
 			PDFRenderer renderer = new PDFRenderer(doc);
 			PDFTextStripper stripper = new PDFTextStripper();
 			for (int i = 0; i < count; i++) {
 				stripper.setStartPage(i + 1);
 				stripper.setEndPage(i + 1);
-				if (stripper.getText(doc).trim().length() > 2)
-					continue; // Has text, e.g. from the text recognition
-				BufferedImage image = renderer.renderImage(i, BLANK_RENDER_DPI / 72f, ImageType.GRAY);
-				blank[i] = isBlank(image);
+				String text = stripper.getText(doc).trim();
+				boolean blank = false;
+				if (text.length() <= 2) { // No text, e.g. from the text recognition
+					BufferedImage image = renderer.renderImage(i, BLANK_RENDER_DPI / 72f, ImageType.GRAY);
+					blank = isBlank(image);
+				}
+				pages.add(new PageInfo(text, blank, SeparatorSheet.isSeparator(text)));
 			}
-			return blank;
+			return pages;
 		}
 		finally {
 			doc.close();

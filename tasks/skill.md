@@ -57,6 +57,11 @@
   use it for Ctrl+A to select several rows. SWT's virtual tables expose no rows to UI Automation.
 - Email: the default MAPI client is in HKCU\Software\Clients\Mail (here Thunderbird). The compose window
   'Verfassen: <subject> - Thunderbird' can be checked with `win.py shot` and closed with `win.py close` (no prompt).
+- `win.py press` only reaches native dialogs (message boxes, #32770); SWT dialogs like MultipleChoiceDialog have
+  a title and are clicked with `win.py click X Y TITLE`.
+- Scanned test PDFs: pages as images only (PIL `save_all`); the inbox indexing runs the OCR and writes the text
+  layer into the file (after `touch` for an already indexed file). Check page texts with a small Java program
+  that calls `PdfPages.analyzePages` (classpath: out/compile.dest/classes + pdfbox, fontbox, commons-logging, guava).
 - Message boxes have no title: `win.py press OK` (WM_COMMAND to the program's own dialogs; never FindWindow('#32770'),
   which may hit another program's dialog). Submenus: `win.py menu View "Icon size>100"`.
 - A second `run-dev.sh` while the program still runs only brings the first instance to the front; check

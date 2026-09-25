@@ -14,6 +14,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -34,6 +35,7 @@ import org.eclipse.swt.widgets.Shell;
 
 import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.model.ocr.ImagePages;
+import net.sourceforge.docfetcher.model.pdf.SeparatorSheet;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilGui;
@@ -239,6 +241,24 @@ final class DocumentPrinter {
 		}
 		catch (Exception e) {
 			AppUtil.showError(Msg.print_no_program.format(file.getName()), true, true);
+		}
+	}
+
+	/**
+	 * Prints separator sheets, which are put between the documents of a
+	 * stack before scanning (see {@link SeparatorSheet}). The print dialog
+	 * asks how many.
+	 */
+	public static void printSeparatorSheet(@NotNull Shell shell) {
+		try {
+			File file = File.createTempFile("docfetcher-separator-sheet", ".pdf");
+			file.deleteOnExit();
+			SeparatorSheet.create(file, Msg.separator_sheet_title.get(),
+				Msg.separator_sheet_instruction.get());
+			print(shell, Collections.singletonList(file));
+		}
+		catch (IOException e) {
+			AppUtil.showError(Msg.print_failed.format(e.getMessage()), true, true);
 		}
 	}
 

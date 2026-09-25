@@ -30,6 +30,9 @@ import org.junit.Test;
 import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.gui.PdfOperations.Answer;
 import net.sourceforge.docfetcher.model.pdf.PdfPages;
+import net.sourceforge.docfetcher.model.pdf.PdfPages.PageInfo;
+import net.sourceforge.docfetcher.model.pdf.PdfPages.Range;
+import net.sourceforge.docfetcher.model.pdf.PdfPages.Role;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.util.UtilFile;
 
@@ -188,18 +191,27 @@ public final class PdfOperationsTest {
 		assertEquals(Arrays.asList(file("b.pdf"), file("a.pdf")), merge.getOrder());
 		assertEquals("The name follows the first file", "b_merged", merge.getFileName());
 
-		SplitDialog split = new SplitDialog(shell, file("stack.pdf"), 5);
-		split.setMode(SettingsConf.SPLIT_EACH_PAGE);
-		assertEquals(5, split.getRanges().size());
-		split.setPages("4");
-		assertEquals(2, split.getRanges().size());
+		List<PageInfo> pages = Arrays.asList(
+			new PageInfo("Rechnung RE-4711 Seite 1 von 2", false, false),
+			new PageInfo("Rechnung RE-4711 Seite 2 von 2", false, false),
+			new PageInfo("", false, true), // Separator sheet
+			new PageInfo("Sehr geehrter Herr Beispiel, anbei der Vertrag", false, false),
+			new PageInfo("Vertrag Unterschrift Seite 2 von 2", false, false));
+		SplitDialog split = new SplitDialog(shell, file("stack.pdf"), pages);
+		// With a separator sheet, the dialog starts with the separators
+		assertEquals(Arrays.asList(new Range(0, 2), new Range(3, 5)), split.getRanges());
+		split.apply(SplitDialog.Choice.TEXT);
+		assertEquals(Arrays.asList(Role.START, Role.CONTINUE, Role.SEPARATOR, Role.START, Role.CONTINUE),
+			split.getRoles());
+		split.apply(SplitDialog.Choice.EACH_PAGE);
+		assertEquals("The separator stays out", 4, split.getRanges().size());
+		split.apply(SplitDialog.Choice.NONE);
+		assertFalse("One document is no split", split.isOkEnabled());
+		split.setRole(4, Role.START); // Ticked by the user
+		assertEquals(Arrays.asList(new Range(0, 4), new Range(4, 5)), split.getRanges());
 		assertTrue(split.isOkEnabled());
-		split.setPages("x");
-		assertFalse("Invalid page numbers", split.isOkEnabled());
-		split.setPages("1");
-		assertFalse("No split at page 1", split.isOkEnabled());
-		split.setMode(SettingsConf.SPLIT_AT_BLANK_PAGES);
-		assertFalse("No blank pages in the stack", split.isOkEnabled());
+		split.setRole(0, Role.CONTINUE); // The first page always starts
+		assertEquals(Role.START, split.getRoles().get(0));
 		split.close();
 	}
 

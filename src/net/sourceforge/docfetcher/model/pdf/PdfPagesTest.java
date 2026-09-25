@@ -10,7 +10,6 @@ package net.sourceforge.docfetcher.model.pdf;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.awt.Color;
@@ -136,18 +135,8 @@ public final class PdfPagesTest {
 		assertEquals(Arrays.asList(new Range(0, 2), new Range(2, 4), new Range(4, 6)),
 			PdfPages.atPages(6, Arrays.asList(5, 3, 1, 99, 3)));
 		assertEquals(Arrays.asList(new Range(0, 6)), PdfPages.atPages(6, Arrays.<Integer> asList()));
-		// Blank pages separate and are dropped, several in a row count as one
-		boolean[] blank = { true, false, false, true, true, false, true };
-		assertEquals(Arrays.asList(new Range(1, 3), new Range(5, 6)), PdfPages.atBlankPages(blank));
 		assertEquals("3-5", new Range(2, 5).toString());
 		assertEquals("7", new Range(6, 7).toString());
-	}
-
-	@Test
-	public void parsesPageNumbers() {
-		assertEquals(Arrays.asList(3, 7, 9, 12), PdfPages.parsePageNumbers(" 3, 7 9;12 "));
-		assertEquals(Arrays.<Integer> asList(), PdfPages.parsePageNumbers(""));
-		assertNull(PdfPages.parsePageNumbers("3-5"));
 	}
 
 	@Test
@@ -183,14 +172,27 @@ public final class PdfPagesTest {
 	public void findsBlankScannedPages() throws Exception {
 		// Page 4 has only one short line, which must not count as blank
 		File scans = createScanPdf(new File(dir, "scans.pdf"), 12, 0, 12, 1, 0, 12);
-		boolean[] blank = PdfPages.findBlankPages(scans);
-		assertEquals(Arrays.toString(new boolean[] { false, true, false, false, true, false }), Arrays.toString(blank));
-		assertEquals(Arrays.asList(new Range(0, 1), new Range(2, 4), new Range(5, 6)),
-			PdfPages.atBlankPages(blank));
+		assertEquals("[false, true, false, false, true, false]", blankPages(scans));
 
 		// A page with text is never blank, however little ink it has
 		File text = createTextPdf(new File(dir, "text.pdf"), "Hello", " ");
-		assertEquals(Arrays.toString(new boolean[] { false, true }), Arrays.toString(PdfPages.findBlankPages(text)));
+		assertEquals("[false, true]", blankPages(text));
+	}
+
+	private static String blankPages(File pdf) throws Exception {
+		List<Boolean> blank = new java.util.ArrayList<Boolean>();
+		for (PdfPages.PageInfo page : PdfPages.analyzePages(pdf))
+			blank.add(page.blank);
+		return blank.toString();
+	}
+
+	@Test
+	public void recognizesThePrintedSeparatorSheet() throws Exception {
+		File sheet = new File(dir, "sheet.pdf");
+		SeparatorSheet.create(sheet, "Trennblatt", "Zwischen die Dokumente legen und mitscannen.");
+		PdfPages.PageInfo page = PdfPages.analyzePages(sheet).get(0);
+		assertTrue(page.text, page.separatorSheet);
+		assertFalse("Printed, so not blank", page.blank);
 	}
 
 }
