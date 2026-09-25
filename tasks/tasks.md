@@ -18,8 +18,13 @@
 ## bugs
 
 ## changes
+[] View > Icon size: Automatic, 100, 125, 150, 200 %; default 200 %; all icons; takes effect after a restart
 
 ## features/stories
+[] auto-split without blank pages (the scanner removes them):
+  [] a) separator sheet printed by DocFetcher, recognized by the OCR text; split there and leave it out
+  [] b) text-based suggestion of document starts (page numbers, greeting, shared numbers, different vocabulary)
+  [] c) split dialog with an editable page list: checkbox 'new document starts here' per page, suggestions pre-ticked
 
 
 
