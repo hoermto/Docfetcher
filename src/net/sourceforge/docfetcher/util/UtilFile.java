@@ -66,6 +66,24 @@ public final class UtilFile {
 	}
 
 	/**
+	 * Returns the given file if it doesn't exist, otherwise the first free
+	 * file with a number added to the name: {@code name-2.pdf},
+	 * {@code name-3.pdf}, ...
+	 */
+	@NotNull
+	public static File getFreeFile(@NotNull File file) {
+		if (!file.exists())
+			return file;
+		String[] parts = Util.splitFilename(file.getName());
+		String ext = parts[1].isEmpty() ? "" : "." + parts[1];
+		for (int i = 2; ; i++) {
+			File candidate = new File(file.getParentFile(), parts[0] + "-" + i + ext);
+			if (!candidate.exists())
+				return candidate;
+		}
+	}
+
+	/**
 	 * Deletes the given file or folder without using the recycle bin; a
 	 * folder is deleted with its contents. Returns true on success.
 	 */

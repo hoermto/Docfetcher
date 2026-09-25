@@ -22,11 +22,10 @@ import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
-import org.eclipse.swt.widgets.Text;
 
 import net.sourceforge.docfetcher.enums.Img;
 import net.sourceforge.docfetcher.enums.Msg;
-import net.sourceforge.docfetcher.model.search.NameSuggester;
+import net.sourceforge.docfetcher.model.search.NameSuggester.Suggestion;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
@@ -34,9 +33,16 @@ import net.sourceforge.docfetcher.util.annotations.Nullable;
 
 /**
  * Asks in which order the selected PDF files are merged and how the merged
- * file is named. The merged file is saved in the folder of the first file.
+ * file is named. The name is entered like in the rename dialog; it starts
+ * with the name of the first file and follows the order until the user
+ * changes it. The merged file is saved in the folder of the first file.
  */
 final class MergeDialog {
+
+	/** Provides the name suggestion for a file, or null. */
+	interface SuggestionSource {
+		@Nullable Suggestion get(@NotNull File file);
+	}
 
 	/** The user's choice: the files in the order to merge, and the new file name. */
 	static final class Result {
@@ -51,14 +57,18 @@ final class MergeDialog {
 
 	private final Shell shell;
 	private final org.eclipse.swt.widgets.List list;
-	private final Text nameField;
+	private final NameEditor nameEditor;
 	private final List<File> files;
-	private String suggestedName = "";
+	private final SuggestionSource suggestions;
+	@Nullable private File suggestionFor;
 	@Nullable private Result result;
 
-	public MergeDialog(@NotNull Shell parent, @NotNull List<File> files) {
-		Util.checkNotNull(parent, files);
+	public MergeDialog(	@NotNull Shell parent,
+						@NotNull List<File> files,
+						@NotNull SuggestionSource suggestions) {
+		Util.checkNotNull(parent, files, suggestions);
 		this.files = new ArrayList<File>(files);
+		this.suggestions = suggestions;
 
 		shell = new Shell(parent, SWT.PRIMARY_MODAL | SWT.DIALOG_TRIM | SWT.RESIZE);
 		shell.setText(Msg.merge_title.get());
@@ -78,19 +88,29 @@ final class MergeDialog {
 		Composite moveComp = new Composite(shell, SWT.NONE);
 		moveComp.setLayout(UtilGui.createGridLayout(1, true, 0, 5));
 		moveComp.setLayoutData(new GridData(SWT.FILL, SWT.TOP, false, false));
-		createMoveButton(moveComp, Msg.move_up.get(), -1);
-		createMoveButton(moveComp, Msg.move_down.get(), 1);
+		createButton(moveComp, Msg.move_up.get(), new Runnable() {
+			public void run() {
+				move(-1);
+			}
+		});
+		createButton(moveComp, Msg.move_down.get(), new Runnable() {
+			public void run() {
+				move(1);
+			}
+		});
+		createButton(moveComp, Msg.merge_reverse.get(), new Runnable() {
+			public void run() {
+				reverse();
+			}
+		});
 
-		Label nameLabel = new Label(shell, SWT.NONE);
+		Label nameLabel = new Label(shell, SWT.WRAP);
 		nameLabel.setText(Msg.merge_file_name.get());
-		nameLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
-
-		Composite nameComp = new Composite(shell, SWT.NONE);
-		nameComp.setLayout(UtilGui.createGridLayout(2, false, 0, 3));
-		nameComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
-		nameField = new Text(nameComp, SWT.BORDER | SWT.SINGLE);
-		nameField.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-		new Label(nameComp, SWT.NONE).setText(".pdf");
+		GridData nameLabelData = new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1);
+		nameLabelData.widthHint = 480; // Wraps instead of widening the dialog
+		nameLabel.setLayoutData(nameLabelData);
+		nameEditor = new NameEditor(shell, "pdf", Msg.merge_use_first_name.get());
+		nameEditor.getControl().setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
 
 		Label separator = new Label(shell, SWT.SEPARATOR | SWT.HORIZONTAL);
 		separator.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1));
@@ -100,9 +120,7 @@ final class MergeDialog {
 		buttonComp.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false, 2, 1));
 		Button okBt = UtilGui.createPushButton(buttonComp, Msg.ok.get(), new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				String name = NameSuggester.sanitize(nameField.getText().trim());
-				if (name.toLowerCase().endsWith(".pdf"))
-					name = name.substring(0, name.length() - 4);
+				String name = getFileName();
 				if (name.isEmpty())
 					return;
 				result = new Result(Collections.unmodifiableList(MergeDialog.this.files), name + ".pdf");
@@ -124,16 +142,18 @@ final class MergeDialog {
 		fillList(0);
 		shell.pack();
 		Point size = shell.getSize();
-		UtilGui.setCenteredBounds(shell, Math.max(size.x, 480), size.y);
+		UtilGui.setCenteredBounds(shell, Math.max(size.x, 520), size.y);
 	}
 
-	private void createMoveButton(@NotNull Composite parent, @NotNull String label, final int step) {
+	private static void createButton(	@NotNull Composite parent,
+										@NotNull String label,
+										@NotNull final Runnable action) {
 		Button button = new Button(parent, SWT.PUSH);
 		button.setText(label);
 		button.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 		button.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				move(step);
+				action.run();
 			}
 		});
 	}
@@ -148,24 +168,39 @@ final class MergeDialog {
 		fillList(target);
 	}
 
+	/** Reverses the order, e.g. for a stack that was scanned from the back. */
+	void reverse() {
+		int index = list.getSelectionIndex();
+		Collections.reverse(files);
+		fillList(index < 0 ? 0 : files.size() - 1 - index);
+	}
+
 	private void fillList(int selection) {
 		list.removeAll();
 		for (int i = 0; i < files.size(); i++)
 			list.add((i + 1) + ".  " + files.get(i).getName());
 		list.select(selection);
 
-		// The suggested name follows the first file, unless the user changed it
-		if (nameField.getText().equals(suggestedName)) {
-			String first = Util.splitFilename(files.get(0).getName())[0];
-			suggestedName = first + "_" + Msg.merge_name_suffix.get();
-			nameField.setText(suggestedName);
-		}
+		// The proposed name follows the first file, unless the user changed it
+		File first = files.get(0);
+		if (first.equals(suggestionFor))
+			return;
+		suggestionFor = first;
+		String base = Util.splitFilename(first.getName())[0];
+		nameEditor.setCurrentName(base);
+		nameEditor.setSuggestion(suggestions.get(first));
+		if (!nameEditor.isEdited())
+			nameEditor.setName(base);
+		shell.layout(true, true);
 	}
 
 	/** The file name in the dialog, without extension; for tests. */
 	@NotNull
 	String getFileName() {
-		return nameField.getText();
+		String name = nameEditor.getName();
+		if (name.toLowerCase().endsWith(".pdf"))
+			name = name.substring(0, name.length() - 4);
+		return name;
 	}
 
 	/** Returns the files in the current order; for tests. */
@@ -188,6 +223,11 @@ final class MergeDialog {
 				shell.getDisplay().sleep();
 		}
 		return result;
+	}
+
+	/** Closes the dialog; for tests. */
+	void close() {
+		shell.close();
 	}
 
 }

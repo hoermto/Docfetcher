@@ -150,11 +150,22 @@ public final class NameSuggester {
 										@NotNull Searcher searcher,
 										@NotNull String text)
 			throws SearchException, CheckedOutOfMemoryError {
+		return suggest(text, doc.getLastModified(), searcher);
+	}
+
+	/**
+	 * Computes a name suggestion from the given text, e.g. of a part of a
+	 * split document that is not indexed yet. {@code fallbackDate} is used if
+	 * the text contains no date; if it is null, today is used.
+	 */
+	@NotNull
+	public static Suggestion suggest(	@NotNull String text,
+										@Nullable Date fallbackDate,
+										@NotNull Searcher searcher)
+			throws SearchException, CheckedOutOfMemoryError {
 		String date = findDate(text);
-		if (date == null) {
-			Date lastModified = doc.getLastModified();
-			date = ISO_DATE.format(lastModified == null ? new Date() : lastModified);
-		}
+		if (date == null)
+			date = ISO_DATE.format(fallbackDate == null ? new Date() : fallbackDate);
 
 		List<String> candidates = searcher.extractKeywords(text, 40);
 

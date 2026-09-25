@@ -11,7 +11,9 @@ package net.sourceforge.docfetcher.gui;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
@@ -30,6 +32,7 @@ import org.eclipse.swt.widgets.TableItem;
 
 import net.sourceforge.docfetcher.enums.Img;
 import net.sourceforge.docfetcher.enums.Msg;
+import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.model.pdf.DocumentStarts;
 import net.sourceforge.docfetcher.model.pdf.DocumentStarts.Reason;
 import net.sourceforge.docfetcher.model.pdf.DocumentStarts.Suggestion;
@@ -66,6 +69,7 @@ final class SplitDialog {
 	private final Table table;
 	private final Label resultLabel;
 	private final Button okBt;
+	private final Map<Choice, Button> choiceButtons = new EnumMap<Choice, Button>(Choice.class);
 	@Nullable private List<Range> answer;
 
 	public SplitDialog(@NotNull Shell parent, @NotNull File file, @NotNull List<PageInfo> pages) {
@@ -84,14 +88,21 @@ final class SplitDialog {
 		intro.setText(Msg.split_intro.format(file.getName(), pages.size()));
 		intro.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
+		// Separator pages are the most reliable hint: offered first, and chosen if there are any
+		boolean hasSeparators = false;
+		for (PageInfo page : pages)
+			hasSeparators |= page.isSeparator();
 		Composite choiceComp = new Composite(shell, SWT.NONE);
-		choiceComp.setLayout(UtilGui.createGridLayout(5, false, 0, 5));
+		choiceComp.setLayout(UtilGui.createGridLayout(6, false, 0, 5));
 		choiceComp.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 		new Label(choiceComp, SWT.NONE).setText(Msg.split_suggestion.get());
-		createChoiceButton(choiceComp, Msg.split_suggest_separators.get(), Choice.SEPARATORS);
+		createChoiceButton(choiceComp, Msg.split_suggest_separators.get(), Choice.SEPARATORS)
+			.setEnabled(hasSeparators);
 		createChoiceButton(choiceComp, Msg.split_suggest_text.get(), Choice.TEXT);
 		createChoiceButton(choiceComp, Msg.split_suggest_each_page.get(), Choice.EACH_PAGE);
 		createChoiceButton(choiceComp, Msg.split_suggest_none.get(), Choice.NONE);
+		Label separatorNote = new Label(choiceComp, SWT.NONE);
+		separatorNote.setText(hasSeparators ? "" : Msg.split_no_separators.get());
 
 		Label hint = new Label(shell, SWT.WRAP);
 		hint.setText(Msg.split_hint.get());
@@ -140,6 +151,16 @@ final class SplitDialog {
 		if (withoutText > 0)
 			noTextLabel.setText(Msg.split_pages_without_text.format(withoutText));
 
+		final Button autoRenameBt = new Button(shell, SWT.CHECK);
+		autoRenameBt.setText(Msg.split_auto_rename.get());
+		autoRenameBt.setSelection(SettingsConf.Bool.SplitAutoRename.get());
+		autoRenameBt.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				SettingsConf.Bool.SplitAutoRename.set(autoRenameBt.getSelection());
+				update();
+			}
+		});
+
 		Label separator1 = new Label(shell, SWT.SEPARATOR | SWT.HORIZONTAL);
 		separator1.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 		resultLabel = new Label(shell, SWT.WRAP);
@@ -182,10 +203,6 @@ final class SplitDialog {
 		}
 		shell.setDefaultButton(okBt);
 
-		// Separator pages are the most reliable hint; without them, use the text
-		boolean hasSeparators = false;
-		for (PageInfo page : pages)
-			hasSeparators |= page.isSeparator();
 		apply(hasSeparators ? Choice.SEPARATORS : Choice.TEXT);
 
 		shell.pack();
@@ -199,20 +216,26 @@ final class SplitDialog {
 		column.setWidth(width);
 	}
 
-	private void createChoiceButton(@NotNull Composite parent,
-									@NotNull String label,
-									@NotNull final Choice choice) {
-		Button button = new Button(parent, SWT.PUSH);
+	/** A button for a suggestion; it stays pressed while its suggestion is shown. */
+	@NotNull
+	private Button createChoiceButton(	@NotNull Composite parent,
+										@NotNull String label,
+										@NotNull final Choice choice) {
+		Button button = new Button(parent, SWT.TOGGLE);
 		button.setText(label);
 		button.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
 				apply(choice);
 			}
 		});
+		choiceButtons.put(choice, button);
+		return button;
 	}
 
 	/** Fills in the given suggestion. */
 	void apply(@NotNull Choice choice) {
+		for (Map.Entry<Choice, Button> entry : choiceButtons.entrySet())
+			entry.getValue().setSelection(entry.getKey() == choice);
 		List<Suggestion> suggestions;
 		if (choice == Choice.TEXT)
 			suggestions = DocumentStarts.suggest(pages);
@@ -297,8 +320,10 @@ final class SplitDialog {
 					pagesText.append(", ");
 				pagesText.append(range);
 			}
-			String text = Msg.split_result.format(ranges.size(), pagesText,
-				PdfPages.getPartFiles(file, ranges.size()).get(0).getName());
+			String firstName = SettingsConf.Bool.SplitAutoRename.get()
+				? Msg.split_names_by_content.get()
+				: PdfPages.getPartFiles(file, ranges.size()).get(0).getName();
+			String text = Msg.split_result.format(ranges.size(), pagesText, firstName);
 			if (leftOut > 0)
 				text += " " + Msg.split_left_out.format(leftOut);
 			resultLabel.setText(text);
@@ -323,12 +348,32 @@ final class SplitDialog {
 		return PdfPages.fromRoles(roles);
 	}
 
+	/** The suggestion whose button is pressed, or null; for tests. */
+	@Nullable
+	Choice getChoice() {
+		for (Map.Entry<Choice, Button> entry : choiceButtons.entrySet())
+			if (entry.getValue().getSelection())
+				return entry.getKey();
+		return null;
+	}
+
+	/** Whether a suggestion can be chosen; for tests. */
+	boolean isChoiceEnabled(@NotNull Choice choice) {
+		return choiceButtons.get(choice).getEnabled();
+	}
+
 	/** The current roles; for tests. */
 	@NotNull
 	List<Role> getRoles() {
 		List<Role> list = new ArrayList<Role>();
 		Collections.addAll(list, roles);
 		return list;
+	}
+
+	/** The text below the page list; for tests. */
+	@NotNull
+	String getResultText() {
+		return resultLabel.getText();
 	}
 
 	boolean isOkEnabled() {

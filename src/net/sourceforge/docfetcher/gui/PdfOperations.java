@@ -12,7 +12,10 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.BusyIndicator;
@@ -23,7 +26,10 @@ import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.model.pdf.PdfPages;
 import net.sourceforge.docfetcher.model.pdf.PdfPages.PageInfo;
 import net.sourceforge.docfetcher.model.pdf.PdfPages.Range;
+import net.sourceforge.docfetcher.model.search.NameSuggester;
+import net.sourceforge.docfetcher.model.search.NameSuggester.Suggestion;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
+import net.sourceforge.docfetcher.model.search.Searcher;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilFile;
@@ -48,6 +54,12 @@ final class PdfOperations {
 
 		/** Updates the indexes and views after the given files changed. */
 		void filesChanged(@NotNull List<File> files);
+
+		/** The name suggestion for the document, computed if necessary, or null. */
+		@Nullable Suggestion getNameSuggestion(@NotNull ResultDocument doc);
+
+		/** The searcher for name suggestions of new files, or null. */
+		@Nullable Searcher getSearcher();
 	}
 
 	/** Answers the question for the originals is answered with. */
@@ -86,10 +98,17 @@ final class PdfOperations {
 	}
 
 	/** Asks for the order and name, then merges the documents. */
-	static void merge(@NotNull Host host, @NotNull List<ResultDocument> docs) {
+	static void merge(@NotNull final Host host, @NotNull final List<ResultDocument> docs) {
 		if (!canMerge(docs))
 			return;
-		MergeDialog.Result choice = new MergeDialog(host.getShell(), filesOf(docs)).open();
+		final List<File> files = filesOf(docs);
+		MergeDialog.SuggestionSource suggestions = new MergeDialog.SuggestionSource() {
+			public Suggestion get(File file) {
+				int index = files.indexOf(file);
+				return index < 0 ? null : host.getNameSuggestion(docs.get(index));
+			}
+		};
+		MergeDialog.Result choice = new MergeDialog(host.getShell(), files, suggestions).open();
 		if (choice == null)
 			return;
 		File target = new File(choice.files.get(0).getParentFile(), choice.fileName);
@@ -106,15 +125,20 @@ final class PdfOperations {
 							@NotNull final List<File> files,
 							@NotNull final File target,
 							@Nullable Answer answer) {
-		if (target.exists()) {
-			AppUtil.showError(Msg.file_exists_error.format(target.getPath()), true, true);
-			return false;
-		}
+		/*
+		 * The proposed name is the one of the first file. The merged file is
+		 * written under a temporary name first; after the question what to do
+		 * with the originals it gets the name if that is free then, or else
+		 * the name with a number.
+		 */
+		final File written = target.exists()
+			? new File(target.getParentFile(), "~" + target.getName() + ".docfetcher-merge")
+			: target;
 		final IOException[] error = new IOException[1];
 		BusyIndicator.showWhile(host.getShell().getDisplay(), new Runnable() {
 			public void run() {
 				try {
-					PdfPages.merge(files, target);
+					PdfPages.merge(files, written);
 				}
 				catch (IOException e) {
 					error[0] = e;
@@ -122,15 +146,27 @@ final class PdfOperations {
 			}
 		});
 		if (error[0] != null) {
+			written.delete();
 			AppUtil.showError(Msg.merge_failed.format(error[0].getMessage()), true, true);
 			return false;
 		}
-		String question = Msg.merge_done_question.format(target.getName(), files.size());
+		String question = Msg.merge_done_question.format(files.size());
 		List<File> backups = handleOriginals(host, docs, question, answer);
+		File merged = target;
+		if (written != target) {
+			merged = UtilFile.getFreeFile(target);
+			try {
+				java.nio.file.Files.move(written.toPath(), merged.toPath());
+			}
+			catch (IOException e) {
+				merged = written; // Keep the result under the temporary name
+				AppUtil.showError(Msg.file_operation_failed.format(e.toString()), true, true);
+			}
+		}
 		FileOperationHistory.getInstance().add(FileOperationHistory.Kind.MERGE,
-			files, Collections.singletonList(target), backups);
+			files, Collections.singletonList(merged), backups);
 		List<File> changed = new ArrayList<File>(files);
-		changed.add(target);
+		changed.add(merged);
 		host.filesChanged(changed);
 		return true;
 	}
@@ -160,8 +196,56 @@ final class PdfOperations {
 			return;
 		}
 		List<Range> ranges = new SplitDialog(host.getShell(), file, pages).open();
-		if (ranges != null)
-			split(host, doc, ranges, null);
+		if (ranges == null)
+			return;
+		List<File> parts = PdfPages.getPartFiles(file, ranges.size());
+		if (SettingsConf.Bool.SplitAutoRename.get())
+			parts = getSuggestedPartFiles(host, file, pages, ranges, parts);
+		split(host, doc, ranges, parts, null);
+	}
+
+	/**
+	 * Names the parts of a split by their text, like 'Rename To' does:
+	 * {@code <date>_<word>-<word>-<word>.pdf}, with a number if the name is
+	 * taken. A part without a suggestion keeps its numbered name.
+	 */
+	@NotNull
+	static List<File> getSuggestedPartFiles(@NotNull Host host,
+											@NotNull final File file,
+											@NotNull final List<PageInfo> pages,
+											@NotNull final List<Range> ranges,
+											@NotNull final List<File> numbered) {
+		final Searcher searcher = host.getSearcher();
+		if (searcher == null)
+			return numbered;
+		final List<File> result = new ArrayList<File>(numbered);
+		BusyIndicator.showWhile(host.getShell().getDisplay(), new Runnable() {
+			public void run() {
+				Date fallbackDate = new Date(file.lastModified());
+				Set<String> used = new HashSet<String>();
+				for (int i = 0; i < ranges.size(); i++) {
+					StringBuilder text = new StringBuilder();
+					for (int page = ranges.get(i).start; page < ranges.get(i).end; page++)
+						text.append(pages.get(page).text).append('\n');
+					try {
+						Suggestion suggestion = NameSuggester.suggest(text.toString(), fallbackDate, searcher);
+						if (suggestion.getWords().isEmpty())
+							continue;
+						String base = suggestion.buildName(NameSuggester.DEFAULT_WORDS, "");
+						File part = UtilFile.getFreeFile(new File(file.getParentFile(), base + ".pdf"));
+						// Parts with the same suggestion get numbers among themselves, too
+						for (int n = 2; used.contains(part.getName().toLowerCase()); n++)
+							part = UtilFile.getFreeFile(new File(file.getParentFile(), base + "-" + n + ".pdf"));
+						used.add(part.getName().toLowerCase());
+						result.set(i, part);
+					}
+					catch (Exception e) {
+						// No suggestion: the part keeps its numbered name
+					}
+				}
+			}
+		});
+		return result;
 	}
 
 	/**
@@ -174,8 +258,18 @@ final class PdfOperations {
 							@NotNull ResultDocument doc,
 							@NotNull final List<Range> ranges,
 							@Nullable Answer answer) {
+		File file = doc.getPath().getCanonicalFile();
+		return split(host, doc, ranges, PdfPages.getPartFiles(file, ranges.size()), answer);
+	}
+
+	/** Like {@link #split(Host, ResultDocument, List, Answer)}, with the given part files. */
+	@Nullable
+	static List<File> split(@NotNull Host host,
+							@NotNull ResultDocument doc,
+							@NotNull final List<Range> ranges,
+							@NotNull final List<File> parts,
+							@Nullable Answer answer) {
 		final File file = doc.getPath().getCanonicalFile();
-		final List<File> parts = PdfPages.getPartFiles(file, ranges.size());
 		final IOException[] error = new IOException[1];
 		BusyIndicator.showWhile(host.getShell().getDisplay(), new Runnable() {
 			public void run() {

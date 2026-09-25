@@ -27,13 +27,17 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.gui.PdfOperations.Answer;
 import net.sourceforge.docfetcher.model.pdf.PdfPages;
 import net.sourceforge.docfetcher.model.pdf.PdfPages.PageInfo;
 import net.sourceforge.docfetcher.model.pdf.PdfPages.Range;
 import net.sourceforge.docfetcher.model.pdf.PdfPages.Role;
+import net.sourceforge.docfetcher.model.search.NameSuggester.Suggestion;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
+import net.sourceforge.docfetcher.model.search.Searcher;
+import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilFile;
 
 /**
@@ -57,6 +61,12 @@ public final class PdfOperationsTest {
 		}
 		public void filesChanged(List<File> files) {
 			changedFiles.addAll(files);
+		}
+		public Suggestion getNameSuggestion(ResultDocument doc) {
+			return null;
+		}
+		public Searcher getSearcher() {
+			return support.registry.getSearcher();
 		}
 	};
 
@@ -83,6 +93,9 @@ public final class PdfOperationsTest {
 				DocumentPrinterTest.createPdf(root, "b.pdf", 1);
 				DocumentPrinterTest.createPdf(root, "stack.pdf", 5);
 				GuiTestSupport.write(new File(root, "note.txt"), "no pdf");
+				// Words the name suggestion can find in the index
+				GuiTestSupport.write(new File(root, "invoice.txt"),
+					"Stadtwerke Musterstadt Rechnung Strom Verbrauch Abrechnung");
 			}
 		});
 		FileOperationHistory.getInstance().clear();
@@ -149,6 +162,47 @@ public final class PdfOperationsTest {
 	}
 
 	@Test
+	public void theNameOfTheFirstFileIsUsedWhenTheOriginalsGo() throws Exception {
+		// Removed originals: the merged file gets exactly the name of the first file
+		assertTrue(PdfOperations.merge(host, rows("a.pdf", "b.pdf"),
+			Arrays.asList(file("a.pdf"), file("b.pdf")), file("a.pdf"), Answer.REMOVE));
+		assertEquals(3, PdfPages.getPageCount(file("a.pdf")));
+		assertFalse(file("b.pdf").exists());
+		assertEquals(0, support.root.list(new java.io.FilenameFilter() {
+			public boolean accept(File dir, String name) {
+				return name.endsWith(".docfetcher-merge");
+			}
+		}).length);
+		// The undo brings back both originals
+		assertTrue(ResultPanel.undoMergeOrSplitWithoutAsking(support.registry));
+		assertEquals(2, PdfPages.getPageCount(file("a.pdf")));
+		assertEquals(1, PdfPages.getPageCount(file("b.pdf")));
+	}
+
+	@Test
+	public void theNameGetsANumberWhenTheOriginalsAreKept() throws Exception {
+		assertTrue(PdfOperations.merge(host, rows("a.pdf", "b.pdf"),
+			Arrays.asList(file("a.pdf"), file("b.pdf")), file("a.pdf"), Answer.KEEP));
+		assertEquals(2, PdfPages.getPageCount(file("a.pdf")));
+		assertEquals(3, PdfPages.getPageCount(file("a-2.pdf")));
+	}
+
+	@Test
+	public void partsAreNamedByDateAndKeywords() throws Exception {
+		List<PageInfo> pages = Arrays.asList(
+			new PageInfo("Stadtwerke Musterstadt\nRechnung vom 03.09.2026\nStrom Verbrauch Abrechnung", false, false),
+			new PageInfo("Stadtwerke Musterstadt\nRechnung vom 03.09.2026\nStrom Verbrauch Abrechnung", false, false),
+			new PageInfo("", true, false));
+		List<Range> ranges = Arrays.asList(new Range(0, 1), new Range(1, 2));
+		File stack = file("stack.pdf");
+		List<File> numbered = PdfPages.getPartFiles(stack, 2);
+		List<File> named = PdfOperations.getSuggestedPartFiles(host, stack, pages, ranges, numbered);
+		assertTrue(named.get(0).getName(), named.get(0).getName().startsWith("2026-09-03_"));
+		// The same suggestion twice: the second one gets a number
+		assertEquals(Util.splitFilename(named.get(0).getName())[0] + "-2.pdf", named.get(1).getName());
+	}
+
+	@Test
 	public void splitCreatesNumberedPartsAndUndoRestoresTheOriginal() throws Exception {
 		List<ResultDocument> docs = rows("stack.pdf");
 		List<File> parts = PdfOperations.split(host, docs.get(0),
@@ -184,12 +238,22 @@ public final class PdfOperationsTest {
 
 	@Test
 	public void dialogsComputeOrderAndParts() throws Exception {
-		MergeDialog merge = new MergeDialog(shell, Arrays.asList(file("a.pdf"), file("b.pdf")));
-		assertEquals("a_merged", merge.getFileName());
+		MergeDialog.SuggestionSource noSuggestions = new MergeDialog.SuggestionSource() {
+			public Suggestion get(File file) {
+				return null;
+			}
+		};
+		MergeDialog merge = new MergeDialog(shell,
+			Arrays.asList(file("a.pdf"), file("b.pdf"), file("stack.pdf")), noSuggestions);
+		assertEquals("The name of the first file", "a", merge.getFileName());
 		merge.select(1);
 		merge.move(-1);
-		assertEquals(Arrays.asList(file("b.pdf"), file("a.pdf")), merge.getOrder());
-		assertEquals("The name follows the first file", "b_merged", merge.getFileName());
+		assertEquals(Arrays.asList(file("b.pdf"), file("a.pdf"), file("stack.pdf")), merge.getOrder());
+		assertEquals("The name follows the first file", "b", merge.getFileName());
+		merge.reverse();
+		assertEquals(Arrays.asList(file("stack.pdf"), file("a.pdf"), file("b.pdf")), merge.getOrder());
+		assertEquals("stack", merge.getFileName());
+		merge.close();
 
 		List<PageInfo> pages = Arrays.asList(
 			new PageInfo("Rechnung RE-4711 Seite 1 von 2", false, false),
@@ -197,8 +261,14 @@ public final class PdfOperationsTest {
 			new PageInfo("", false, true), // Separator sheet
 			new PageInfo("Sehr geehrter Herr Beispiel, anbei der Vertrag", false, false),
 			new PageInfo("Vertrag Unterschrift Seite 2 von 2", false, false));
+		boolean autoRename = SettingsConf.Bool.SplitAutoRename.get();
+		SettingsConf.Bool.SplitAutoRename.set(true);
 		SplitDialog split = new SplitDialog(shell, file("stack.pdf"), pages);
+		// The names come from the content, so the result doesn't show numbered names
+		assertTrue(split.getResultText(), split.getResultText().contains(Msg.split_names_by_content.get()));
+		SettingsConf.Bool.SplitAutoRename.set(autoRename);
 		// With a separator sheet, the dialog starts with the separators
+		assertEquals(SplitDialog.Choice.SEPARATORS, split.getChoice());
 		assertEquals(Arrays.asList(new Range(0, 2), new Range(3, 5)), split.getRanges());
 		split.apply(SplitDialog.Choice.TEXT);
 		assertEquals(Arrays.asList(Role.START, Role.CONTINUE, Role.SEPARATOR, Role.START, Role.CONTINUE),
@@ -213,6 +283,13 @@ public final class PdfOperationsTest {
 		split.setRole(0, Role.CONTINUE); // The first page always starts
 		assertEquals(Role.START, split.getRoles().get(0));
 		split.close();
+
+		// Without separator pages the text suggestion is chosen, the other one is off
+		SplitDialog noSeparators = new SplitDialog(shell, file("stack.pdf"), Arrays.asList(
+			pages.get(0), pages.get(1), pages.get(3)));
+		assertEquals(SplitDialog.Choice.TEXT, noSeparators.getChoice());
+		assertFalse(noSeparators.isChoiceEnabled(SplitDialog.Choice.SEPARATORS));
+		noSeparators.close();
 	}
 
 }

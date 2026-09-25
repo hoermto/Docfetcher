@@ -870,6 +870,12 @@ public final class ResultPanel {
 			updateIndexesFor(files);
 			evtDocumentsChanged.fire(null);
 		}
+		public Suggestion getNameSuggestion(ResultDocument doc) {
+			return waitForSuggestion(doc);
+		}
+		public Searcher getSearcher() {
+			return indexRegistry.getSearcher();
+		}
 	};
 	
 	/**
@@ -1541,7 +1547,17 @@ public final class ResultPanel {
 			return false;
 		FileOperationHistory history = FileOperationHistory.getInstance();
 		history.pop();
+		// First the created files, since one may have the name of an original
 		List<File> affected = new ArrayList<File>();
+		for (File target : targets) {
+			if (!target.exists())
+				continue;
+			if (!UtilFile.delete(target)) {
+				AppUtil.showError(Msg.file_operation_failed.format(target.getPath()), true, true);
+				return false; // Don't restore over a file that is still there
+			}
+			affected.add(target);
+		}
 		List<File> backups = entry.getBackups();
 		for (int i = 0; i < backups.size() && i < sources.size(); i++) {
 			File source = sources.get(i);
@@ -1553,15 +1569,6 @@ public final class ResultPanel {
 			if (!moveFile(backups.get(i), source))
 				break; // Error already shown
 			affected.add(source);
-		}
-		for (File target : targets) {
-			if (!target.exists())
-				continue;
-			if (!UtilFile.delete(target)) {
-				AppUtil.showError(Msg.file_operation_failed.format(target.getPath()), true, true);
-				break;
-			}
-			affected.add(target);
 		}
 		FileOperationHistory.deleteBackups(entry);
 		if (affected.isEmpty())
