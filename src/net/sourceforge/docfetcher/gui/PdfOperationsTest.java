@@ -271,7 +271,7 @@ public final class PdfOperationsTest {
 		assertEquals(SplitDialog.Choice.SEPARATORS, split.getChoice());
 		assertEquals(Arrays.asList(new Range(0, 2), new Range(3, 5)), split.getRanges());
 		split.apply(SplitDialog.Choice.TEXT);
-		assertEquals(Arrays.asList(Role.START, Role.CONTINUE, Role.SEPARATOR, Role.START, Role.CONTINUE),
+		assertEquals(Arrays.asList(Role.START, Role.CONTINUE, Role.OMIT, Role.START, Role.CONTINUE),
 			split.getRoles());
 		split.apply(SplitDialog.Choice.EACH_PAGE);
 		assertEquals("The separator stays out", 4, split.getRanges().size());

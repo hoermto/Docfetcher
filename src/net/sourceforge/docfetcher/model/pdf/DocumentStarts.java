@@ -29,7 +29,10 @@ import net.sourceforge.docfetcher.util.annotations.Nullable;
  * pages. Each page after the first gets a role and the reason for it; the
  * signals are checked in this order, the first one that applies decides:
  * <ol>
- * <li>A blank page or separator sheet is left out, the next page starts.
+ * <li>Separator sheets are left out and the next page starts a document.
+ * Blank pages are left out, too; they only separate documents if there are
+ * no separator sheets (with separator sheets, blank pages are e.g. blank back
+ * sides of double-sided scans).
  * <li>Page numbers: "Seite 1 von 3" starts, "Seite 2 von 3" continues; after
  * the last page ("3 von 3") a new document starts.
  * <li>A salutation near the top ("Sehr geehrte", "Dear", ...) starts.
@@ -49,6 +52,7 @@ public final class DocumentStarts {
 	public enum Reason {
 		FIRST_PAGE,
 		SEPARATOR,
+		BLANK_LEFT_OUT,
 		AFTER_SEPARATOR,
 		PAGE_NUMBER_ONE,
 		PAGE_NUMBER_CONTINUES,
@@ -122,14 +126,16 @@ public final class DocumentStarts {
 				increment(numberFrequency, number);
 		}
 
+		boolean sheets = hasSeparatorSheets(pages);
 		List<Suggestion> result = new ArrayList<Suggestion>(n);
-		int previous = -1; // The last page that is not a separator
+		int previous = -1; // The last page that is kept
 		boolean separatorBefore = false;
 		for (int i = 0; i < n; i++) {
 			PageInfo page = pages.get(i);
-			if (page.isSeparator()) {
-				result.add(new Suggestion(Role.SEPARATOR, Reason.SEPARATOR, null));
-				separatorBefore = true;
+			Suggestion leftOut = leftOut(page, sheets);
+			if (leftOut != null) {
+				result.add(leftOut);
+				separatorBefore |= leftOut.reason == Reason.SEPARATOR;
 				continue;
 			}
 			Suggestion suggestion;
@@ -289,29 +295,47 @@ public final class DocumentStarts {
 	/** Suggestion that only starts after separators; for the 'separator pages' choice. */
 	@NotNull
 	public static List<Suggestion> atSeparators(@NotNull List<PageInfo> pages) {
+		boolean sheets = hasSeparatorSheets(pages);
 		List<Suggestion> result = new ArrayList<Suggestion>(pages.size());
 		boolean start = true;
+		boolean kept = false;
 		for (PageInfo page : pages) {
-			if (page.isSeparator()) {
-				result.add(new Suggestion(Role.SEPARATOR, Reason.SEPARATOR, null));
-				start = true;
+			Suggestion leftOut = leftOut(page, sheets);
+			if (leftOut != null) {
+				result.add(leftOut);
+				start |= leftOut.reason == Reason.SEPARATOR;
+				continue;
 			}
-			else {
-				result.add(start
-					? new Suggestion(Role.START, result.isEmpty() || allSeparators(result)
-						? Reason.FIRST_PAGE : Reason.AFTER_SEPARATOR, null)
-					: new Suggestion(Role.CONTINUE, Reason.SAME_DOCUMENT, null));
-				start = false;
-			}
+			if (start)
+				result.add(new Suggestion(Role.START, kept ? Reason.AFTER_SEPARATOR : Reason.FIRST_PAGE, null));
+			else
+				result.add(new Suggestion(Role.CONTINUE, Reason.SAME_DOCUMENT, null));
+			start = false;
+			kept = true;
 		}
 		return Collections.unmodifiableList(result);
 	}
 
-	private static boolean allSeparators(@NotNull List<Suggestion> suggestions) {
-		for (Suggestion suggestion : suggestions)
-			if (suggestion.role != Role.SEPARATOR)
-				return false;
-		return true;
+	/** True if the pages contain a separator sheet printed by DocFetcher. */
+	public static boolean hasSeparatorSheets(@NotNull List<PageInfo> pages) {
+		for (PageInfo page : pages)
+			if (page.separatorSheet)
+				return true;
+		return false;
+	}
+
+	/**
+	 * The suggestion for a page that is left out, or null if the page is
+	 * kept: separator sheets separate documents, blank pages only if there are
+	 * no separator sheets.
+	 */
+	@Nullable
+	private static Suggestion leftOut(@NotNull PageInfo page, boolean sheets) {
+		if (page.separatorSheet || (page.blank && !sheets))
+			return new Suggestion(Role.OMIT, Reason.SEPARATOR, null);
+		if (page.blank)
+			return new Suggestion(Role.OMIT, Reason.BLANK_LEFT_OUT, null);
+		return null;
 	}
 
 }

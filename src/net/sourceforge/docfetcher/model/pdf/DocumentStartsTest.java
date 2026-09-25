@@ -122,19 +122,33 @@ public final class DocumentStartsTest {
 		assertEquals("RE-2026-4711", s.get(2).detail);
 	}
 
+	private static final String SHEET = "DOCFETCHER SEPARATOR\nTrennblatt\nDOCFETCHER SEPARATOR";
+
 	@Test
-	public void separatorsAreLeftOut() {
-		String sheet = "DOCFETCHER SEPARATOR\nTrennblatt\nDOCFETCHER SEPARATOR";
-		List<PageInfo> pages = Arrays.asList(page(LETTER_1), page(sheet), page(LETTER_2), blank(), page(RECIPE));
-		List<Suggestion> s = DocumentStarts.suggest(pages);
-		assertEquals(Reason.SEPARATOR, s.get(1).reason);
-		assertEquals(Reason.AFTER_SEPARATOR, s.get(2).reason);
-		assertEquals(Role.SEPARATOR, s.get(3).role);
-		assertEquals(Arrays.asList(new Range(0, 1), new Range(2, 3), new Range(4, 5)),
+	public void withSeparatorSheetsBlankPagesAreOnlyLeftOut() {
+		// A letter with a blank back side, a separator sheet, an invoice with a blank back side
+		List<PageInfo> pages = Arrays.asList(page(LETTER_1), blank(), page(LETTER_2),
+			page(SHEET), page(INVOICE_1), blank(), page(INVOICE_2));
+		List<Suggestion> s = DocumentStarts.atSeparators(pages);
+		assertEquals(Reason.BLANK_LEFT_OUT, s.get(1).reason);
+		assertEquals(Role.OMIT, s.get(1).role);
+		assertEquals(Reason.SEPARATOR, s.get(3).reason);
+		assertEquals(Reason.AFTER_SEPARATOR, s.get(4).reason);
+		assertEquals(Role.CONTINUE, s.get(6).role);
+		assertEquals(Arrays.asList(new Range(Arrays.asList(0, 2)), new Range(Arrays.asList(4, 6))),
 			PdfPages.fromRoles(roles(s)));
-		// Only at the separators
-		assertEquals(PdfPages.fromRoles(roles(s)),
-			PdfPages.fromRoles(roles(DocumentStarts.atSeparators(pages))));
+		assertEquals("1, 3", new Range(Arrays.asList(0, 2)).toString());
+		// The suggestion from the text treats the blank pages the same way
+		assertEquals(PdfPages.fromRoles(roles(s)), PdfPages.fromRoles(roles(DocumentStarts.suggest(pages))));
+	}
+
+	@Test
+	public void withoutSeparatorSheetsBlankPagesSeparate() {
+		List<PageInfo> pages = Arrays.asList(page(LETTER_1), page(LETTER_2), blank(), blank(), page(RECIPE));
+		List<Suggestion> s = DocumentStarts.atSeparators(pages);
+		assertEquals(Reason.SEPARATOR, s.get(2).reason);
+		assertEquals(Reason.AFTER_SEPARATOR, s.get(4).reason);
+		assertEquals(Arrays.asList(new Range(0, 2), new Range(4, 5)), PdfPages.fromRoles(roles(s)));
 	}
 
 	@Test
@@ -156,9 +170,12 @@ public final class DocumentStartsTest {
 
 	@Test
 	public void rolesToRanges() {
-		Role S = Role.START, C = Role.CONTINUE, X = Role.SEPARATOR;
-		assertEquals(Arrays.asList(new Range(1, 3), new Range(3, 4), new Range(6, 7)),
+		Role S = Role.START, C = Role.CONTINUE, X = Role.OMIT;
+		// Leaving out doesn't end a document, only START does
+		assertEquals(Arrays.asList(new Range(1, 3), new Range(Arrays.asList(3, 6))),
 			PdfPages.fromRoles(new Role[] { X, S, C, S, X, X, C }));
+		assertEquals(Arrays.asList(new Range(1, 3), new Range(3, 4), new Range(6, 7)),
+			PdfPages.fromRoles(new Role[] { X, S, C, S, X, X, S }));
 		assertEquals(new ArrayList<Range>(), PdfPages.fromRoles(new Role[] { X, X }));
 	}
 

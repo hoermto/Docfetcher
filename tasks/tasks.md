@@ -17,7 +17,6 @@
 
 ## bugs
 
-[] split pages: with page separation pages detected and auto split, dont split on empty pages (but keep empty pages out). With separator pages these are the only separator. Only of there is no separator page is detected, suggest splitting after white/empty pages
 
 ## changes
 

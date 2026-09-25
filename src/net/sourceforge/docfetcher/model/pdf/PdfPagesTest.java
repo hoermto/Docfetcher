@@ -238,6 +238,12 @@ public final class PdfPagesTest {
 		File form = createFormWithLinks(new File(dir, "form.pdf"));
 		List<File> parts = PdfPages.getPartFiles(form, 2);
 		PdfPages.split(form, Arrays.asList(new Range(0, 1), new Range(1, 3)), parts);
+		// A part with a gap, e.g. without a blank back side
+		File gap = new File(dir, "gap.pdf");
+		PdfPages.split(form, Arrays.asList(new Range(Arrays.asList(0, 2))), Arrays.asList(gap));
+		assertEquals(2, PdfPages.getPageCount(gap));
+		assertTrue(textOf(gap).contains("page 3"));
+		assertFalse(textOf(gap).contains("page 2"));
 		assertEquals(1, PdfPages.getPageCount(parts.get(0)));
 		assertEquals(2, PdfPages.getPageCount(parts.get(1)));
 		// The image of page 1 is only in the first part

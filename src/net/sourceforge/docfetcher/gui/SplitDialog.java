@@ -126,7 +126,7 @@ final class SplitDialog {
 					return;
 				int index = table.indexOf((TableItem) e.item);
 				// A ticked separator is kept as the start of a document
-				setRole(index, ((TableItem) e.item).getChecked() || roles[index] == Role.SEPARATOR
+				setRole(index, ((TableItem) e.item).getChecked() || roles[index] == Role.OMIT
 					? Role.START : Role.CONTINUE);
 			}
 		});
@@ -139,7 +139,7 @@ final class SplitDialog {
 		leaveOutBt.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
 				for (int index : table.getSelectionIndices())
-					setRole(index, roles[index] == Role.SEPARATOR ? Role.CONTINUE : Role.SEPARATOR);
+					setRole(index, roles[index] == Role.OMIT ? Role.CONTINUE : Role.OMIT);
 			}
 		});
 		int withoutText = 0;
@@ -245,12 +245,12 @@ final class SplitDialog {
 		for (int i = 0; i < roles.length; i++) {
 			Suggestion suggestion = suggestions.get(i);
 			Role role = suggestion.role;
-			if (choice == Choice.EACH_PAGE && role != Role.SEPARATOR)
+			if (choice == Choice.EACH_PAGE && role != Role.OMIT)
 				role = Role.START;
 			else if (choice == Choice.NONE)
 				role = first ? Role.START : Role.CONTINUE;
 			roles[i] = role;
-			reasons[i] = choice == Choice.TEXT || choice == Choice.SEPARATORS || role == Role.SEPARATOR
+			reasons[i] = choice == Choice.TEXT || choice == Choice.SEPARATORS || role == Role.OMIT
 				? getReasonText(suggestion)
 				: "";
 			first = false;
@@ -272,6 +272,7 @@ final class SplitDialog {
 		switch (reason) {
 		case FIRST_PAGE: return Msg.split_reason_first_page.get();
 		case SEPARATOR: return Msg.split_reason_separator.get();
+		case BLANK_LEFT_OUT: return Msg.split_reason_blank_left_out.get();
 		case AFTER_SEPARATOR: return Msg.split_reason_after_separator.get();
 		case PAGE_NUMBER_ONE: return Msg.split_reason_page_one.format(detail);
 		case PAGE_NUMBER_CONTINUES: return Msg.split_reason_page_continues.format(detail);
@@ -289,7 +290,7 @@ final class SplitDialog {
 	private void update() {
 		// The first page that is kept always starts a document
 		for (int i = 0; i < roles.length; i++) {
-			if (roles[i] == Role.SEPARATOR)
+			if (roles[i] == Role.OMIT)
 				continue;
 			roles[i] = Role.START;
 			break;
@@ -297,7 +298,7 @@ final class SplitDialog {
 		Color gray = shell.getDisplay().getSystemColor(SWT.COLOR_DARK_GRAY);
 		for (int i = 0; i < roles.length; i++) {
 			TableItem item = table.getItem(i);
-			boolean separator = roles[i] == Role.SEPARATOR;
+			boolean separator = roles[i] == Role.OMIT;
 			item.setChecked(roles[i] == Role.START || separator);
 			item.setGrayed(separator); // A filled box: this page is left out
 			item.setForeground(separator ? gray : null);
@@ -308,7 +309,7 @@ final class SplitDialog {
 		List<Range> ranges = getRanges();
 		int leftOut = 0;
 		for (Role role : roles)
-			if (role == Role.SEPARATOR)
+			if (role == Role.OMIT)
 				leftOut++;
 		if (ranges.size() < 2) {
 			resultLabel.setText(Msg.split_nothing.get());
@@ -317,7 +318,7 @@ final class SplitDialog {
 			StringBuilder pagesText = new StringBuilder();
 			for (Range range : ranges) {
 				if (pagesText.length() > 0)
-					pagesText.append(", ");
+					pagesText.append("; "); // A document may itself be "1, 3"
 				pagesText.append(range);
 			}
 			String firstName = SettingsConf.Bool.SplitAutoRename.get()

@@ -225,7 +225,7 @@ final class PdfOperations {
 				Set<String> used = new HashSet<String>();
 				for (int i = 0; i < ranges.size(); i++) {
 					StringBuilder text = new StringBuilder();
-					for (int page = ranges.get(i).start; page < ranges.get(i).end; page++)
+					for (int page : ranges.get(i).getPages())
 						text.append(pages.get(page).text).append('\n');
 					try {
 						Suggestion suggestion = NameSuggester.suggest(text.toString(), fallbackDate, searcher);

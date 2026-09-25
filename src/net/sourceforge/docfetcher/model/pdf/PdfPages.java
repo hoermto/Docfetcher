@@ -37,33 +37,68 @@ import net.sourceforge.docfetcher.util.annotations.NotNull;
  */
 public final class PdfPages {
 
-	/** A range of pages, 0-based, {@code end} exclusive. */
+	/**
+	 * The pages of one document of a split, 0-based and in ascending order.
+	 * Usually a range from {@code start} to {@code end} (exclusive), but it
+	 * may have gaps where pages are left out, e.g. a blank back side.
+	 */
 	public static final class Range {
 		public final int start;
 		public final int end;
+		private final List<Integer> pages;
 
 		public Range(int start, int end) {
 			Util.checkThat(start >= 0 && end > start);
+			List<Integer> list = new ArrayList<Integer>(end - start);
+			for (int i = start; i < end; i++)
+				list.add(i);
 			this.start = start;
 			this.end = end;
+			this.pages = Collections.unmodifiableList(list);
+		}
+
+		/** A document made of the given pages (ascending, not empty). */
+		public Range(@NotNull List<Integer> pages) {
+			Util.checkThat(!pages.isEmpty());
+			this.pages = Collections.unmodifiableList(new ArrayList<Integer>(pages));
+			this.start = pages.get(0);
+			this.end = pages.get(pages.size() - 1) + 1;
+		}
+
+		/** The pages of the document, 0-based. */
+		@NotNull
+		public List<Integer> getPages() {
+			return pages;
 		}
 
 		public int size() {
-			return end - start;
+			return pages.size();
 		}
 
-		/** The range as the user sees it, e.g. "3-5" or "7" (1-based). */
+		/** The pages as the user sees them, e.g. "3-5", "7" or "1-2, 4" (1-based). */
 		@NotNull
 		public String toString() {
-			return size() == 1 ? String.valueOf(start + 1) : (start + 1) + "-" + end;
+			StringBuilder sb = new StringBuilder();
+			for (int i = 0; i < pages.size(); ) {
+				int j = i;
+				while (j + 1 < pages.size() && pages.get(j + 1) == pages.get(j) + 1)
+					j++;
+				if (sb.length() > 0)
+					sb.append(", ");
+				sb.append(pages.get(i) + 1);
+				if (j > i)
+					sb.append('-').append(pages.get(j) + 1);
+				i = j + 1;
+			}
+			return sb.toString();
 		}
 
 		public boolean equals(Object obj) {
-			return obj instanceof Range && ((Range) obj).start == start && ((Range) obj).end == end;
+			return obj instanceof Range && ((Range) obj).pages.equals(pages);
 		}
 
 		public int hashCode() {
-			return start * 31 + end;
+			return pages.hashCode();
 		}
 	}
 
@@ -73,8 +108,12 @@ public final class PdfPages {
 		START,
 		/** The page belongs to the document of the page before. */
 		CONTINUE,
-		/** A blank page or separator sheet, which is left out. */
-		SEPARATOR
+		/**
+		 * The page is left out, e.g. a separator sheet or a blank page. Leaving
+		 * out doesn't end the document by itself; after a separator, the next
+		 * page is marked as START.
+		 */
+		OMIT
 	}
 
 	/** What is known about a page for splitting. */
@@ -92,7 +131,7 @@ public final class PdfPages {
 			this.separatorSheet = separatorSheet;
 		}
 
-		/** Blank pages and separator sheets separate documents. */
+		/** Blank pages and separator sheets are left out of the documents. */
 		public boolean isSeparator() {
 			return blank || separatorSheet;
 		}
@@ -156,7 +195,7 @@ public final class PdfPages {
 				try {
 					part.getDocument().setVersion(source.getVersion());
 					part.setDocumentInformation(source.getDocumentInformation());
-					for (int page = range.start; page < range.end; page++) {
+					for (int page : range.getPages()) {
 						PDPage imported = part.importPage(source.getPage(page));
 						// Inherited attributes are not copied by importPage
 						imported.setCropBox(source.getPage(page).getCropBox());
@@ -250,22 +289,25 @@ public final class PdfPages {
 
 	/**
 	 * Returns the documents for the given roles of the pages: a document
-	 * starts at each START page and after each separator, which is left out.
-	 * Several separators in a row count as one.
+	 * starts at each START page (and at the first page that is kept), pages
+	 * that are left out are skipped without ending the document.
 	 */
 	@NotNull
 	public static List<Range> fromRoles(@NotNull Role[] roles) {
 		List<Range> ranges = new ArrayList<Range>();
-		int start = -1;
-		for (int i = 0; i <= roles.length; i++) {
-			boolean end = i == roles.length || roles[i] != Role.CONTINUE;
-			if (end && start >= 0) {
-				ranges.add(new Range(start, i));
-				start = -1;
+		List<Integer> current = null;
+		for (int i = 0; i < roles.length; i++) {
+			if (roles[i] == Role.OMIT)
+				continue;
+			if (roles[i] == Role.START || current == null) {
+				if (current != null)
+					ranges.add(new Range(current));
+				current = new ArrayList<Integer>();
 			}
-			if (i < roles.length && roles[i] != Role.SEPARATOR && start < 0)
-				start = i;
+			current.add(i);
 		}
+		if (current != null)
+			ranges.add(new Range(current));
 		return ranges;
 	}
 
