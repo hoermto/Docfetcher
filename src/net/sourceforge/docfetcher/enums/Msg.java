@@ -1215,6 +1215,15 @@ public enum Msg {
 		"of the image, inserted in the {0} and {1} slots."),
 	unsupported_image_format ("Unsupported image format.",
 		"Error shown in the preview pane when an image file can't be decoded."),
+
+	// Main toolbar (tooltips of the buttons; they work on the selected documents)
+	toolbar_rename ("Rename (F2)",
+		"Tooltip of the toolbar button that renames the selected document."),
+	toolbar_move ("Move to Folder",
+		"Tooltip of the toolbar button that moves the selected documents " +
+		"into another folder."),
+	toolbar_delete ("Delete (Del)",
+		"Tooltip of the toolbar button that deletes the selected documents."),
 	;
 	
 	private static boolean checkEnabled = true;

@@ -71,9 +71,18 @@ public final class LazyImageCache {
 		Image image = imageMap.get(filename);
 		if (image == null) {
 			try {
-				image = new Image(display, new File(imageDir, filename).getPath());
-				if (scalePercent != 100)
-					image = scale(image, scalePercent);
+				// Enlarged icons are scaled from a double-size variant if there is one
+				File large = scalePercent > 100 ? getLargeVariant(filename) : null;
+				int percent = scalePercent;
+				if (large != null) {
+					image = new Image(display, large.getPath());
+					percent = scalePercent / 2;
+				}
+				else {
+					image = new Image(display, new File(imageDir, filename).getPath());
+				}
+				if (percent != 100)
+					image = scale(image, percent);
 				imageMap.put(filename, image);
 			} catch (Exception e) {
 				return null;
@@ -91,7 +100,15 @@ public final class LazyImageCache {
 	}
 	
 	private int scalePercent = 100;
-	
+
+	/** Returns the double-size variant 'name@2x.ext' of the given image file, or null. */
+	@Nullable
+	private File getLargeVariant(@NotNull String filename) {
+		String[] parts = Util.splitFilename(filename);
+		File file = new File(imageDir, parts[0] + "@2x." + parts[1]);
+		return file.isFile() ? file : null;
+	}
+
 	/**
 	 * Returns a scaled copy of the given image and disposes the original.
 	 * The images are small icons, so they are scaled smoothly.

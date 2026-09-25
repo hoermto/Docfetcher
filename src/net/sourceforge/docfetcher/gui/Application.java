@@ -138,6 +138,7 @@ public final class Application {
 	private static TwoPanelForm twoPanelForm;
 	private static SearchBar searchBar;
 	private static ResultPanel resultPanel;
+	private static DocToolBar docToolBar;
 	private static TabFolder mainTabFolder;
 	private static final List<InboxTab> inboxTabs = new ArrayList<InboxTab>();
 	private static final Set<File> inboxIndexRequests = new HashSet<File>();
@@ -352,6 +353,7 @@ public final class Application {
 		initSystemTrayHider();
 		initMenuBar();
 		initSearchSettingsDialog();
+		docToolBar = new DocToolBar(shell);
 		initTwoPanelForm();
 		InboxFolders.migrateLegacySetting();
 		applyInboxFolders();
@@ -380,7 +382,8 @@ public final class Application {
 
 		FormDataFactory fdf = FormDataFactory.getInstance();
 		fdf.bottom().left().right().applyTo(statusBar);
-		fdf.top().bottom(statusBar).applyTo(twoPanelForm);
+		fdf.reset().top().left().right().applyTo(docToolBar.getControl());
+		fdf.top(docToolBar.getControl()).bottom(statusBar).applyTo(twoPanelForm);
 
 		// Move focus to search text field
 		searchBar.setFocus();
@@ -1352,13 +1355,21 @@ public final class Application {
 		mainTabFolder.setSelection(searchTab);
 		mainTabFolder.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
+				// The toolbar works on the result table of the tab in front
 				InboxTab selected = getSelectedInboxTab();
-				if (selected != null)
+				if (selected != null) {
 					selected.panel.refresh();
+					selected.panel.getResultPanel().activate();
+				}
 				else if (folderTabPanel != null
 						&& mainTabFolder.getSelection().length > 0
-						&& mainTabFolder.getSelection()[0] == foldersTab)
+						&& mainTabFolder.getSelection()[0] == foldersTab) {
 					folderTabPanel.refresh();
+					folderTabPanel.getResultPanel().activate();
+				}
+				else {
+					resultPanel.activate();
+				}
 			}
 		});
 		applyFolderPanelMode();

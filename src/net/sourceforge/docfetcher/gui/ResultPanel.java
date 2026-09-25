@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -136,6 +137,25 @@ public final class ResultPanel {
 	
 	public final Event<List<ResultDocument>> evtSelection = new Event<List<ResultDocument>> ();
 	
+	/** The actions of the main toolbar, which work on the selection of the active panel. */
+	public enum DocAction {
+		// Folder browser only (see FolderPanel)
+		FOLDER_ROOTS, FOLDER_UP, FOLDER_REFRESH, NEW_FOLDER,
+		// Documents
+		RENAME, MOVE, DELETE
+	}
+	
+	/**
+	 * Fired when another result panel becomes the active one, or when the
+	 * selection of the active panel changes, so that the toolbar can update.
+	 */
+	public static final Event<Void> evtActiveStateChanged = new Event<Void>();
+	
+	/** The result panel the user worked with last, or null. */
+	@Nullable private static ResultPanel activePanel;
+	
+	private final Map<DocAction, MenuAction> docActions = new EnumMap<DocAction, MenuAction>(DocAction.class);
+	
 	/** Fired when the user opens a folder row (folder browser). */
 	public final Event<File> evtFolderOpened = new Event<File>();
 	
@@ -249,8 +269,10 @@ public final class ResultPanel {
 				evtSelection.fire(selection);
 				if (selection.size() == 1)
 					requestSuggestion(selection.get(0));
+				activate();
 			}
 		});
+		initActivation(table);
 		
 		if (actionColumns) {
 			viewer.addColumn(new Column<ResultDocument>("", SWT.CENTER) {
@@ -258,7 +280,7 @@ public final class ResultPanel {
 					return "";
 				}
 				protected Image getImage(ResultDocument element) {
-					return element.isEmail() || element.isFolder() ? null : Img.PEN.get();
+					return element.isEmail() || element.isFolder() ? null : Img.TB_RENAME.get();
 				}
 				protected String getToolTipText() {
 					return Msg.rename_document_title.get();
@@ -269,7 +291,7 @@ public final class ResultPanel {
 					return "";
 				}
 				protected Image getImage(ResultDocument element) {
-					return element.isEmail() || element.isFolder() ? null : Img.MOVE.get();
+					return element.isEmail() || element.isFolder() ? null : Img.TB_MOVE.get();
 				}
 				protected String getToolTipText() {
 					return Msg.move_to_folder_title.get();
@@ -546,7 +568,7 @@ public final class ResultPanel {
 			// The action icon columns keep a fixed width, which follows the
 			// icon size so that larger icons aren't cut off
 			int actionWidth = 26;
-			Image penImage = Img.PEN.get();
+			Image penImage = Img.TB_RENAME.get();
 			if (penImage != null && !penImage.isDisposed())
 				actionWidth = Math.max(actionWidth, penImage.getBounds().width + 10);
 			available -= actionColumnCount * actionWidth;
@@ -711,7 +733,7 @@ public final class ResultPanel {
 		
 		menuManager.addSeparator();
 		
-		menuManager.add(new MenuAction(Msg.rename_document.get()) {
+		menuManager.add(addDocAction(DocAction.RENAME, new MenuAction(Msg.rename_document.get()) {
 			public boolean isEnabled() {
 				List<ResultDocument> sel = viewer.getSelection();
 				if (sel.size() != 1)
@@ -721,7 +743,7 @@ public final class ResultPanel {
 			public void run() {
 				renameSelection();
 			}
-		});
+		}));
 		
 		final Menu renameToMenu = menuManager.addSubmenu(new MenuAction(Msg.rename_to_submenu.get()) {
 			public boolean isEnabled() {
@@ -735,15 +757,18 @@ public final class ResultPanel {
 			}
 		});
 		
+		// The toolbar opens the dialog, the context menu offers the targets first
+		final MenuAction moveAction = addDocAction(DocAction.MOVE, new MenuAction(Msg.move_to_folder_title.get()) {
+			public boolean isEnabled() {
+				return isAllPlainFiles(viewer.getSelection());
+			}
+			public void run() {
+				moveSelection();
+			}
+		});
 		final Menu moveToMenu = menuManager.addSubmenu(new MenuAction(Msg.move_to_submenu.get()) {
 			public boolean isEnabled() {
-				List<ResultDocument> sel = viewer.getSelection();
-				if (sel.isEmpty())
-					return false;
-				for (ResultDocument doc : sel)
-					if (!doc.isPlainFileOnDisk())
-						return false;
-				return true;
+				return moveAction.isEnabled();
 			}
 		});
 		moveToMenu.addMenuListener(new MenuAdapter() {
@@ -764,22 +789,17 @@ public final class ResultPanel {
 			}
 		});
 		
-		menuManager.add(new MenuAction(Msg.delete_document.get()) {
+		menuManager.add(addDocAction(DocAction.DELETE, new MenuAction(Msg.delete_document.get()) {
 			public boolean isEnabled() {
 				List<ResultDocument> sel = viewer.getSelection();
-				if (sel.isEmpty())
-					return false;
 				if (sel.size() == 1 && sel.get(0).isFolder())
 					return isEditableFolder(sel.get(0));
-				for (ResultDocument doc : sel)
-					if (!doc.isPlainFileOnDisk())
-						return false;
-				return true;
+				return isAllPlainFiles(sel);
 			}
 			public void run() {
 				deleteSelection();
 			}
-		});
+		}));
 		
 		menuManager.addSeparator();
 		
@@ -790,6 +810,81 @@ public final class ResultPanel {
 			}
 			public void run() {
 				copyToClipboard();
+			}
+		});
+	}
+	
+	/**
+	 * Registers an action for the toolbar; the owner of the panel can add its
+	 * own ones, e.g. the navigation of the folder browser.
+	 */
+	@NotNull
+	public MenuAction addDocAction(@NotNull DocAction key, @NotNull MenuAction action) {
+		docActions.put(key, action);
+		return action;
+	}
+	
+	/**
+	 * Returns the given toolbar action of this panel, or null if the panel
+	 * doesn't offer it.
+	 */
+	@Nullable
+	public MenuAction getDocAction(@NotNull DocAction key) {
+		return docActions.get(key);
+	}
+	
+	/** Returns true if the list is not empty and holds only plain files on disk. */
+	private static boolean isAllPlainFiles(@NotNull List<ResultDocument> docs) {
+		if (docs.isEmpty())
+			return false;
+		for (ResultDocument doc : docs)
+			if (!doc.isPlainFileOnDisk())
+				return false;
+		return true;
+	}
+	
+	/*
+	 * The toolbar works on the panel the user worked with last: the one that
+	 * got the focus or a click last, or the one of the tab brought to front.
+	 */
+	
+	/** Returns the active result panel, or null if there is none. */
+	@Nullable
+	public static ResultPanel getActivePanel() {
+		if (activePanel != null && activePanel.getControl().isDisposed())
+			activePanel = null;
+		return activePanel;
+	}
+	
+	/** Makes this panel the one the toolbar works on. */
+	public void activate() {
+		activePanel = this;
+		evtActiveStateChanged.fire(null);
+	}
+	
+	/** Tells the toolbar that the state of this panel may have changed. */
+	public void fireStateChangedIfActive() {
+		if (activePanel == this)
+			evtActiveStateChanged.fire(null);
+	}
+	
+	private void initActivation(@NotNull Table table) {
+		table.addListener(SWT.FocusIn, new Listener() {
+			public void handleEvent(org.eclipse.swt.widgets.Event event) {
+				activate();
+			}
+		});
+		evtDocumentsChanged.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				fireStateChangedIfActive();
+			}
+		});
+		table.addDisposeListener(new DisposeListener() {
+			public void widgetDisposed(DisposeEvent e) {
+				if (activePanel == ResultPanel.this) {
+					activePanel = null;
+					evtActiveStateChanged.fire(null);
+				}
 			}
 		});
 	}
@@ -1766,6 +1861,7 @@ public final class ResultPanel {
 			if (uids.contains(doc.getUniqueId()))
 				toSelect.add(doc);
 		viewer.setSelection(toSelect);
+		fireStateChangedIfActive();
 	}
 	
 	/**
@@ -1779,6 +1875,7 @@ public final class ResultPanel {
 		if (doc == null)
 			return;
 		viewer.setSelection(Collections.singletonList(doc));
+		fireStateChangedIfActive();
 	}
 	
 	public int getItemCount() {
@@ -1805,6 +1902,7 @@ public final class ResultPanel {
 		
 		viewer.setRoot(results);
 		viewer.scrollToTop();
+		fireStateChangedIfActive();
 		
 		/*
 		 * Setting the results may show or hide the vertical scrollbar, which

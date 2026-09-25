@@ -36,6 +36,18 @@
 - Test data: create scans with PIL (see `ImagePagesTest` for a programmatic TIFF); the OCR test image is a
   300-dpi rendering of an invoice text; drop files into an inbox folder to see them in the inbox tab.
 
+## Application (GUI) tests on Windows
+- `dev/guitest/run-dev.sh $JAVA` starts the dev build on the desktop (settings `bin/settings-conf.txt`, a Java
+  properties file; write it while the program is not running, e.g. `InboxFolders = C:/.../inbox|Inbox` and
+  `ShowManualOnStartup = false` - an inbox folder is indexed automatically, which gives test documents).
+- Drive it with `python dev/guitest/win.py list | shot OUT.png [TITLE] | click X Y [TITLE] | dclick | rclick |
+  key NAME [TITLE] | ckey NAME | type TEXT | close TITLE`: PrintWindow screenshots and posted window messages,
+  so the user's mouse and keyboard are not touched. Coordinates are window-relative, as in the screenshot.
+- In-process SWT tests: `GuiTestSupport` (gui package) creates a display, an indexed temp folder and
+  screenshots (`-Ddocfetcher.test.shots=<dir>`). On Windows the index files stay locked, so cleanup is best-effort;
+  remove leftover `%TEMP%\docfetcher-*` test folders afterwards.
+- Stop with `dev/guitest/stop-dev.sh`; stop the Mill daemon at the end: `cmd /c ".\mill.bat shutdown"`.
+
 ## Checks before committing
 - Every `Msg` key needs a German entry in `dist/lang/Resource_de.properties` (Latin-1, `\t` escapes):
   compare `^\t(key) \(` in Msg.java with `^key=` in the properties file.
