@@ -119,10 +119,28 @@ def icon_new_folder():
 
 
 def icon_merge():
+    # A stapler, seen from the side: base, arm hinged at the back, staple head in front
     img, d = new()
-    page(d, 1, 0.5, 9.5, 11)
-    page(d, 4, 3.5, 12.5, 14, lines=3)
-    plus_badge(d)
+    d.rounded_rectangle(u(0.8, 11.2, 15.2, 13.6), radius=0.8 * U, fill=INK)
+    d.rounded_rectangle(u(10.8, 10.2, 14.6, 11.4), radius=0.3 * U, fill=GRAY)  # Anvil
+    d.polygon(u(1.2, 7.4, 13.6, 4.6, 15.2, 5.6, 15.2, 8.2, 2.4, 10.4), fill=BLUE)  # Arm
+    d.rectangle(u(12.8, 8.0, 14.4, 10.2), fill=INK)  # Staple head
+    d.ellipse(u(0.6, 7.4, 3.8, 11.8), fill=INK)  # Hinge
+    d.ellipse(u(1.6, 8.6, 2.8, 10.6), fill=GRAY)
+    return img
+
+
+def icon_sync():
+    # Two panes, coupled by a double arrow
+    img, d = new()
+    d.rounded_rectangle(u(0.5, 2, 6, 14), radius=0.8 * U, outline=INK, width=int(1.1 * U), fill=PAPER)
+    d.rounded_rectangle(u(10, 2, 15.5, 14), radius=0.8 * U, outline=INK, width=int(1.1 * U), fill=PAPER)
+    for y in (4.5, 7, 9.5):
+        d.rectangle(u(1.9, y, 4.6, y + 0.8), fill=GRAY)
+        d.rectangle(u(11.4, y, 14.1, y + 0.8), fill=GRAY)
+    d.rectangle(u(5, 7.3, 11, 8.7), fill=BLUE)
+    d.polygon(u(3.6, 8, 6.6, 5.4, 6.6, 10.6), fill=BLUE)
+    d.polygon(u(12.4, 8, 9.4, 5.4, 9.4, 10.6), fill=BLUE)
     return img
 
 
@@ -160,6 +178,7 @@ ICONS = {
     "up": icon_up,
     "refresh": icon_refresh,
     "new_folder": icon_new_folder,
+    "sync": icon_sync,
 }
 
 

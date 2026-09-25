@@ -235,6 +235,7 @@ public final class FolderPanel {
 	 * null. Must be called from the GUI thread.
 	 */
 	public void setFolder(@Nullable File folder) {
+		showingNothing = false;
 		this.folder = folder;
 		lastFolderSetting.set(folder == null ? "" : Util.getSystemAbsPath(folder));
 		updatePathLabel();
@@ -260,6 +261,42 @@ public final class FolderPanel {
 	}
 	
 	@Nullable private File fileToSelect;
+
+	/**
+	 * Shows the given folder (null: the root list) and selects the given
+	 * file or subfolder in it once the list is loaded.
+	 */
+	public void showFolder(@Nullable File folder, @Nullable File toSelect) {
+		fileToSelect = toSelect;
+		setFolder(folder);
+	}
+
+	private boolean showingNothing = false;
+
+	/**
+	 * Shows an empty list, e.g. in the synced folder view when the folder on
+	 * the left has no subfolder to show.
+	 */
+	public void showNothing() {
+		showingNothing = true;
+		folder = null;
+		fileToSelect = null;
+		resultPanel.setCurrentFolder(null);
+		upBt.setEnabled(false);
+		rootBt.setEnabled(true);
+		newFolderBt.setEnabled(false);
+		pathLabel.setText(Msg.folder_nothing_to_show.get());
+		pathLabel.getParent().layout();
+		refreshCount++; // Drops the result of a refresh that is still running
+		resultPanel.setResults(new ArrayList<ResultDocument>(), HeaderMode.FILES);
+		resultPanel.fireStateChangedIfActive();
+		evtFolderChanged.fire(null);
+	}
+
+	/** True while {@link #showNothing()} is in effect. */
+	public boolean isShowingNothing() {
+		return showingNothing;
+	}
 	
 	/** Asks for a name and creates a subfolder in the current folder. */
 	public void createFolder() {
@@ -300,7 +337,7 @@ public final class FolderPanel {
 
 	/** The folders listed at the root level: indexes and fixed move targets. */
 	@NotNull
-	private List<File> getRootFolders() {
+	List<File> getRootFolders() {
 		return getRootFolders(indexRegistry);
 	}
 	
@@ -340,6 +377,8 @@ public final class FolderPanel {
 	 * thread.
 	 */
 	public void refresh() {
+		if (showingNothing)
+			return;
 		final File folder = this.folder;
 		final int count = ++refreshCount;
 		Thread thread = new Thread(FolderPanel.class.getName() + " (refresh)") {

@@ -22,6 +22,7 @@ import org.eclipse.swt.widgets.ToolItem;
 
 import net.sourceforge.docfetcher.enums.Img;
 import net.sourceforge.docfetcher.enums.Msg;
+import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.gui.ResultPanel.DocAction;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
@@ -96,6 +97,8 @@ final class DocToolBar {
 					.create();
 				items.put(button.action, item);
 			}
+			if (i == 0)
+				createSyncItem(); // After the folder navigation
 		}
 
 		final Event.Listener<Void> stateListener = new Event.Listener<Void>() {
@@ -110,6 +113,55 @@ final class DocToolBar {
 			}
 		});
 		updateEnabledState();
+	}
+
+	@Nullable private ToolItem syncItem;
+
+	/**
+	 * A toggle for the synced folder view: the 'Folders' tab shows the parent
+	 * of the folder browser next to it. Only enabled while that browser is
+	 * shown.
+	 */
+	private void createSyncItem() {
+		final ToolItem item = new ToolItemFactory(toolBar)
+			.style(SWT.CHECK)
+			.image(Img.TB_SYNC.get())
+			.toolTip(Msg.toolbar_sync.get())
+			.create();
+		item.setSelection(SettingsConf.Bool.SyncFolderPanels.get());
+		item.setEnabled(SettingsConf.Bool.ShowFolderPanel.get());
+		item.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				SettingsConf.Bool.SyncFolderPanels.set(item.getSelection());
+			}
+		});
+		final Event.Listener<Boolean> panelListener = new Event.Listener<Boolean>() {
+			public void update(Boolean shown) {
+				if (!item.isDisposed())
+					item.setEnabled(shown);
+			}
+		};
+		final Event.Listener<Boolean> syncListener = new Event.Listener<Boolean>() {
+			public void update(Boolean enabled) {
+				if (!item.isDisposed())
+					item.setSelection(enabled);
+			}
+		};
+		SettingsConf.Bool.ShowFolderPanel.evtChanged.add(panelListener);
+		SettingsConf.Bool.SyncFolderPanels.evtChanged.add(syncListener);
+		item.addDisposeListener(new DisposeListener() {
+			public void widgetDisposed(DisposeEvent e) {
+				SettingsConf.Bool.ShowFolderPanel.evtChanged.remove(panelListener);
+				SettingsConf.Bool.SyncFolderPanels.evtChanged.remove(syncListener);
+			}
+		});
+		syncItem = item;
+	}
+
+	/** The sync toggle; for tests. */
+	@Nullable
+	ToolItem getSyncItem() {
+		return syncItem;
 	}
 
 	@NotNull

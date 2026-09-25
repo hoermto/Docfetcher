@@ -146,6 +146,7 @@ public final class Application {
 	private static SearchBar searchBar;
 	private static ResultPanel resultPanel;
 	private static DocToolBar docToolBar;
+	@Nullable private static FolderSync folderSync;
 	private static TabFolder mainTabFolder;
 	private static final List<InboxTab> inboxTabs = new ArrayList<InboxTab>();
 	private static final Set<File> inboxIndexRequests = new HashSet<File>();
@@ -1427,8 +1428,13 @@ public final class Application {
 				folderPanelHolder, SettingsConf.Str.LastBrowsedFolderPanel);
 			folderPanel.setShowLabel(true);
 			folderPanelHolder.layout();
+			// The 'Folders' tab shows the parent of this browser (toolbar toggle)
+			folderSync = new FolderSync(folderTabPanel, folderPanel);
 		}
 		else if (!showPanel && folderPanel != null) {
+			if (folderSync != null)
+				folderSync.dispose();
+			folderSync = null;
 			folderPanel.getControl().dispose();
 			folderPanel = null;
 		}
@@ -1726,7 +1732,9 @@ public final class Application {
 		});
 		panel.evtFolderChanged.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
-				previewPanel.clear();
+				// The synced folder view may change folders before the preview exists
+				if (previewPanel != null)
+					previewPanel.clear();
 				showSelectedPath(Collections.<ResultDocument> emptyList());
 			}
 		});

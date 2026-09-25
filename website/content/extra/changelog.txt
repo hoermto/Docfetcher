@@ -5,6 +5,7 @@
   * Dragging files could delete them for good: if the drop target reported a move but didn't move the files (e.g. a DocFetcher table showing the same folder, or a move that failed), the files were deleted, not even into the recycle bin. Dragging never deletes files now; after an explicit copy with Ctrl into another program, removed originals go to the recycle bin.
 
 === Features ===
+  * Synced folder view (toolbar toggle, on by default): the Folders tab always shows the parent of the folder in the folder panel next to it, with that folder selected; clicking or entering folders in either browser moves the other one along.
   * Documents can be moved into an inbox folder by dragging them onto the list of the inbox tab or onto the inbox tab itself, e.g. from the folder browser.
 
 ==== 2026-09-24 - DocFetcher 2.6 ====

@@ -1774,6 +1774,16 @@ public final class ResultPanel {
 		}
 	}
 	
+	/** Returns the row of the given folder (not the '..' row), or null. */
+	@Nullable
+	private ResultDocument findFolderRow(@NotNull File folder) {
+		for (ResultDocument doc : viewer.getElements())
+			if (doc.isFolder() && !doc.isParentRow()
+					&& Util.isCanonicallyEqual(doc.getPath().getCanonicalFile(), folder))
+				return doc;
+		return null;
+	}
+
 	/** Returns the row of the given file, or null if it isn't in the table. */
 	@Nullable
 	private ResultDocument findDocument(@NotNull File file) {
@@ -2068,7 +2078,7 @@ public final class ResultPanel {
 	 * search terms).
 	 */
 	public void selectByFile(@NotNull File file) {
-		ResultDocument doc = findDocument(file);
+		ResultDocument doc = file.isDirectory() ? findFolderRow(file) : findDocument(file);
 		if (doc == null)
 			return;
 		viewer.setSelection(Collections.singletonList(doc));

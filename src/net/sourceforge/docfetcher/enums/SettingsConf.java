@@ -98,6 +98,7 @@ public final class SettingsConf {
 		DailyIndexUpdate (true), // Update all indexes once a day while running
 		ShowPathColumn (true), // Show the folder column in the result tables
 		SplitAutoRename (true), // Name the parts of a split by date and keywords
+		SyncFolderPanels (true), // The folders tab shows the parent of the folder panel
 		ShowFolderPanel (true), // Show a second folder browser next to the tabs
 		SyncFolderView (true), // Folder view follows the selected search result
 		FolderSortAscending (false), // Sort order of the folder view

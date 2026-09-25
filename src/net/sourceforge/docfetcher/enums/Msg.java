@@ -1228,6 +1228,10 @@ public enum Msg {
 		"Tooltip of the toolbar button that deletes the selected documents."),
 	toolbar_print ("Print (Ctrl+P)",
 		"Tooltip of the toolbar button that prints the selected documents."),
+	toolbar_sync ("Synchronize the folder browsers: the Folders tab shows the parent of the folder next to it",
+		"Tooltip of the toggle button in the toolbar that couples the folder browser on the Folders tab with the one next to it."),
+	folder_nothing_to_show ("(No subfolder - select a folder on the left)",
+		"Shown in the folder browser next to the tabs when it is synchronized and the folder on the left has no subfolder."),
 	toolbar_mail ("Send by Email",
 		"Tooltip of the toolbar button that opens a new email with the selected documents attached."),
 	
