@@ -85,6 +85,8 @@
 - Stop with `dev/guitest/stop-dev.sh`; stop the Mill daemon at the end: `cmd /c ".\mill.bat shutdown"`.
 
 ## Checks before committing
+- After the commits of a round of changes, always rebuild the Windows package (see 'Build on Windows') and check
+  that the jar in build/ contains the new classes - the user wants this without being asked.
 - Every `Msg` key needs a German entry in `dist/lang/Resource_de.properties` (Latin-1, `\t` escapes):
   compare `^\t(key) \(` in Msg.java with `^key=` in the properties file.
 - One commit per task item (`git -c user.name=Torsten -c user.email=claude@thoermann.net commit`), no push.
