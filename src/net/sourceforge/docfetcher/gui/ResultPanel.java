@@ -249,8 +249,10 @@ public final class ResultPanel {
 					evtGoUp.fire(null);
 				else if (e.stateMask == SWT.MOD1 && e.keyCode == 'c')
 					copyToClipboard();
-				else if (e.stateMask == SWT.MOD1 && e.keyCode == 'a')
+				else if (e.stateMask == SWT.MOD1 && e.keyCode == 'a') {
 					table.selectAll();
+					fireStateChangedIfActive(); // selectAll() sends no selection event
+				}
 				else if (e.keyCode == SWT.DEL)
 					deleteSelection();
 				else if (e.keyCode == SWT.F2)

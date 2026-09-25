@@ -20,7 +20,6 @@
 ## changes
 
 ## features/stories
-[] as user, i want to send every document or multiple seelcted documents as email
 [] as user I scan a staple of document as one, and want to merge and split the documents easily
   [] S3a merge the selected PDFs into one (order adjustable); after a successful merge offer to move the originals to the recycle bin (ask, with "remember"); undo with Ctrl+Z
   [] S3b split a PDF: each page, or at page numbers x; parts are numbered (name_1.pdf, ...); same handling of the original as after a merge

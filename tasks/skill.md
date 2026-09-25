@@ -46,6 +46,10 @@
 - In-process SWT tests: `GuiTestSupport` (gui package) creates a display, an indexed temp folder and
   screenshots (`-Ddocfetcher.test.shots=<dir>`). On Windows the index files stay locked, so cleanup is best-effort;
   remove leftover `%TEMP%\docfetcher-*` test folders afterwards.
+- `win.py ckey A` works (Ctrl is set in the key state shared with the program's thread via AttachThreadInput);
+  use it for Ctrl+A to select several rows. SWT's virtual tables expose no rows to UI Automation.
+- Email: the default MAPI client is in HKCU\Software\Clients\Mail (here Thunderbird). The compose window
+  'Verfassen: <subject> - Thunderbird' can be checked with `win.py shot` and closed with `win.py close` (no prompt).
 - The Windows 11 print dialog belongs to explorer.exe and ignores posted clicks: `win.py invoke "Drucken" Drucken`
   (UI Automation). With 'Microsoft Print to PDF' a classic save dialog follows: `win.py save "speichern unter" C:/x.pdf`.
   Never print to a real printer; in unit tests use `DocumentPrinter.findPrinter("Microsoft Print to PDF")` with
