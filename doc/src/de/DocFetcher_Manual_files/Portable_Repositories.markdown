@@ -19,6 +19,7 @@ Beachten Sie, dass DocFetcher nur *versuchen* kann, relative Pfade zu speichern:
 Tipps & Tricks
 --------------
 
+* ***Wo die Einstellungen liegen***: Die Einstellungen werden in `settings.conf` im Ordner gespeichert, den das System für die Einstellungen des Benutzers vorsieht (Windows: `%APPDATA%\docfetcher`, macOS: `~/Library/Application Support/docfetcher`, Linux: `~/.config/docfetcher`), nicht im DocFetcher-Ordner – sie bleiben also erhalten, wenn eine neue Version darüber entpackt wird; die Indizes bleiben im Ordner `indexes`. Um die Einstellungen bei DocFetcher zu behalten, z. B. auf einem USB-Stick, tragen Sie in `misc/paths.txt` unter `settings` einen Ordner ein, z. B. `settings=conf`.
 * ***CD-Archivierung***: Eigentlich offensichtlich, aber dennoch erwähnenswert: Wenn Sie DocFetcher auf eine CD brennen, werden Sie danach nicht mehr in der Lage sein, Programm-Einstellungen oder Indizes zu ändern. Folglich sollten Sie DocFetcher entsprechend konfigurieren, bevor Sie es auf die CD brennen. Zudem kann es sinnvoll sein, eine Java-Laufzeit-Umgebung mit auf die CD zu packen.
 * ***Unterschiedliche Programm-Titel***: Für die Weitergabe Ihres portablen Dokument-Repositories, oder um die Arbeit mit mehreren DocFetcher-Instanzen weniger verwirrend zu machen, können Sie mehreren DocFetcher-Instanzen jeweils einen anderen Programm-Titel zuweisen. Öffnen Sie dazu `Erweiterte Einstellungen` auf dem Programm-Einstellungs-Fenster und ändern Sie die Einstellung `AppName` entsprechend ab.
 

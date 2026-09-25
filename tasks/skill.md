@@ -19,7 +19,11 @@
   --no-man-pages`). The manual build needs the Python package Markdown (no `uv` here): use a venv with
   `pip install markdown` and run `PATH="$JDK/bin:$PATH" <venv>/Scripts/python.exe build.py windows` (javac/jar
   come from the PATH). Output: `build/DocFetcher-<version>-Windows-64bit-Portable.zip` and the non-portable folder;
-  the installer needs NSIS (`build-win-installer.nsi`), which is not installed. Afterwards `git checkout -- dist/`.
+  the installer needs NSIS (`build-win-installer.nsi`), which is not installed. Afterwards `git checkout -- dist/`
+  (commit changes under dist/ before building - the checkout reverts them).
+- Testing the package: it keeps its settings in `%APPDATA%\docfetcher\settings.conf`; start it with `APPDATA` pointing to
+  a scratch folder (`cd <pkg> && APPDATA="$(cygpath -w <scratch>)" ./DocFetcher.exe &`) so the user's settings stay
+  untouched. The package has the German UI: `win.py menu Datei "DocFetcher beenden"`, `menu Ansicht "Symbol>100"`.
 
 ## Unit tests
 - JUnit 4 tests live next to the sources (`src/**/*Test.java`) and are compiled by `./mill compile`.

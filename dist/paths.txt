@@ -26,7 +26,11 @@
 # For more information on the Properties format, see:
 # http://en.wikipedia.org/wiki/.properties
 
-# Where the settings are stored:
+# Where the settings (settings.conf) are stored. By default this is the folder
+# the system has for the settings of the user, also for the portable version:
+# Windows: %APPDATA%\docfetcher, macOS: ~/Library/Application Support/docfetcher,
+# Linux: ~/.config/docfetcher. Set a folder here to keep the settings elsewhere,
+# e.g. next to a portable DocFetcher on a USB stick.
 #settings=C:/path/to/settings/folder
 
 # Where the indexes are stored. Note: The DocFetcher daemon currently ignores

@@ -103,6 +103,7 @@ import net.sourceforge.docfetcher.util.CharsetDetectorHelper;
 import net.sourceforge.docfetcher.util.ConfLoader;
 import net.sourceforge.docfetcher.util.ConfLoader.Loadable;
 import net.sourceforge.docfetcher.util.Event;
+import net.sourceforge.docfetcher.util.SettingsLocation;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
@@ -1293,17 +1294,25 @@ public final class Application {
 		AppUtil.checkConstInitialized();
 		AppUtil.ensureNoDisplay();
 
+		/*
+		 * The settings are kept in the folder the system has for the settings
+		 * of the user, also for the portable version, so that they survive when
+		 * a new version is unpacked over the program folder. Settings of
+		 * earlier versions are copied from their old place once.
+		 */
 		File confFile;
 		if (SystemConf.Bool.IsDevelopmentVersion.get()) {
 			confFile = new File("bin/settings-conf.txt");
 		}
 		else if (pathOverride != null && !pathOverride.isFile()) {
 			pathOverride.mkdirs();
-			confFile = new File(pathOverride, "settings-conf.txt");
+			confFile = SettingsLocation.getFile(pathOverride,
+				new File(pathOverride, SettingsLocation.OLD_FILE_NAME));
 		}
 		else {
-			File appDataDir = AppUtil.getAppDataDir();
-			confFile = new File(appDataDir, "conf/settings-conf.txt");
+			File oldFile = new File(AppUtil.getAppDataDir(), "conf/" + SettingsLocation.OLD_FILE_NAME);
+			confFile = SettingsLocation.getFile(SettingsLocation.getDefaultDir(), oldFile);
+			confFile.getParentFile().mkdirs();
 		}
 
 		try {
