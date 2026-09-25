@@ -14,7 +14,12 @@ package net.sourceforge.docfetcher.model.search;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+
+import net.sourceforge.docfetcher.enums.SettingsConf;
+import net.sourceforge.docfetcher.model.TolerantAnalyzer;
 
 import net.sourceforge.docfetcher.util.annotations.VisibleForPackageGroup;
 
@@ -55,12 +60,36 @@ public final class PhraseDetectingQueryParser extends QueryParser {
 
 	protected Query newPrefixQuery(Term prefix) {
 		isPhraseQuery = false;
-		return super.newPrefixQuery(prefix);
+		Query query = super.newPrefixQuery(prefix);
+		Term folded = foldedTerm(prefix);
+		return folded == null ? query : either(query, super.newPrefixQuery(folded));
 	}
 
 	protected Query newWildcardQuery(Term t) {
 		isPhraseQuery = false;
-		return super.newWildcardQuery(t);
+		Query query = super.newWildcardQuery(t);
+		Term folded = foldedTerm(t);
+		return folded == null ? query : either(query, super.newWildcardQuery(folded));
+	}
+
+	/*
+	 * Wildcard and prefix terms don't go through the analyzer, so with the
+	 * tolerant search they are folded here ('Mül*' also finds 'Muller'). The
+	 * original term is searched as well, for indexes built without the
+	 * tolerant forms.
+	 */
+	private static Term foldedTerm(Term term) {
+		if (!SettingsConf.Bool.TolerantSearch.get())
+			return null;
+		String folded = TolerantAnalyzer.fold(term.text());
+		return folded.equals(term.text()) ? null : new Term(term.field(), folded);
+	}
+
+	private static Query either(Query first, Query second) {
+		BooleanQuery.Builder builder = new BooleanQuery.Builder();
+		builder.add(first, BooleanClause.Occur.SHOULD);
+		builder.add(second, BooleanClause.Occur.SHOULD);
+		return builder.build();
 	}
 	
 }

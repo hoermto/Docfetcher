@@ -103,6 +103,10 @@ public final class PrefDialog {
 				SettingsConf.Bool.UseOrOperator),
 
 			new CheckOption(
+				Msg.pref_tolerant_search.get(),
+				SettingsConf.Bool.TolerantSearch),
+
+			new CheckOption(
 				Msg.pref_scroll_to_first_match.get(),
 				SettingsConf.Bool.AutoScrollToFirstMatch),
 
@@ -400,8 +404,14 @@ public final class PrefDialog {
 					tabFolder.setSelection(2);
 					return;
 				}
+				boolean oldTolerant = SettingsConf.Bool.TolerantSearch.get();
 				for (PrefOption checkOption : checkOptions)
 					checkOption.save();
+				if (oldTolerant != SettingsConf.Bool.TolerantSearch.get()) {
+					// Like a new word segmentation, this needs rebuilt indexes
+					AppUtil.showInfo(Msg.rebuild_indexes.get());
+					IndexRegistry.resetAnalyzer();
+				}
 				for (PrefOption fieldOption : fieldOptions) {
 					fieldOption.save();
 					

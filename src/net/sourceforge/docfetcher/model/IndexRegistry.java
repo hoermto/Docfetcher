@@ -157,18 +157,21 @@ public final class IndexRegistry {
 	}
 	
 	public static void resetAnalyzer() {
+		Analyzer base;
 		switch (SettingsConf.Int.LuceneAnalyzer.get()) {
 		case 1:
-			analyzer = new SourceCodeAnalyzer(); break;
+			base = new SourceCodeAnalyzer(); break;
 		case 2:
-			analyzer = new MaxTermByteLengthAnalyzer(
+			base = new MaxTermByteLengthAnalyzer(
 				new AnsjAnalyzer(AnsjAnalyzer.TYPE.index_ansj)); break;
 		case 3:
-			analyzer = new WhitespaceAnalyzer(); break;
+			base = new WhitespaceAnalyzer(); break;
 		default:
-			analyzer = new MaxTermByteLengthAnalyzer(
+			base = new MaxTermByteLengthAnalyzer(
 				new StandardAnalyzer(CharArraySet.EMPTY_SET));
 		}
+		// Umlauts and OCR errors: 'Muller' finds 'Müller', 'Bonn' finds 'B0nn'
+		analyzer = SettingsConf.Bool.TolerantSearch.get() ? new TolerantAnalyzer(base) : base;
 	}
 
 	public IndexRegistry(	@NotNull File indexParentDir,

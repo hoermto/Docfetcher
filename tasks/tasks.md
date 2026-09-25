@@ -19,7 +19,6 @@
 
 
 ## changes
-[] search in german language: find umlaut (u finds u and ü, and oppposite), and also usual other typical OCR issues (O and 0)
 [] add support for encrypted containers like cryptomator (follow you 1a) 1b) suggestions)
 ## features/stories
 

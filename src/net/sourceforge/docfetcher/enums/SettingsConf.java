@@ -99,6 +99,7 @@ public final class SettingsConf {
 		ShowPathColumn (true), // Show the folder column in the result tables
 		SplitAutoRename (true), // Name the parts of a split by date and keywords
 		SyncFolderPanels (true), // The folders tab shows the parent of the folder panel
+		TolerantSearch (true), // Umlauts and OCR errors: 'Muller' finds 'Müller', 'Bonn' finds 'B0nn'
 		ShowFolderPanel (true), // Show a second folder browser next to the tabs
 		SyncFolderView (true), // Folder view follows the selected search result
 		FolderSortAscending (false), // Sort order of the folder view

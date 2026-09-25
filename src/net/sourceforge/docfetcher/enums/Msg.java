@@ -659,6 +659,8 @@ public enum Msg {
 		Comments.prefOption + "Whether to concatenate two or more consecutive words in a " +
 		"query with OR instead of AND. Example: When the user submits the " +
 		"query 'dog cat', this would be treated as 'dog OR cat'."),
+	pref_tolerant_search ("Tolerant search: find words without umlauts and despite OCR errors ('Muller' finds 'Müller', 'Bonn' finds 'B0nn')",
+		"Option on the preferences window: search that ignores umlauts and accents and typical text recognition errors. Changing it requires rebuilding the indexes."),
 	pref_scroll_to_first_match (
 		"Automatically scroll to first match in preview pane",
 		Comments.prefOption + "Whether to scroll to the first match in the " +
@@ -937,7 +939,7 @@ public enum Msg {
 	rebuild_outdated_indexes_msg (
 		"The following indexes were created by an older version of {0} and " +
 		"lack some information (page counts, text recognized in scanned " +
-		"documents). Rebuild them now? The rebuild runs in the " +
+		"documents, words without umlauts for the tolerant search). Rebuild them now? The rebuild runs in the " +
 		"background.\n\n{1}",
 		"Message asking the user to rebuild outdated indexes. The program " +
 		"name is inserted in the {0} slot, the list of index names in the " +
