@@ -1,3 +1,9 @@
+==== 2026-09-26 - DocFetcher 2.8 ====
+
+=== Bugfixes ===
+
+=== Features ===
+
 ==== 2026-09-25 - DocFetcher 2.7 ====
 
 === Bugfixes ===
