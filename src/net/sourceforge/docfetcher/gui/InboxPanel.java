@@ -110,6 +110,7 @@ public final class InboxPanel {
 	public void setFolder(@NotNull File folder) {
 		Util.checkNotNull(folder);
 		this.folder = folder;
+		resultPanel.setCurrentFolder(folder); // Files dropped on the list are moved here
 		folderLabel.setText(Msg.inbox_folder_label.format(Util.getSystemAbsPath(folder)));
 		folderLabel.getParent().layout();
 		refresh();

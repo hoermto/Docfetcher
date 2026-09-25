@@ -42,6 +42,9 @@ public final class DragDropTest {
 			public void fill(File root) throws Exception {
 				GuiTestSupport.write(new File(root, "a.txt"), "alpha document");
 				GuiTestSupport.write(new File(root, "b.txt"), "beta document");
+				new File(root, "inbox").mkdir();
+				new File(root, "archive").mkdir();
+				GuiTestSupport.write(new File(root, "archive/c.txt"), "gamma document");
 			}
 		});
 	}
@@ -49,6 +52,33 @@ public final class DragDropTest {
 	@AfterClass
 	public static void tearDownClass() throws Exception {
 		support.dispose();
+	}
+
+	@Test
+	public void filesDroppedOnAnInboxAreMovedIntoItsFolder() throws Exception {
+		Display display = GuiTestSupport.createDisplay();
+		Assume.assumeTrue(display != null);
+		try {
+			Shell shell = new Shell(display);
+			shell.setLayout(new FillLayout());
+			File inbox = new File(support.root, "inbox");
+			InboxPanel inboxPanel = new InboxPanel(shell, support.registry);
+			inboxPanel.setFolder(inbox);
+			assertEquals("Drops on the inbox list go into the inbox folder",
+				inbox, inboxPanel.getResultPanel().getCurrentFolder());
+
+			// E.g. dragged from the folder browser onto the inbox tab
+			File file = new File(support.root, "archive/c.txt");
+			inboxPanel.getResultPanel().dropFiles(Arrays.asList(file), inbox);
+			assertTrue(new File(inbox, "c.txt").isFile());
+			assertTrue(!file.exists());
+			// And back, to leave the folder as it was
+			inboxPanel.getResultPanel().dropFiles(Arrays.asList(new File(inbox, "c.txt")), file.getParentFile());
+			assertTrue(file.isFile());
+		}
+		finally {
+			display.dispose();
+		}
 	}
 
 	@Test

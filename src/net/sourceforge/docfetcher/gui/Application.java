@@ -60,6 +60,12 @@ import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.TabFolder;
 import org.eclipse.swt.widgets.TabItem;
+import org.eclipse.swt.dnd.DND;
+import org.eclipse.swt.dnd.DropTarget;
+import org.eclipse.swt.dnd.DropTargetAdapter;
+import org.eclipse.swt.dnd.DropTargetEvent;
+import org.eclipse.swt.dnd.FileTransfer;
+import org.eclipse.swt.dnd.Transfer;
 
 import com.drew.lang.Charsets;
 import com.google.common.base.Joiner;
@@ -1358,6 +1364,7 @@ public final class Application {
 		folderSash.setSashWidth(sashWidth);
 		UtilGui.paintSashHandles(folderSash);
 		mainTabFolder = new TabFolder(folderSash, SWT.TOP);
+		initInboxTabDrop();
 		folderPanelHolder = new Composite(folderSash, SWT.NONE);
 		folderPanelHolder.setLayout(new FillLayout());
 		
@@ -1428,6 +1435,52 @@ public final class Application {
 		folderSash.setMaximizedControl(showPanel ? null : mainTabFolder);
 	}
 	
+	/**
+	 * Files dropped on the tab of an inbox are moved into its folder, e.g.
+	 * from the folder browser, without bringing the tab to the front first.
+	 */
+	private static void initInboxTabDrop() {
+		DropTarget dropTarget = new DropTarget(mainTabFolder, DND.DROP_MOVE | DND.DROP_DEFAULT);
+		dropTarget.setTransfer(new Transfer[] { FileTransfer.getInstance() });
+		dropTarget.addDropListener(new DropTargetAdapter() {
+			public void dragEnter(DropTargetEvent event) {
+				updateFeedback(event);
+			}
+			public void dragOver(DropTargetEvent event) {
+				updateFeedback(event);
+			}
+			public void dragOperationChanged(DropTargetEvent event) {
+				updateFeedback(event);
+			}
+			public void drop(DropTargetEvent event) {
+				InboxTab inboxTab = getInboxTabAt(event);
+				if (inboxTab == null || !(event.data instanceof String[]))
+					return;
+				List<File> files = new ArrayList<File>();
+				for (String path : (String[]) event.data)
+					files.add(new File(path));
+				inboxTab.panel.getResultPanel().dropFiles(files, inboxTab.entry.getFolder());
+				inboxTab.panel.refresh();
+			}
+			private void updateFeedback(DropTargetEvent event) {
+				if (getInboxTabAt(event) == null)
+					event.detail = DND.DROP_NONE;
+				else if (event.detail == DND.DROP_NONE || event.detail == DND.DROP_DEFAULT)
+					event.detail = DND.DROP_MOVE;
+			}
+		});
+	}
+
+	/** The inbox tab under the cursor of a drag, or null. */
+	@Nullable
+	private static InboxTab getInboxTabAt(@NotNull DropTargetEvent event) {
+		TabItem item = mainTabFolder.getItem(mainTabFolder.toControl(event.x, event.y));
+		for (InboxTab inboxTab : inboxTabs)
+			if (inboxTab.tab == item)
+				return inboxTab;
+		return null;
+	}
+
 	/** Shows or hides the folder browser next to the tabs. */
 	private static void toggleFolderPanel() {
 		SettingsConf.Bool.ShowFolderPanel.set(!SettingsConf.Bool.ShowFolderPanel.get());

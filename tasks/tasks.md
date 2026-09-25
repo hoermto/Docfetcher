@@ -20,7 +20,6 @@
 
 ## changes
 
-[] allow moving docs from a folder view into a inbox folder.
 [] sync view: when have folder in left pane, i want to have a synced view with the folder in the middle (if shown) - similar to search view syncs with middle folders. On left habe a folder selected, show in middle folder view the content. jump into this folder, shows middle the content of this folder. When in middle pane jump into a folder, sync the same: left then shows the parent, middle the content of the selected content - so left is always the parent of the middle folder view
  Add icon in icon bar to show sync symbol (toggle) to enable/disable this. 
  [] change icon for mergeing docs with a stapler icon, if possible

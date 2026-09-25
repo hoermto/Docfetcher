@@ -1714,6 +1714,21 @@ public final class ResultPanel {
 	}
 	
 	@Nullable private File currentFolder;
+
+	/** The folder the table is showing, or null; for tests. */
+	@Nullable
+	File getCurrentFolder() {
+		return currentFolder;
+	}
+
+	/**
+	 * Moves files dropped somewhere else, e.g. on the tab of an inbox, into
+	 * the given folder, like a drop on a folder row of this table.
+	 */
+	public void dropFiles(@NotNull List<File> files, @NotNull File targetDir) {
+		noteDropInDocFetcher();
+		moveFilesTo(files, targetDir);
+	}
 	
 	/**
 	 * Moves the given files into the target folder and refreshes the view.
