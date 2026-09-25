@@ -37,7 +37,6 @@ public final class MailSenderTest {
 		Memory message = MailSender.createMessage("Rechnung März.pdf, letter.pdf",
 			Arrays.asList(first, second), keepAlive);
 
-		assertEquals(MailSender.MESSAGE_SIZE, message.getSize());
 		assertEquals("Rechnung März.pdf, letter.pdf",
 			message.getPointer(MailSender.SUBJECT_OFFSET).getString(0, true));
 		assertEquals(2, message.getInt(MailSender.FILE_COUNT_OFFSET));

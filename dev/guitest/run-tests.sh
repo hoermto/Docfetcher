@@ -15,4 +15,4 @@ for jar in $(find lib -name "*.jar" | grep -v -e "-sources" -e "-src" $OTHER -e 
 	CP="$CP$SEP$jar"
 done
 # jnotify is needed by tests that load an index registry (folder watching)
-"$JAVA" -Djava.library.path="lib/jnotify${SEP}lib/jxgrabkey" -cp "$CP" org.junit.runner.JUnitCore "$@"
+"$JAVA" -ea -Djava.library.path="lib/jnotify${SEP}lib/jxgrabkey" -cp "$CP" org.junit.runner.JUnitCore "$@"

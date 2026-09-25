@@ -20,7 +20,6 @@
 ## changes
 
 ## features/stories
-[] as user, i want to have a symbol bar for print, mail, rename, move to folder, split and merge
 
 
 
