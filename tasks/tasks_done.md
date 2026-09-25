@@ -177,3 +177,6 @@
     in the GUI: the 'Zip archives' field of a new index was empty, and after indexing a folder with a zip, a
     word inside the archive found nothing while a word in the file next to it was found.
 
+- as user, i want to print a document (v2.6)
+  - `Print` in the new toolbar, `Print...` in the context menu of every result table and Ctrl+P print the selected files. `DocumentPrinter`: PDFs and images (png, jpg, gif, bmp, tif) get one SWT print dialog (printer, page range, copies) and one print job; pages are rendered with PDFBox (at most 300 dpi) and printed in their real size, shrunk to the printable area if bigger. Other files go to the program registered for printing (`Desktop.print`, default printer). `UtilGui.toImageData` is now shared by the previews and the printer.
+    Tests: `DocumentPrinterTest` (page placement, file types, printing 2 PDF pages + 1 image and a page range into a PDF with 'Microsoft Print to PDF'); in the GUI: toolbar button opened the Windows print dialog, printing to 'Microsoft Print to PDF' produced the 2-page invoice.
