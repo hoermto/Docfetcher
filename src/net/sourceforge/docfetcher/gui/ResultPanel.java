@@ -47,6 +47,7 @@ import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.model.search.Searcher;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.Event;
+import net.sourceforge.docfetcher.util.MailSender;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilFile;
 import net.sourceforge.docfetcher.util.gui.dialog.InputDialog;
@@ -142,7 +143,7 @@ public final class ResultPanel {
 		// Folder browser only (see FolderPanel)
 		FOLDER_ROOTS, FOLDER_UP, FOLDER_REFRESH, NEW_FOLDER,
 		// Documents
-		PRINT, RENAME, MOVE, DELETE
+		PRINT, MAIL, RENAME, MOVE, DELETE
 	}
 	
 	/**
@@ -742,6 +743,15 @@ public final class ResultPanel {
 			}
 		}));
 		
+		menuManager.add(addDocAction(DocAction.MAIL, new MenuAction(Msg.mail_document.get()) {
+			public boolean isEnabled() {
+				return isAllPlainFiles(viewer.getSelection());
+			}
+			public void run() {
+				mailFiles(getSelectedFiles());
+			}
+		}));
+		
 		menuManager.addSeparator();
 		
 		menuManager.add(addDocAction(DocAction.RENAME, new MenuAction(Msg.rename_document.get()) {
@@ -842,6 +852,35 @@ public final class ResultPanel {
 	@Nullable
 	public MenuAction getDocAction(@NotNull DocAction key) {
 		return docActions.get(key);
+	}
+	
+	/**
+	 * Opens a new message in the email program with the given files attached.
+	 * Runs in the background, since some email programs only return when the
+	 * message window is closed.
+	 */
+	private static void mailFiles(@NotNull final List<File> files) {
+		StringBuilder subject = new StringBuilder();
+		for (File file : files) {
+			if (subject.length() > 0)
+				subject.append(", ");
+			subject.append(file.getName());
+		}
+		final String subjectText = subject.length() > 200
+			? subject.substring(0, 200) + "..."
+			: subject.toString();
+		Thread thread = new Thread(ResultPanel.class.getName() + " (mail)") {
+			public void run() {
+				try {
+					MailSender.compose(subjectText, files);
+				}
+				catch (MailSender.MailException e) {
+					AppUtil.showError(Msg.mail_failed.format(e.getMessage()), true, true);
+				}
+			}
+		};
+		thread.setDaemon(true);
+		thread.start();
 	}
 	
 	/** Runs the given action on the selection, if it is possible for it. */

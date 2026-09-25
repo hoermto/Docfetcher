@@ -60,6 +60,7 @@ final class DocToolBar {
 		},
 		{
 			new Button(DocAction.PRINT, Img.TB_PRINT, Msg.toolbar_print),
+			new Button(DocAction.MAIL, Img.TB_MAIL, Msg.toolbar_mail),
 		},
 		{
 			new Button(DocAction.RENAME, Img.TB_RENAME, Msg.toolbar_rename),

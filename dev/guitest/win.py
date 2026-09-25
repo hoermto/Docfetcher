@@ -164,14 +164,34 @@ def focus_of(hwnd):
 
 
 def key(name, title=None, ctrl=False):
-    target = focus_of(find_window(title))
+    hwnd = find_window(title)
+    target = focus_of(hwnd)
     code = VK.get(name.upper(), ord(name.upper()[0]))
-    if ctrl:
+    if not ctrl:
+        user32.PostMessageW(target, WM_KEYDOWN, code, 1)
+        user32.PostMessageW(target, WM_KEYUP, code, 0xC0000001)
+        return
+    # SWT asks GetKeyState for Ctrl: share the key state with the program's thread
+    # and set Ctrl there, without touching the real keyboard
+    import time
+    own = kernel32.GetCurrentThreadId()
+    other = user32.GetWindowThreadProcessId(hwnd, None)
+    user32.AttachThreadInput(own, other, True)
+    try:
+        state = (ctypes.c_ubyte * 256)()
+        user32.GetKeyboardState(state)
+        saved = state[VK["CONTROL"]]
+        state[VK["CONTROL"]] = 0x80
+        user32.SetKeyboardState(state)
         user32.PostMessageW(target, WM_KEYDOWN, VK["CONTROL"], 1)
-    user32.PostMessageW(target, WM_KEYDOWN, code, 1)
-    user32.PostMessageW(target, WM_KEYUP, code, 0xC0000001)
-    if ctrl:
+        user32.PostMessageW(target, WM_KEYDOWN, code, 1)
+        user32.PostMessageW(target, WM_KEYUP, code, 0xC0000001)
+        time.sleep(0.5)  # Until the program has handled the keys
         user32.PostMessageW(target, WM_KEYUP, VK["CONTROL"], 0xC0000001)
+        state[VK["CONTROL"]] = saved
+        user32.SetKeyboardState(state)
+    finally:
+        user32.AttachThreadInput(own, other, False)
 
 
 def type_text(text, title=None):

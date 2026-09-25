@@ -1226,6 +1226,16 @@ public enum Msg {
 		"Tooltip of the toolbar button that deletes the selected documents."),
 	toolbar_print ("Print (Ctrl+P)",
 		"Tooltip of the toolbar button that prints the selected documents."),
+	toolbar_mail ("Send by Email",
+		"Tooltip of the toolbar button that opens a new email with the selected documents attached."),
+	
+	// Email
+	mail_document ("Send by Email...",
+		"Context menu entry of the result table that opens a new email in the " +
+		"email program with the selected documents attached."),
+	mail_failed ("The email program could not be opened ({0}). Please check that an email " +
+		"program is set up as the default email app of the system.",
+		"Error message; the technical reason is inserted in the {0} slot."),
 	
 	// Printing
 	print_document ("Print...	Ctrl+P",
