@@ -1,6 +1,7 @@
 ==== 2026-09-24 - DocFetcher 2.6 ====
 
 === Bugfixes ===
+  * Windows: the text recognized in scanned PDF files was not stored in the files ('Store the recognized text in the files'), because the file was replaced while it was still open; the error only appeared in the log.
   * Folders can now be deleted in the folder browser like files ('Delete...' or the Del key): the folder goes to the recycle bin with its contents, and the confirmation says how many files that are. The root folder of an index is refused with an explanation.
   * German messages that contain a file or folder name showed the placeholder '{0}' instead of the name.
 

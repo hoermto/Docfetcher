@@ -194,3 +194,6 @@
 - View > Icon size: Automatic, 100, 125, 150, 200 %; default 200 %; all icons; takes effect after a restart (v2.6)
   - New submenu `View > Icon size` with radio entries for the existing setting `IconScalePercent` (the preferences dropdown changes the same value, and the menu follows it); choosing a size says that it takes effect after a restart. The default is 200 % instead of Automatic; settings files that already contain a value keep it.
     Tests: `LazyImageCacheTest` (32 px variant used at 150/200 %, default 200 %); in the GUI: new settings start with 200 % icons, View > Icon size > 100 % showed the hint, after the restart the icons were at 100 %.
+- bug (found while testing v2.6): on Windows the OCR text layer was never written into scanned PDFs
+  - `SearchablePdf.ocr` replaced the PDF while the PDFBox document loaded from it was still open; Windows refuses that ('used by another process'), so the text only went into the index and the files stayed without text layer. Now the document is saved to a temporary file and closed before the file is replaced.
+    Test: `SearchablePdfTest.addsTheTextLayerToAScannedPdfInPlace` (failed on Windows before the fix).

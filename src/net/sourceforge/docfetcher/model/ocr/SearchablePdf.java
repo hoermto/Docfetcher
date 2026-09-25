@@ -131,28 +131,43 @@ public final class SearchablePdf {
 								@NotNull OcrEngine engine,
 								@NotNull Cancelable cancelable) throws IOException {
 		Util.checkNotNull(pdfFile, engine, cancelable);
-		PDDocument doc = PDDocument.load(pdfFile);
+		long lastModified = pdfFile.lastModified();
+		File temp = new File(pdfFile.getParentFile(), pdfFile.getName() + ".docfetcher-tmp");
 		try {
-			if (!needsOcr(doc))
-				return false;
-			PDFRenderer renderer = new PDFRenderer(doc);
-			int pageCount = doc.getNumberOfPages();
-			for (int i = 0; i < pageCount; i++) {
-				if (cancelable.isCanceled())
+			PDDocument doc = PDDocument.load(pdfFile);
+			try {
+				if (!needsOcr(doc))
 					return false;
-				PDPage page = doc.getPage(i);
-				int dpi = renderDpi(page);
-				BufferedImage image = renderer.renderImageWithDPI(i, dpi, ImageType.GRAY);
-				Result result = engine.recognize(image, dpi);
-				addTextLayer(doc, page, result, image.getWidth(), image.getHeight());
+				PDFRenderer renderer = new PDFRenderer(doc);
+				int pageCount = doc.getNumberOfPages();
+				for (int i = 0; i < pageCount; i++) {
+					if (cancelable.isCanceled())
+						return false;
+					PDPage page = doc.getPage(i);
+					int dpi = renderDpi(page);
+					BufferedImage image = renderer.renderImageWithDPI(i, dpi, ImageType.GRAY);
+					Result result = engine.recognize(image, dpi);
+					addTextLayer(doc, page, result, image.getWidth(), image.getHeight());
+				}
+				markRecognized(doc);
+				doc.save(temp);
 			}
-			markRecognized(doc);
-			saveReplacing(doc, pdfFile);
-			return true;
+			finally {
+				/*
+				 * PDFBox keeps the file open while the document is loaded, and
+				 * Windows doesn't allow to replace an open file, so the file
+				 * is replaced only after closing the document.
+				 */
+				doc.close();
+			}
+			Files.move(temp.toPath(), pdfFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 		}
 		finally {
-			doc.close();
+			temp.delete();
 		}
+		if (lastModified > 0)
+			Files.setLastModifiedTime(pdfFile.toPath(), FileTime.fromMillis(lastModified));
+		return true;
 	}
 
 	/** Extension appended to a converted TIFF file that is kept. */
@@ -235,20 +250,6 @@ public final class SearchablePdf {
 			INFO_KEY, "Tesseract " + OcrEngine.LANGUAGES);
 	}
 
-	/** Saves the document over the given file, keeping the modification time. */
-	private static void saveReplacing(@NotNull PDDocument doc, @NotNull File file) throws IOException {
-		long lastModified = file.lastModified();
-		File temp = new File(file.getParentFile(), file.getName() + ".docfetcher-tmp");
-		try {
-			doc.save(temp);
-			Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
-		}
-		finally {
-			temp.delete();
-		}
-		if (lastModified > 0)
-			Files.setLastModifiedTime(file.toPath(), FileTime.fromMillis(lastModified));
-	}
 
 	/** Chooses a rendering resolution that keeps large pages within limits. */
 	private static int renderDpi(@NotNull PDPage page) {
