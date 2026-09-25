@@ -7,6 +7,13 @@
 - If Mill fails with `NoSuchFileException: out/mill-daemon/socketPort`, just run the command again (daemon restart).
 - Windows package: `python3 build.py windows` (needs `build-jre.txt`), then `git checkout -- dist/` (build.py rewrites line endings).
 
+## Build on Windows
+- `./mill` is the Linux/macOS launcher; on Windows use `mill.bat` (from PowerShell:
+  `cmd /c ".\mill.bat compile > <scratch>\build.txt 2>&1"`). It downloads Mill and a Zulu JDK 21 into
+  `%LOCALAPPDATA%\Coursier\cache\arc\https\cdn.azul.com\zulu\bin\zulu21*\...\bin\java.exe`; use that as `$JAVA`.
+- `dev/guitest/run-tests.sh` works in Git Bash too (it switches to `;` as classpath separator and the win32 SWT).
+- Windows Python needs `C:/...` paths, not `/c/...`.
+
 ## Unit tests
 - JUnit 4 tests live next to the sources (`src/**/*Test.java`) and are compiled by `./mill compile`.
 - Run: `dev/guitest/run-tests.sh $JAVA net.sourceforge.docfetcher.model.ocr.ImagePagesTest net.sourceforge.docfetcher.model.ocr.OcrTextEmbeddingTest`
