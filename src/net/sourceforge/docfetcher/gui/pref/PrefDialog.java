@@ -222,6 +222,14 @@ public final class PrefDialog {
 				Msg.pref_preview_right.get()),
 			
 			new DropdownOption(
+				Msg.pref_remove_originals.get(),
+				SettingsConf.Int.RemoveOriginals,
+				new String[] { Msg.pref_originals_ask.get(),
+					Msg.pref_originals_remove.get(), Msg.pref_originals_keep.get() },
+				new int[] { SettingsConf.ORIGINALS_ASK, SettingsConf.ORIGINALS_REMOVE,
+					SettingsConf.ORIGINALS_KEEP }),
+			
+			new DropdownOption(
 				Msg.pref_folder_path_segments.get(),
 				SettingsConf.Int.FolderPathSegments,
 				new String[] { "1", "2", "3", "4", "5" },

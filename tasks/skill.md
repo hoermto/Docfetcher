@@ -50,6 +50,11 @@
   use it for Ctrl+A to select several rows. SWT's virtual tables expose no rows to UI Automation.
 - Email: the default MAPI client is in HKCU\Software\Clients\Mail (here Thunderbird). The compose window
   'Verfassen: <subject> - Thunderbird' can be checked with `win.py shot` and closed with `win.py close` (no prompt).
+- Menu entries: `win.py menu File Undo` (WM_COMMAND with the item id); global shortcuts like Ctrl+Z don't fire
+  while the window is in the background. Modifier keys: `win.py key SHIFT+DOWN`, `key CTRL+A`.
+- After `stop-dev.sh` (hard kill) wait until `win.py list` shows the main window before clicking: a question
+  about another running instance may come first, and a blind click answers it.
+- Merge/split tests move test files to the real recycle bin; in unit tests call `UtilFile.setTrashDisabled(true)`.
 - The Windows 11 print dialog belongs to explorer.exe and ignores posted clicks: `win.py invoke "Drucken" Drucken`
   (UI Automation). With 'Microsoft Print to PDF' a classic save dialog follows: `win.py save "speichern unter" C:/x.pdf`.
   Never print to a real printer; in unit tests use `DocumentPrinter.findPrinter("Microsoft Print to PDF")` with

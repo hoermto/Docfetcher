@@ -67,6 +67,10 @@ final class DocToolBar {
 			new Button(DocAction.MOVE, Img.TB_MOVE, Msg.toolbar_move),
 		},
 		{
+			new Button(DocAction.MERGE, Img.TB_MERGE, Msg.toolbar_merge),
+			new Button(DocAction.SPLIT, Img.TB_SPLIT, Msg.toolbar_split),
+		},
+		{
 			new Button(DocAction.DELETE, Img.TB_DELETE, Msg.toolbar_delete),
 		},
 	};

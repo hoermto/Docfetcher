@@ -67,6 +67,7 @@ public final class MultipleChoiceDialog<A> {
 	}
 	
 	private final Shell shell;
+	private final Composite labelComp;
 	private final Label icon;
 	private final Link label;
 	
@@ -74,13 +75,15 @@ public final class MultipleChoiceDialog<A> {
 	private final GridData gridData;
 	
 	@Nullable private Button firstButton;
+	@Nullable private Button checkBox;
+	private boolean checked = false;
 	@Nullable private A answer;
 	
 	public MultipleChoiceDialog(@NotNull Shell parent) {
 		Util.checkNotNull(parent);
 		
 		shell = new Shell(parent, SWT.PRIMARY_MODAL | SWT.DIALOG_TRIM);
-		Composite labelComp = new Composite(shell, SWT.NONE);
+		labelComp = new Composite(shell, SWT.NONE);
 		
 		icon = new Label(labelComp, SWT.NONE);
 		icon.setImage(shell.getDisplay().getSystemImage(SWT.ICON_QUESTION));
@@ -148,8 +151,32 @@ public final class MultipleChoiceDialog<A> {
 		return answer;
 	}
 	
+	/**
+	 * Adds a checkbox below the text, e.g. 'Remember my choice'; its state
+	 * is returned by {@link #isChecked()} after the dialog was closed.
+	 */
+	public void setCheckBox(@NotNull String text) {
+		Util.checkNotNull(text);
+		checkBox = new Button(shell, SWT.CHECK);
+		checkBox.setText(text);
+		checkBox.moveBelow(labelComp); // Above the buttons
+		checkBox.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				checked = checkBox.getSelection();
+			}
+		});
+	}
+	
+	/** Returns true if the checkbox was checked when the dialog was closed. */
+	public boolean isChecked() {
+		return checked;
+	}
+	
 	@Nullable
 	public A open() {
+		if (checkBox != null)
+			checkBox.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false,
+				gridLayout.numColumns, 1));
 		UtilGui.setCenteredBounds(shell);
 		firstButton.setFocus(); // Avoid focusing hyperlinks if there are any
 		shell.open();

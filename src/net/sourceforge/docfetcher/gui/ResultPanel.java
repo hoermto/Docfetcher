@@ -143,7 +143,7 @@ public final class ResultPanel {
 		// Folder browser only (see FolderPanel)
 		FOLDER_ROOTS, FOLDER_UP, FOLDER_REFRESH, NEW_FOLDER,
 		// Documents
-		PRINT, MAIL, RENAME, MOVE, DELETE
+		PRINT, MAIL, RENAME, MOVE, MERGE, SPLIT, DELETE
 	}
 	
 	/**
@@ -812,6 +812,26 @@ public final class ResultPanel {
 			}
 		});
 		
+		menuManager.add(addDocAction(DocAction.MERGE, new MenuAction(Msg.merge_document.get()) {
+			public boolean isEnabled() {
+				return PdfOperations.canMerge(viewer.getSelection());
+			}
+			public void run() {
+				PdfOperations.merge(pdfHost, viewer.getSelection());
+			}
+		}));
+		
+		menuManager.add(addDocAction(DocAction.SPLIT, new MenuAction(Msg.split_document.get()) {
+			public boolean isEnabled() {
+				return PdfOperations.canSplit(viewer.getSelection());
+			}
+			public void run() {
+				List<ResultDocument> sel = viewer.getSelection();
+				if (PdfOperations.canSplit(sel))
+					PdfOperations.split(pdfHost, sel.get(0));
+			}
+		}));
+		
 		menuManager.add(addDocAction(DocAction.DELETE, new MenuAction(Msg.delete_document.get()) {
 			public boolean isEnabled() {
 				List<ResultDocument> sel = viewer.getSelection();
@@ -836,6 +856,21 @@ public final class ResultPanel {
 			}
 		});
 	}
+	
+	/** Lets the merge and split operations update this table. */
+	final PdfOperations.Host pdfHost = new PdfOperations.Host() {
+		public Shell getShell() {
+			return getControl().getShell();
+		}
+		public void removeRows(List<ResultDocument> docs) {
+			viewer.removeElements(docs);
+			viewer.refresh();
+		}
+		public void filesChanged(List<File> files) {
+			updateIndexesFor(files);
+			evtDocumentsChanged.fire(null);
+		}
+	};
 	
 	/**
 	 * Registers an action for the toolbar; the owner of the panel can add its
@@ -1451,6 +1486,9 @@ public final class ResultPanel {
 				entry.getFileCount(), entry.getFirstName()));
 			return false;
 		}
+		if (entry.getKind() == FileOperationHistory.Kind.MERGE
+				|| entry.getKind() == FileOperationHistory.Kind.SPLIT)
+			return undoMergeOrSplit(indexRegistry, entry, true);
 		
 		String what = entry.getKind() == FileOperationHistory.Kind.RENAME
 			? Msg.undo_rename.format(entry.getFirstName())
@@ -1475,6 +1513,57 @@ public final class ResultPanel {
 			affected.add(from);
 			affected.add(to);
 		}
+		if (affected.isEmpty())
+			return false;
+		updateIndexesFor(indexRegistry, affected);
+		return true;
+	}
+	
+	/** Undoes the last operation, a merge or split, without confirmation; for tests. */
+	static boolean undoMergeOrSplitWithoutAsking(@NotNull IndexRegistry indexRegistry) {
+		FileOperationHistory.Entry entry = FileOperationHistory.getInstance().peek();
+		return entry != null && undoMergeOrSplit(indexRegistry, entry, false);
+	}
+	
+	/**
+	 * Undoes a merge or split: the created files go to the recycle bin, and
+	 * the originals, if they were removed, are restored from their backups.
+	 */
+	private static boolean undoMergeOrSplit(@NotNull IndexRegistry indexRegistry,
+											@NotNull FileOperationHistory.Entry entry,
+											boolean ask) {
+		List<File> sources = entry.getSources();
+		List<File> targets = entry.getTargets();
+		String what = entry.getKind() == FileOperationHistory.Kind.MERGE
+			? Msg.undo_merge.format(sources.size(), targets.get(0).getName())
+			: Msg.undo_split.format(entry.getFirstName(), targets.size());
+		if (ask && !AppUtil.showConfirmation(what, false))
+			return false;
+		FileOperationHistory history = FileOperationHistory.getInstance();
+		history.pop();
+		List<File> affected = new ArrayList<File>();
+		List<File> backups = entry.getBackups();
+		for (int i = 0; i < backups.size() && i < sources.size(); i++) {
+			File source = sources.get(i);
+			if (source.exists() || !backups.get(i).exists())
+				continue; // Not removed, or restored in the meantime
+			File parent = source.getParentFile();
+			if (parent != null && !parent.isDirectory() && !parent.mkdirs())
+				continue;
+			if (!moveFile(backups.get(i), source))
+				break; // Error already shown
+			affected.add(source);
+		}
+		for (File target : targets) {
+			if (!target.exists())
+				continue;
+			if (!UtilFile.delete(target)) {
+				AppUtil.showError(Msg.file_operation_failed.format(target.getPath()), true, true);
+				break;
+			}
+			affected.add(target);
+		}
+		FileOperationHistory.deleteBackups(entry);
 		if (affected.isEmpty())
 			return false;
 		updateIndexesFor(indexRegistry, affected);

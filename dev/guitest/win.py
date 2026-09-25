@@ -14,6 +14,8 @@ Usage: python dev/guitest/win.py <command> ...
                                  ckey NAME: with Ctrl
   type TEXT [TITLE]              types TEXT into the focused control
   close TITLE                    sends WM_CLOSE to the window
+  menu TOP ITEM [TITLE]          runs a menu bar entry, e.g. menu File Undo (global shortcuts
+                                 like Ctrl+Z don't fire while the window is in the background)
   invoke TITLE BUTTON            presses a button with UI Automation, for dialogs that ignore
                                  posted clicks (e.g. the print dialog of Windows 11)
   save TITLE PATH                enters PATH in a classic save dialog and confirms it
@@ -163,16 +165,22 @@ def focus_of(hwnd):
     return info.hwndFocus or hwnd
 
 
+MODIFIERS = {"CTRL": 0x11, "SHIFT": 0x10, "ALT": 0x12}
+
+
 def key(name, title=None, ctrl=False):
+    """Presses a key, optionally with modifiers: 'DOWN', 'SHIFT+DOWN', 'CTRL+A'."""
     hwnd = find_window(title)
     target = focus_of(hwnd)
-    code = VK.get(name.upper(), ord(name.upper()[0]))
-    if not ctrl:
+    parts = name.upper().split("+")
+    mods = [MODIFIERS[p] for p in parts[:-1]] + ([MODIFIERS["CTRL"]] if ctrl else [])
+    code = VK.get(parts[-1], ord(parts[-1][0]))
+    if not mods:
         user32.PostMessageW(target, WM_KEYDOWN, code, 1)
         user32.PostMessageW(target, WM_KEYUP, code, 0xC0000001)
         return
-    # SWT asks GetKeyState for Ctrl: share the key state with the program's thread
-    # and set Ctrl there, without touching the real keyboard
+    # SWT asks GetKeyState for the modifiers: share the key state with the program's
+    # thread and set them there, without touching the real keyboard
     import time
     own = kernel32.GetCurrentThreadId()
     other = user32.GetWindowThreadProcessId(hwnd, None)
@@ -180,16 +188,19 @@ def key(name, title=None, ctrl=False):
     try:
         state = (ctypes.c_ubyte * 256)()
         user32.GetKeyboardState(state)
-        saved = state[VK["CONTROL"]]
-        state[VK["CONTROL"]] = 0x80
+        saved = bytes(state)
+        for mod in mods:
+            state[mod] = 0x80
         user32.SetKeyboardState(state)
-        user32.PostMessageW(target, WM_KEYDOWN, VK["CONTROL"], 1)
+        for mod in mods:
+            user32.PostMessageW(target, WM_KEYDOWN, mod, 1)
         user32.PostMessageW(target, WM_KEYDOWN, code, 1)
         user32.PostMessageW(target, WM_KEYUP, code, 0xC0000001)
         time.sleep(0.5)  # Until the program has handled the keys
-        user32.PostMessageW(target, WM_KEYUP, VK["CONTROL"], 0xC0000001)
-        state[VK["CONTROL"]] = saved
-        user32.SetKeyboardState(state)
+        for mod in mods:
+            user32.PostMessageW(target, WM_KEYUP, mod, 0xC0000001)
+        restored = (ctypes.c_ubyte * 256).from_buffer_copy(saved)
+        user32.SetKeyboardState(restored)
     finally:
         user32.AttachThreadInput(own, other, False)
 
@@ -237,6 +248,33 @@ def save(title, path):
     sys.exit("no file name field in " + title)
 
 
+def menu(top, item, title=None):
+    """Runs a menu bar entry, e.g. menu File Undo (labels are matched by prefix, without '&')."""
+    hwnd = find_window(title)
+    user32.GetMenu.restype = wintypes.HMENU
+    user32.GetSubMenu.restype = wintypes.HMENU
+    user32.GetSubMenu.argtypes = [wintypes.HMENU, ctypes.c_int]
+    user32.GetMenuItemCount.argtypes = [wintypes.HMENU]
+    user32.GetMenuItemID.argtypes = [wintypes.HMENU, ctypes.c_int]
+    user32.GetMenuStringW.argtypes = [wintypes.HMENU, ctypes.c_uint, wintypes.LPWSTR, ctypes.c_int, ctypes.c_uint]
+
+    def label(hmenu, pos):
+        buf = ctypes.create_unicode_buffer(256)
+        user32.GetMenuStringW(hmenu, pos, buf, 256, 0x400)  # MF_BYPOSITION
+        return buf.value.replace("&", "").split("\t")[0]
+
+    bar = user32.GetMenu(hwnd)
+    for i in range(user32.GetMenuItemCount(bar)):
+        if not label(bar, i).startswith(top):
+            continue
+        sub = user32.GetSubMenu(bar, i)
+        for j in range(user32.GetMenuItemCount(sub)):
+            if label(sub, j).startswith(item):
+                user32.PostMessageW(hwnd, 0x0111, user32.GetMenuItemID(sub, j), 0)  # WM_COMMAND
+                return
+    sys.exit("menu entry not found: %s > %s" % (top, item))
+
+
 def main(args):
     cmd = args[0]
     if cmd == "list":
@@ -251,6 +289,8 @@ def main(args):
         key(args[1], args[2] if len(args) > 2 else None, cmd == "ckey")
     elif cmd == "type":
         type_text(args[1], args[2] if len(args) > 2 else None)
+    elif cmd == "menu":
+        menu(args[1], args[2], args[3] if len(args) > 3 else None)
     elif cmd == "invoke":
         invoke(args[1], args[2])
     elif cmd == "save":

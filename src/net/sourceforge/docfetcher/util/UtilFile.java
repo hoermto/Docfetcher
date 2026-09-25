@@ -21,12 +21,21 @@ import net.sourceforge.docfetcher.util.annotations.Nullable;
 public final class UtilFile {
 
 	private UtilFile() {}
+	
+	private static volatile boolean trashDisabled = false;
+	
+	/** Lets tests delete for good, so that they don't fill the recycle bin. */
+	public static void setTrashDisabled(boolean trashDisabled) {
+		UtilFile.trashDisabled = trashDisabled;
+	}
 
 	/**
 	 * Returns true if deleted files can be moved to the recycle bin (or to
 	 * the desktop trash on Linux) instead of being deleted for good.
 	 */
 	public static boolean isTrashSupported() {
+		if (trashDisabled)
+			return false;
 		try {
 			return Desktop.isDesktopSupported()
 				&& Desktop.getDesktop().isSupported(Desktop.Action.MOVE_TO_TRASH);

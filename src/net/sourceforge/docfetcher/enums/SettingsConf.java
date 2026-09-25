@@ -72,6 +72,16 @@ public final class SettingsConf {
 	public static final int CLOSE_ACTION_EXIT = 0;
 	public static final int CLOSE_ACTION_MINIMIZE = 1;
 	public static final int CLOSE_ACTION_TRAY = 2;
+	
+	// Values of Int.RemoveOriginals
+	public static final int ORIGINALS_ASK = 0;
+	public static final int ORIGINALS_REMOVE = 1;
+	public static final int ORIGINALS_KEEP = 2;
+	
+	// Values of Int.SplitMode
+	public static final int SPLIT_EACH_PAGE = 0;
+	public static final int SPLIT_AT_PAGES = 1;
+	public static final int SPLIT_AT_BLANK_PAGES = 2;
 
 	@Description("# Boolean entries. Allowed values: true, false")
 	public enum Bool implements Storable {
@@ -157,6 +167,15 @@ public final class SettingsConf {
 		
 		// Number of trailing path segments shown for suggested folders
 		FolderPathSegments (2),
+		
+		/*
+		 * What happens to the original PDF files after a merge or split: ask,
+		 * move them to the recycle bin or keep them (ORIGINALS_* constants).
+		 */
+		RemoveOriginals (ORIGINALS_ASK),
+		
+		// Last choice in the split dialog (SPLIT_* constants)
+		SplitMode (SPLIT_AT_BLANK_PAGES),
 		;
 
 		public final Event<Integer> evtChanged = new Event<Integer> ();

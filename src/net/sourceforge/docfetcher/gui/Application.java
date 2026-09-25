@@ -353,6 +353,8 @@ public final class Application {
 		initSystemTrayHider();
 		initMenuBar();
 		initSearchSettingsDialog();
+		// Backups of PDF files removed after a merge or split, for the undo
+		FileOperationHistory.getInstance().setBackupDir(new File(AppUtil.getAppDataDir(), "undo"));
 		docToolBar = new DocToolBar(shell);
 		initTwoPanelForm();
 		InboxFolders.migrateLegacySetting();
@@ -445,6 +447,7 @@ public final class Application {
 		 */
 		display.dispose();
 		saveSettingsConfFile();
+		FileOperationHistory.getInstance().clear(); // Deletes the undo backups
 	}
 	
 	@Nullable
