@@ -155,7 +155,7 @@ public final class SettingsConf {
 		/* Column the folder view is sorted by; -1 means by date, newest first. */
 		FolderSortColumn (-1),
 		/* Size of the icons in percent; 0 = automatically from the screen. */
-		IconScalePercent (0),
+		IconScalePercent (200),
 		LuceneAnalyzer (getDefaultAnalyzer()),
 		
 		/*

@@ -14,6 +14,8 @@ Usage: python dev/guitest/win.py <command> ...
                                  ckey NAME: with Ctrl
   type TEXT [TITLE]              types TEXT into the focused control
   close TITLE                    sends WM_CLOSE to the window
+  press BUTTON                   clicks a button of a native dialog of the program, e.g. of a
+                                 message box without title: press OK
   menu TOP ITEM [TITLE]          runs a menu bar entry, e.g. menu File Undo (global shortcuts
                                  like Ctrl+Z don't fire while the window is in the background)
   invoke TITLE BUTTON            presses a button with UI Automation, for dialogs that ignore
@@ -248,6 +250,34 @@ def save(title, path):
     sys.exit("no file name field in " + title)
 
 
+def press(button):
+    """Clicks a button of a native dialog (e.g. a message box, which has no title) of the program."""
+    dialogs = []
+
+    def callback(hwnd, _):
+        cls = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(hwnd, cls, 64)
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        name = process_name(pid.value)
+        if cls.value == "#32770" and user32.IsWindowVisible(hwnd) and \
+                (name.endswith("\\java.exe") or name.endswith("\\javaw.exe")):
+            dialogs.append(hwnd)
+        return True
+
+    user32.EnumWindows(EnumProc(callback), 0)
+    for dlg in dialogs:
+        for child in children(dlg):
+            length = user32.GetWindowTextLengthW(child)
+            buf = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(child, buf, length + 1)
+            if buf.value.replace("&", "") == button:
+                # BM_CLICK is ignored while the dialog is inactive; WM_COMMAND is not
+                user32.PostMessageW(dlg, 0x0111, user32.GetDlgCtrlID(child), child)
+                return
+    sys.exit("no button '%s' in the program's dialogs" % button)
+
+
 def menu(top, item, title=None):
     """Runs a menu bar entry, e.g. menu File Undo (labels are matched by prefix, without '&')."""
     hwnd = find_window(title)
@@ -263,16 +293,21 @@ def menu(top, item, title=None):
         user32.GetMenuStringW(hmenu, pos, buf, 256, 0x400)  # MF_BYPOSITION
         return buf.value.replace("&", "").split("\t")[0]
 
-    bar = user32.GetMenu(hwnd)
-    for i in range(user32.GetMenuItemCount(bar)):
-        if not label(bar, i).startswith(top):
-            continue
-        sub = user32.GetSubMenu(bar, i)
-        for j in range(user32.GetMenuItemCount(sub)):
-            if label(sub, j).startswith(item):
-                user32.PostMessageW(hwnd, 0x0111, user32.GetMenuItemID(sub, j), 0)  # WM_COMMAND
+    # 'item' may be a path into submenus, separated by '>' (e.g. "Icon size>100")
+    path = [top] + [part.strip() for part in item.split(">")]
+    hmenu = user32.GetMenu(hwnd)
+    for depth, name in enumerate(path):
+        for pos in range(user32.GetMenuItemCount(hmenu)):
+            if not label(hmenu, pos).startswith(name):
+                continue
+            if depth == len(path) - 1:
+                user32.PostMessageW(hwnd, 0x0111, user32.GetMenuItemID(hmenu, pos), 0)  # WM_COMMAND
                 return
-    sys.exit("menu entry not found: %s > %s" % (top, item))
+            hmenu = user32.GetSubMenu(hmenu, pos)
+            break
+        else:
+            break
+    sys.exit("menu entry not found: %s" % " > ".join(path))
 
 
 def main(args):
@@ -289,6 +324,8 @@ def main(args):
         key(args[1], args[2] if len(args) > 2 else None, cmd == "ckey")
     elif cmd == "type":
         type_text(args[1], args[2] if len(args) > 2 else None)
+    elif cmd == "press":
+        press(args[1])
     elif cmd == "menu":
         menu(args[1], args[2], args[3] if len(args) > 3 else None)
     elif cmd == "invoke":

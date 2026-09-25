@@ -5,6 +5,7 @@
   * German messages that contain a file or folder name showed the placeholder '{0}' instead of the name.
 
 === Features ===
+  * 'View > Icon size' chooses the size of all icons (Automatic, 100, 125, 150 or 200 %, like in the preferences); the default is now 200 %. A new size takes effect after a restart.
   * Merge and split PDF files, e.g. a stack of documents scanned in one go: 'Split PDF' creates numbered documents from single pages, from given page numbers or automatically at blank separator pages; 'Merge PDFs' puts the selected PDFs into one, in an order you choose. Afterwards the originals can be moved to the recycle bin (asked once, with 'Remember my choice'); Ctrl+Z undoes both.
   * 'Send by Email' in the toolbar and the context menu opens a new message in the default email program (Outlook, Thunderbird, ...) with all selected documents attached; nothing is sent without you.
   * Printing: 'Print' in the toolbar, in the context menu or Ctrl+P prints the selected documents. PDF files and images are printed by DocFetcher with one print dialog (printer, pages, copies) in their real size; other documents are printed by the program installed for them.

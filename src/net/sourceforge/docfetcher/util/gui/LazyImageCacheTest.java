@@ -19,6 +19,8 @@ import org.eclipse.swt.widgets.Display;
 import org.junit.Assume;
 import org.junit.Test;
 
+import net.sourceforge.docfetcher.enums.SettingsConf;
+
 /** Tests that the icons are loaded in the configured size. */
 public final class LazyImageCacheTest {
 
@@ -61,6 +63,32 @@ public final class LazyImageCacheTest {
 		finally {
 			display.dispose();
 		}
+	}
+
+	private static int widthOf(Display display, int percent, String filename) {
+		LazyImageCache cache = new LazyImageCache(display, IMAGE_DIR);
+		cache.setScalePercent(percent);
+		return cache.getImage(filename).getBounds().width;
+	}
+
+	@Test
+	public void usesTheDoubleSizeVariantWhenEnlarging() {
+		Display display = createDisplay();
+		Assume.assumeTrue(display != null);
+		try {
+			// Toolbar icons have a 32 px variant (tb_*@2x.png)
+			assertEquals(16, widthOf(display, 100, "tb_print.png"));
+			assertEquals(32, widthOf(display, 200, "tb_print.png"));
+			assertEquals(24, widthOf(display, 150, "tb_print.png"));
+		}
+		finally {
+			display.dispose();
+		}
+	}
+
+	@Test
+	public void defaultIconSizeIs200Percent() {
+		assertEquals(200, SettingsConf.Int.IconScalePercent.defaultValue);
 	}
 
 }

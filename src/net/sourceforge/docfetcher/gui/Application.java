@@ -1884,6 +1884,8 @@ public final class Application {
 			}
 		});
 		
+		initIconSizeMenu(viewMenu);
+		
 		Menu helpMenu = createMenu(menuBar, Msg.menu_help.get());
 		createMenuItem(helpMenu, Msg.menu_manual.get(), Img.HELP.get(), new Runnable() {
 			public void run() {
@@ -1908,6 +1910,46 @@ public final class Application {
 	}
 
 	@NotNull
+	/** The choices of 'View > Icon size', the same as in the preferences. */
+	private static final int[] ICON_SIZES = { 0, 100, 125, 150, 200 };
+	
+	/**
+	 * Adds the 'Icon size' submenu. The icons are scaled when the program
+	 * starts, so a new size takes effect after a restart, which is said.
+	 */
+	private static void initIconSizeMenu(@NotNull Menu viewMenu) {
+		MenuItem iconSizeItem = new MenuItem(viewMenu, SWT.CASCADE);
+		iconSizeItem.setText(Msg.menu_icon_size.get());
+		Menu iconSizeMenu = new Menu(viewMenu);
+		iconSizeItem.setMenu(iconSizeMenu);
+		final MenuItem[] items = new MenuItem[ICON_SIZES.length];
+		for (int i = 0; i < ICON_SIZES.length; i++) {
+			final int size = ICON_SIZES[i];
+			items[i] = new MenuItem(iconSizeMenu, SWT.RADIO);
+			items[i].setText(size == 0 ? Msg.pref_icon_size_auto.get() : size + " %");
+			items[i].setSelection(SettingsConf.Int.IconScalePercent.get() == size);
+			items[i].addSelectionListener(new SelectionAdapter() {
+				public void widgetSelected(SelectionEvent e) {
+					// Radio items also report being deselected
+					if (!((MenuItem) e.widget).getSelection()
+							|| SettingsConf.Int.IconScalePercent.get() == size)
+						return;
+					SettingsConf.Int.IconScalePercent.set(size);
+					AppUtil.showInfo(Msg.pref_icon_size_hint.format(
+						ProgramConf.Str.AppName.get()));
+				}
+			});
+		}
+		// The preferences change the same setting
+		SettingsConf.Int.IconScalePercent.evtChanged.add(new Event.Listener<Integer>() {
+			public void update(Integer eventData) {
+				for (int i = 0; i < items.length; i++)
+					if (!items[i].isDisposed())
+						items[i].setSelection(ICON_SIZES[i] == eventData);
+			}
+		});
+	}
+	
 	private static MenuItem createMenuItem(	@NotNull Menu menu,
 											@NotNull String label,
 											@Nullable Image image,

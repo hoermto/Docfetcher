@@ -57,6 +57,11 @@
   use it for Ctrl+A to select several rows. SWT's virtual tables expose no rows to UI Automation.
 - Email: the default MAPI client is in HKCU\Software\Clients\Mail (here Thunderbird). The compose window
   'Verfassen: <subject> - Thunderbird' can be checked with `win.py shot` and closed with `win.py close` (no prompt).
+- Message boxes have no title: `win.py press OK` (WM_COMMAND to the program's own dialogs; never FindWindow('#32770'),
+  which may hit another program's dialog). Submenus: `win.py menu View "Icon size>100"`.
+- A second `run-dev.sh` while the program still runs only brings the first instance to the front; check
+  `tasklist` for the Windows PID and exit with `win.py menu File Exit` (saves the settings).
+- `ct.sh`-style scripts that start the Mill daemon must write to a file, not a pipe (the daemon keeps the pipe open).
 - Menu entries: `win.py menu File Undo` (WM_COMMAND with the item id); global shortcuts like Ctrl+Z don't fire
   while the window is in the background. Modifier keys: `win.py key SHIFT+DOWN`, `key CTRL+A`.
 - After `stop-dev.sh` (hard kill) wait until `win.py list` shows the main window before clicking: a question

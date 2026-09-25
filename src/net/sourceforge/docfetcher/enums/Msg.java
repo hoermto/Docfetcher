@@ -862,6 +862,8 @@ public enum Msg {
 		Comments.prefOption + "Size of the icons in the program window, for " +
 		"screens with a high resolution."),
 	pref_icon_size_auto ("Automatic"),
+	menu_icon_size ("&Icon size",
+		"Submenu of the 'View' menu with the icon sizes (Automatic, 100 %, ...)."),
 	pref_icon_size_hint (
 		"A new icon size takes effect after {0} has been restarted.",
 		"Note below the icon size option. The program name is inserted in " +

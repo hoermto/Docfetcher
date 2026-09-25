@@ -18,7 +18,6 @@
 ## bugs
 
 ## changes
-[] View > Icon size: Automatic, 100, 125, 150, 200 %; default 200 %; all icons; takes effect after a restart
 
 ## features/stories
 [] auto-split without blank pages (the scanner removes them):
