@@ -16,10 +16,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.TreeSet;
 
+import org.apache.pdfbox.cos.COSDictionary;
+import org.apache.pdfbox.cos.COSName;
 import org.apache.pdfbox.io.MemoryUsageSetting;
 import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -160,6 +163,7 @@ public final class PdfPages {
 						imported.setMediaBox(source.getPage(page).getMediaBox());
 						imported.setResources(source.getPage(page).getResources());
 						imported.setRotation(source.getPage(page).getRotation());
+						detachFromSource(imported);
 					}
 					written.add(outputs.get(i));
 					part.save(outputs.get(i));
@@ -177,6 +181,39 @@ public final class PdfPages {
 		finally {
 			source.close();
 		}
+	}
+
+	/**
+	 * Cuts the references of an imported page to the rest of the source
+	 * document. Annotations refer to their page (/P), form fields to the field
+	 * tree of the whole form (/Parent), links to other pages, pop-ups and
+	 * replies to other annotations; when the part is saved, PDFBox would
+	 * follow these references and write the whole source document, with all
+	 * its images, into each part. The annotations are copied, so the source
+	 * stays as it is: form fields keep their appearance, web links keep
+	 * working, links into the source are dropped.
+	 */
+	static void detachFromSource(@NotNull PDPage page) throws IOException {
+		page.getCOSObject().removeItem(COSName.B); // Article threads across pages
+		List<PDAnnotation> annotations = page.getAnnotations();
+		if (annotations.isEmpty())
+			return;
+		List<PDAnnotation> copies = new ArrayList<PDAnnotation>(annotations.size());
+		for (PDAnnotation annotation : annotations) {
+			COSDictionary copy = new COSDictionary(annotation.getCOSObject());
+			copy.setItem(COSName.P, page);
+			copy.removeItem(COSName.PARENT);
+			copy.removeItem(COSName.POPUP);
+			copy.removeItem(COSName.getPDFName("IRT"));
+			if (COSName.LINK.equals(copy.getCOSName(COSName.SUBTYPE))) {
+				copy.removeItem(COSName.DEST);
+				COSDictionary action = copy.getCOSDictionary(COSName.A);
+				if (action != null && !COSName.URI.equals(action.getCOSName(COSName.S)))
+					copy.removeItem(COSName.A);
+			}
+			copies.add(PDAnnotation.createAnnotation(copy));
+		}
+		page.setAnnotations(copies);
 	}
 
 	/** One document per page. */

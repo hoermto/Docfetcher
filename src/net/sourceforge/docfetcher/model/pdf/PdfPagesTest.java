@@ -168,6 +168,86 @@ public final class PdfPagesTest {
 		assertEquals(new File(dir, "stack-2_1.pdf"), next.get(0));
 	}
 
+	/**
+	 * A form with a big image on page 1, a link on page 2 that points to
+	 * page 1, and a form field with a widget on each page. The links and
+	 * widgets refer to their page and to the field of the whole document;
+	 * split parts must not drag the other pages along through them.
+	 */
+	private File createFormWithLinks(File file) throws Exception {
+		PDDocument pdf = new PDDocument();
+		try {
+			org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm form =
+				new org.apache.pdfbox.pdmodel.interactive.form.PDAcroForm(pdf);
+			pdf.getDocumentCatalog().setAcroForm(form);
+			org.apache.pdfbox.pdmodel.interactive.form.PDTextField field =
+				new org.apache.pdfbox.pdmodel.interactive.form.PDTextField(form);
+			field.setPartialName("name");
+			form.getFields().add(field);
+			List<org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget> widgets =
+				new java.util.ArrayList<org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget>();
+			BufferedImage noise = new BufferedImage(1200, 1600, BufferedImage.TYPE_INT_RGB);
+			Random random = new Random(3);
+			for (int y = 0; y < noise.getHeight(); y++)
+				for (int x = 0; x < noise.getWidth(); x++)
+					noise.setRGB(x, y, random.nextInt());
+			for (int i = 0; i < 3; i++) {
+				PDPage page = new PDPage(PDRectangle.A4);
+				pdf.addPage(page);
+				PDPageContentStream content = new PDPageContentStream(pdf, page);
+				if (i == 0)
+					content.drawImage(LosslessFactory.createFromImage(pdf, noise), 0, 0, 200, 260);
+				content.beginText();
+				content.setFont(PDType1Font.HELVETICA, 20);
+				content.newLineAtOffset(72, 700);
+				content.showText("page " + (i + 1));
+				content.endText();
+				content.close();
+				org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget widget =
+					new org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget();
+				widget.setRectangle(new PDRectangle(72, 600, 200, 20));
+				widget.setPage(page);
+				widget.getCOSObject().setItem(org.apache.pdfbox.cos.COSName.PARENT, field);
+				page.getAnnotations().add(widget);
+				widgets.add(widget);
+			}
+			field.setWidgets(widgets);
+			org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink link =
+				new org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink();
+			link.setRectangle(new PDRectangle(72, 500, 200, 20));
+			PDPage second = pdf.getPage(1);
+			link.setPage(second);
+			org.apache.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageFitDestination dest =
+				new org.apache.pdfbox.pdmodel.interactive.documentnavigation.destination.PDPageFitDestination();
+			dest.setPage(pdf.getPage(0));
+			org.apache.pdfbox.pdmodel.interactive.action.PDActionGoTo goTo =
+				new org.apache.pdfbox.pdmodel.interactive.action.PDActionGoTo();
+			goTo.setDestination(dest);
+			link.setAction(goTo);
+			second.getAnnotations().add(link);
+			pdf.save(file);
+		}
+		finally {
+			pdf.close();
+		}
+		return file;
+	}
+
+	@Test
+	public void partsDontCarryTheOtherPagesAlong() throws Exception {
+		File form = createFormWithLinks(new File(dir, "form.pdf"));
+		List<File> parts = PdfPages.getPartFiles(form, 2);
+		PdfPages.split(form, Arrays.asList(new Range(0, 1), new Range(1, 3)), parts);
+		assertEquals(1, PdfPages.getPageCount(parts.get(0)));
+		assertEquals(2, PdfPages.getPageCount(parts.get(1)));
+		// The image of page 1 is only in the first part
+		assertTrue(form.length() + " / " + parts.get(0).length(), parts.get(0).length() > form.length() / 2);
+		assertTrue("Second part: " + parts.get(1).length() + " of " + form.length(),
+			parts.get(1).length() < form.length() / 10);
+		assertTrue(textOf(parts.get(1)).contains("page 2"));
+		assertFalse(textOf(parts.get(1)).contains("page 1"));
+	}
+
 	@Test
 	public void findsBlankScannedPages() throws Exception {
 		// Page 4 has only one short line, which must not count as blank
