@@ -46,6 +46,10 @@
 - In-process SWT tests: `GuiTestSupport` (gui package) creates a display, an indexed temp folder and
   screenshots (`-Ddocfetcher.test.shots=<dir>`). On Windows the index files stay locked, so cleanup is best-effort;
   remove leftover `%TEMP%\docfetcher-*` test folders afterwards.
+- The Windows 11 print dialog belongs to explorer.exe and ignores posted clicks: `win.py invoke "Drucken" Drucken`
+  (UI Automation). With 'Microsoft Print to PDF' a classic save dialog follows: `win.py save "speichern unter" C:/x.pdf`.
+  Never print to a real printer; in unit tests use `DocumentPrinter.findPrinter("Microsoft Print to PDF")` with
+  `printToFile`. Documents that are not PDF/images go to the default printer without a dialog - don't test those.
 - Stop with `dev/guitest/stop-dev.sh`; stop the Mill daemon at the end: `cmd /c ".\mill.bat shutdown"`.
 
 ## Checks before committing

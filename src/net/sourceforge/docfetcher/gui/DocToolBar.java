@@ -59,6 +59,9 @@ final class DocToolBar {
 			new Button(DocAction.NEW_FOLDER, Img.TB_NEW_FOLDER, Msg.new_folder),
 		},
 		{
+			new Button(DocAction.PRINT, Img.TB_PRINT, Msg.toolbar_print),
+		},
+		{
 			new Button(DocAction.RENAME, Img.TB_RENAME, Msg.toolbar_rename),
 			new Button(DocAction.MOVE, Img.TB_MOVE, Msg.toolbar_move),
 		},

@@ -5,6 +5,7 @@
   * German messages that contain a file or folder name showed the placeholder '{0}' instead of the name.
 
 === Features ===
+  * Printing: 'Print' in the toolbar, in the context menu or Ctrl+P prints the selected documents. PDF files and images are printed by DocFetcher with one print dialog (printer, pages, copies) in their real size; other documents are printed by the program installed for them.
   * New toolbar at the top of the window with flat icons for the selected documents: rename, move to folder and delete, plus the folder browser's buttons for the root folders, the parent folder, reloading and a new subfolder. It works on the table you clicked last; the folder browser and the inbox rows use the same new icons.
   * New indexes no longer look into zip and jar archives; add the extensions in the indexing dialog if you want their contents searched. Existing indexes keep their settings.
   * 'Open in Explorer' in the context menu of a folder row opens that folder in the file manager of the system.

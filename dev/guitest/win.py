@@ -14,7 +14,11 @@ Usage: python dev/guitest/win.py <command> ...
                                  ckey NAME: with Ctrl
   type TEXT [TITLE]              types TEXT into the focused control
   close TITLE                    sends WM_CLOSE to the window
+  invoke TITLE BUTTON            presses a button with UI Automation, for dialogs that ignore
+                                 posted clicks (e.g. the print dialog of Windows 11)
+  save TITLE PATH                enters PATH in a classic save dialog and confirms it
 """
+import subprocess
 import ctypes
 import sys
 from ctypes import wintypes
@@ -62,7 +66,7 @@ def process_name(pid):
     return buf.value.lower()
 
 
-def java_windows():
+def java_windows(all_processes=False):
     found = []
 
     def callback(hwnd, _):
@@ -71,7 +75,7 @@ def java_windows():
         pid = wintypes.DWORD()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
         name = process_name(pid.value)
-        if name.endswith("\\java.exe") or name.endswith("\\javaw.exe"):
+        if all_processes or name.endswith("\\java.exe") or name.endswith("\\javaw.exe"):
             length = user32.GetWindowTextLengthW(hwnd)
             buf = ctypes.create_unicode_buffer(length + 1)
             user32.GetWindowTextW(hwnd, buf, length + 1)
@@ -84,7 +88,8 @@ def java_windows():
 
 
 def find_window(title=None):
-    windows = java_windows()
+    # The print dialog of Windows 11 belongs to explorer.exe, so a given title is looked up everywhere
+    windows = java_windows(all_processes=title is not None)
     for hwnd, text in windows:
         if title is None and "DocFetcher" in text and "-" not in text:
             return hwnd
@@ -175,6 +180,43 @@ def type_text(text, title=None):
         user32.PostMessageW(target, WM_CHAR, ord(ch), 1)
 
 
+def invoke(title, button):
+    script = (
+        "Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes;"
+        "$A=[System.Windows.Automation.AutomationElement]; $T=[System.Windows.Automation.TreeScope];"
+        "$w=$A::RootElement.FindAll($T::Children,[System.Windows.Automation.Condition]::TrueCondition)"
+        " | Where-Object { $_.Current.Name -like '*%s*' } | Select-Object -First 1;"
+        "$b=$w.FindFirst($T::Descendants,(New-Object System.Windows.Automation.PropertyCondition($A::NameProperty,'%s')));"
+        "$b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()") % (title, button)
+    subprocess.check_call(["powershell", "-NoProfile", "-Command", script])
+
+
+def children(hwnd):
+    user32.FindWindowExW.restype = wintypes.HWND
+    user32.FindWindowExW.argtypes = [wintypes.HWND, wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR]
+    found, child = [], None
+    while True:
+        child = user32.FindWindowExW(hwnd, child, None, None)
+        if not child:
+            return found
+        found.append(child)
+        found.extend(children(child))
+
+
+def save(title, path):
+    dlg = find_window(title)
+    for child in children(dlg):
+        cls = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(child, cls, 64)
+        if cls.value == "Edit" and user32.GetDlgCtrlID(child) == 1001:  # File name field
+            buf = ctypes.create_unicode_buffer(path)
+            user32.SendMessageW.argtypes = [wintypes.HWND, ctypes.c_uint, wintypes.WPARAM, wintypes.LPARAM]
+            user32.SendMessageW(child, 0x000C, 0, ctypes.cast(buf, ctypes.c_void_p).value)  # WM_SETTEXT
+            user32.PostMessageW(dlg, 0x0111, 1, 0)  # WM_COMMAND IDOK
+            return
+    sys.exit("no file name field in " + title)
+
+
 def main(args):
     cmd = args[0]
     if cmd == "list":
@@ -189,6 +231,10 @@ def main(args):
         key(args[1], args[2] if len(args) > 2 else None, cmd == "ckey")
     elif cmd == "type":
         type_text(args[1], args[2] if len(args) > 2 else None)
+    elif cmd == "invoke":
+        invoke(args[1], args[2])
+    elif cmd == "save":
+        save(args[1], args[2])
     elif cmd == "close":
         user32.PostMessageW(find_window(args[1]), WM_CLOSE, 0, 0)
     else:

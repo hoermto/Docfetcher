@@ -1224,6 +1224,22 @@ public enum Msg {
 		"into another folder."),
 	toolbar_delete ("Delete (Del)",
 		"Tooltip of the toolbar button that deletes the selected documents."),
+	toolbar_print ("Print (Ctrl+P)",
+		"Tooltip of the toolbar button that prints the selected documents."),
+	
+	// Printing
+	print_document ("Print...	Ctrl+P",
+		"Context menu entry of the result table that prints the selected documents."),
+	print_title ("Print",
+		"Window title of the print dialog."),
+	print_job_name ("DocFetcher: {0} documents",
+		"Name of a print job with several documents, as shown in the printer queue. " +
+		"The number of documents is inserted in the {0} slot."),
+	print_failed ("Printing failed: {0}",
+		"Error message; the document name and the reason are inserted in the {0} slot."),
+	print_no_program ("{0} could not be printed: there is no program for printing this type of file.",
+		"Error message when a document that DocFetcher can't print itself (e.g. a Word file) " +
+		"can't be handed to another program for printing. The file name is inserted in the {0} slot."),
 	;
 	
 	private static boolean checkEnabled = true;

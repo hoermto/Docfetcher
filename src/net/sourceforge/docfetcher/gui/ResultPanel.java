@@ -142,7 +142,7 @@ public final class ResultPanel {
 		// Folder browser only (see FolderPanel)
 		FOLDER_ROOTS, FOLDER_UP, FOLDER_REFRESH, NEW_FOLDER,
 		// Documents
-		RENAME, MOVE, DELETE
+		PRINT, RENAME, MOVE, DELETE
 	}
 	
 	/**
@@ -254,6 +254,8 @@ public final class ResultPanel {
 					deleteSelection();
 				else if (e.keyCode == SWT.F2)
 					renameSelection();
+				else if (e.stateMask == SWT.MOD1 && e.keyCode == 'p')
+					runDocAction(DocAction.PRINT);
 			}
 		});
 		
@@ -731,6 +733,15 @@ public final class ResultPanel {
 			}
 		});
 		
+		menuManager.add(addDocAction(DocAction.PRINT, new MenuAction(Msg.print_document.get()) {
+			public boolean isEnabled() {
+				return isAllPlainFiles(viewer.getSelection());
+			}
+			public void run() {
+				DocumentPrinter.print(getControl().getShell(), getSelectedFiles());
+			}
+		}));
+		
 		menuManager.addSeparator();
 		
 		menuManager.add(addDocAction(DocAction.RENAME, new MenuAction(Msg.rename_document.get()) {
@@ -831,6 +842,22 @@ public final class ResultPanel {
 	@Nullable
 	public MenuAction getDocAction(@NotNull DocAction key) {
 		return docActions.get(key);
+	}
+	
+	/** Runs the given action on the selection, if it is possible for it. */
+	private void runDocAction(@NotNull DocAction key) {
+		MenuAction action = docActions.get(key);
+		if (action != null && action.isEnabled())
+			action.run();
+	}
+	
+	/** The files of the selected documents. */
+	@NotNull
+	private List<File> getSelectedFiles() {
+		List<File> files = new ArrayList<File>();
+		for (ResultDocument doc : viewer.getSelection())
+			files.add(doc.getPath().getCanonicalFile());
+		return files;
 	}
 	
 	/** Returns true if the list is not empty and holds only plain files on disk. */

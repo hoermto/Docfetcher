@@ -11,6 +11,7 @@
 
 package net.sourceforge.docfetcher.util;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -40,6 +41,9 @@ import org.eclipse.swt.events.SelectionListener;
 import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.GC;
 import org.eclipse.swt.graphics.Image;
+import org.eclipse.swt.graphics.ImageData;
+import org.eclipse.swt.graphics.PaletteData;
+import org.eclipse.swt.graphics.RGB;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.graphics.Rectangle;
 import org.eclipse.swt.graphics.Resource;
@@ -971,4 +975,45 @@ public final class UtilGui {
 		});
 	}
 	
+
+	/**
+	 * Converts a BufferedImage into SWT image data (without transparency).
+	 */
+	@NotNull
+	public static ImageData toImageData(@NotNull BufferedImage image) {
+		int width = image.getWidth();
+		int height = image.getHeight();
+		if (image.getType() == BufferedImage.TYPE_BYTE_GRAY) {
+			// Copy the raster directly with a gray palette
+			RGB[] grays = new RGB[256];
+			for (int i = 0; i < 256; i++)
+				grays[i] = new RGB(i, i, i);
+			ImageData data = new ImageData(width, height, 8, new PaletteData(grays));
+			byte[] row = new byte[width];
+			for (int y = 0; y < height; y++) {
+				image.getRaster().getDataElements(0, y, width, 1, row);
+				data.setPixels(0, y, width, toInts(row), 0);
+			}
+			return data;
+		}
+		PaletteData palette = new PaletteData(0xFF0000, 0x00FF00, 0x0000FF);
+		ImageData data = new ImageData(width, height, 24, palette);
+		int[] row = new int[width];
+		for (int y = 0; y < height; y++) {
+			image.getRGB(0, y, width, 1, row, 0, width);
+			for (int x = 0; x < width; x++)
+				row[x] &= 0xFFFFFF;
+			data.setPixels(0, y, width, row, 0);
+		}
+		return data;
+	}
+
+	@NotNull
+	private static int[] toInts(@NotNull byte[] bytes) {
+		int[] ints = new int[bytes.length];
+		for (int i = 0; i < bytes.length; i++)
+			ints[i] = bytes[i] & 0xFF;
+		return ints;
+	}
+
 }
