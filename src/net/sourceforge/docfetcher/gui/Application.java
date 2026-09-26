@@ -289,6 +289,12 @@ public final class Application {
 			SettingsConf.Bool.CloseToTray.set(false);
 		}
 		
+		// Google-style search: version 2.8 switches the old OR default to AND once
+		if (!SettingsConf.Bool.AndOperatorApplied.get()) {
+			SettingsConf.Bool.UseOrOperator.set(false);
+			SettingsConf.Bool.AndOperatorApplied.set(true);
+		}
+		
 		/*
 		 * Determine the index folder. A custom index folder set in the
 		 * preferences dialog takes precedence over the one in paths.txt. If the

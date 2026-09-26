@@ -82,7 +82,8 @@ public final class SettingsConf {
 	@Description("# Boolean entries. Allowed values: true, false")
 	public enum Bool implements Storable {
 		ShowManualOnStartup (true),
-		UseOrOperator (true),
+		UseOrOperator (false), // Like Google, all words must occur by default
+		AndOperatorApplied (false), // Version 2.8 switched existing settings to AND once
 		HideOnOpen (false), // Default must be 'false' since system tray not supported on Ubuntu Unity
 		ClearSearchHistoryOnExit (false),
 		UseTypeAheadSearch (false),

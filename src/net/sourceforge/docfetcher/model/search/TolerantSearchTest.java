@@ -9,13 +9,9 @@
 package net.sourceforge.docfetcher.model.search;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -24,75 +20,33 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import net.sourceforge.docfetcher.enums.SettingsConf;
-import net.sourceforge.docfetcher.model.Cancelable;
 import net.sourceforge.docfetcher.model.IndexRegistry;
-import net.sourceforge.docfetcher.model.index.IndexingReporter;
-import net.sourceforge.docfetcher.model.index.Task.CancelAction;
-import net.sourceforge.docfetcher.model.index.Task.CancelHandler;
-import net.sourceforge.docfetcher.model.index.file.FileIndex;
-import net.sourceforge.docfetcher.util.AppUtil;
-import net.sourceforge.docfetcher.util.Util;
 
 /**
  * Tests the tolerant search: umlauts and typical OCR errors, at search time
- * only - the index keeps the words as they are.
+ * only - the index keeps the words as they are. Words in quotes are exact.
  */
 public final class TolerantSearchTest {
 
-	private static File root;
-	private static File indexDir;
-	private static IndexRegistry registry;
+	private static SearchTestSupport support;
 
 	@BeforeClass
 	public static void setUpClass() throws Exception {
-		AppUtil.Const.autoInit();
 		SettingsConf.Bool.TolerantSearch.set(true);
-		IndexRegistry.resetAnalyzer();
-		root = createDir("docfetcher-tolerant");
-		indexDir = createDir("docfetcher-tolerant-index");
-		write(new File(root, "letter.txt"), "Rechnung für Herrn Müller");
-		write(new File(root, "scan.txt"), "Stadtwerke B0nn, Kundennummer 4711");
-		write(new File(root, "street.txt"), "Wohnung in der Hauptstraße");
-		write(new File(root, "plain.txt"), "Mueller and Muller are other names");
-		registry = new IndexRegistry(indexDir, 10, 100);
-		registry.load(Cancelable.nullCancelable);
-		FileIndex index = new FileIndex(indexDir, root);
-		index.update(new IndexingReporter(), Cancelable.nullCancelable);
-		registry.addIndex(index);
+		support = new SearchTestSupport(
+			"letter.txt", "Rechnung für Herrn Müller",
+			"scan.txt", "Stadtwerke B0nn, Kundennummer 4711",
+			"street.txt", "Wohnung in der Hauptstraße",
+			"plain.txt", "Mueller and Muller are other names");
 	}
 
 	@AfterClass
 	public static void tearDownClass() throws Exception {
-		registry.getQueue().shutdown(new CancelHandler() {
-			public CancelAction cancel() {
-				return CancelAction.DISCARD;
-			}
-		});
-		for (File dir : new File[] { root, indexDir }) {
-			try {
-				Util.deleteRecursively(dir);
-			}
-			catch (Exception e) {
-				dir.deleteOnExit(); // Index files may still be locked on Windows
-			}
-		}
+		support.dispose();
 	}
 
-	private static File createDir(String prefix) throws Exception {
-		File dir = File.createTempFile(prefix, "");
-		assertTrue(dir.delete() && dir.mkdir());
-		return dir;
-	}
-
-	private static void write(File file, String text) throws Exception {
-		java.nio.file.Files.write(file.toPath(), text.getBytes("UTF-8"));
-	}
-
-	private static Set<String> search(String query) throws Exception {
-		Set<String> names = new TreeSet<String>();
-		for (ResultDocument doc : registry.getSearcher().search(query))
-			names.add(doc.getFilename());
-		return names;
+	private static String search(String query) throws Exception {
+		return support.search(query).toString();
 	}
 
 	private static List<String> tokens(String text) throws Exception {
@@ -126,40 +80,42 @@ public final class TolerantSearchTest {
 
 	@Test
 	public void findsWordsWithAndWithoutUmlauts() throws Exception {
-		assertEquals("[letter.txt, plain.txt]", search("Muller").toString());
-		assertEquals("[letter.txt, plain.txt]", search("Müller").toString());
-		assertEquals("[street.txt]", search("hauptstrasse").toString());
-		assertEquals("[street.txt]", search("Hauptstraße").toString());
-		assertEquals("[letter.txt]", search("fur").toString());
+		assertEquals("[letter.txt, plain.txt]", search("Muller"));
+		assertEquals("[letter.txt, plain.txt]", search("Müller"));
+		assertEquals("[street.txt]", search("hauptstrasse"));
+		assertEquals("[street.txt]", search("Hauptstraße"));
+		assertEquals("[letter.txt]", search("fur"));
 	}
 
 	@Test
 	public void findsWordsDespiteOcrErrors() throws Exception {
-		assertEquals("[scan.txt]", search("Bonn").toString());
-		assertEquals("[scan.txt]", search("B0nn").toString());
-		assertEquals("Exact numbers", "[scan.txt]", search("4711").toString());
+		assertEquals("[scan.txt]", search("Bonn"));
+		assertEquals("[scan.txt]", search("B0nn"));
+		assertEquals("Exact numbers", "[scan.txt]", search("4711"));
 	}
 
 	@Test
 	public void wildcardsAreTolerantToo() throws Exception {
-		assertEquals("[letter.txt, plain.txt]", search("Mül*").toString());
-		assertEquals("[letter.txt, plain.txt]", search("Mul*").toString());
-		assertEquals("[street.txt]", search("haupt*strasse").toString());
+		assertEquals("[letter.txt, plain.txt]", search("Mül*"));
+		assertEquals("[letter.txt, plain.txt]", search("Mul*"));
+		assertEquals("[street.txt]", search("haupt*strasse"));
 	}
 
 	@Test
-	public void phrasesAreTolerantToo() throws Exception {
-		assertEquals("[letter.txt]", search("\"Herrn Muller\"").toString());
-		assertEquals("[scan.txt]", search("\"Stadtwerke Bonn\"").toString());
-		assertEquals("[]", search("\"Muller Herrn\"").toString());
+	public void wordsInQuotesAreExact() throws Exception {
+		assertEquals("[plain.txt]", search("\"Muller\""));
+		assertEquals("[letter.txt]", search("\"Müller\""));
+		assertEquals("[letter.txt]", search("\"Herrn Müller\""));
+		assertEquals("[]", search("\"Herrn Muller\""));
+		assertEquals("Tolerant outside the quotes", "[letter.txt]", search("\"Rechnung\" Muller"));
 	}
 
 	@Test
 	public void switchedOffOnlyExactWordsAreFound() throws Exception {
 		SettingsConf.Bool.TolerantSearch.set(false);
 		try {
-			assertEquals("[plain.txt]", search("Muller").toString());
-			assertEquals("[]", search("Bonn").toString());
+			assertEquals("[plain.txt]", search("Muller"));
+			assertEquals("[]", search("Bonn"));
 		}
 		finally {
 			SettingsConf.Bool.TolerantSearch.set(true);
@@ -168,7 +124,7 @@ public final class TolerantSearchTest {
 
 	@Test
 	public void theMatchesAreHighlighted() throws Exception {
-		for (ResultDocument doc : registry.getSearcher().search("Muller")) {
+		for (ResultDocument doc : support.registry.getSearcher().search("Muller")) {
 			if (!doc.getFilename().equals("letter.txt"))
 				continue;
 			HighlightedString text = doc.getHighlightedText();

@@ -1,11 +1,33 @@
 Suchanfrage-Syntax
 ==================
-Diese Seite gibt einen Überblick über die verfügbaren Konstrukte der Suchanfrage-Syntax, wobei die Konstrukte von "einfach" nach "fortgeschritten" sortiert sind. Die Suchanfrage-Syntax wird von DocFetcher's interner Suchmaschine Apache Lucene bereitgestellt und ist auf etwas technischere Weise auf der [Suchanfrage-Syntax-Seite von Lucene](http://lucene.apache.org/java/3_4_0/queryparsersyntax.html) erklärt.
+Das Suchfeld von DocFetcher funktioniert wie Google: Geben Sie ein paar Wörter ein, und DocFetcher findet die Dokumente, die alle davon enthalten. Diese Seite beginnt mit den Grundlagen im Stil von Google und erklärt danach die fortgeschrittene Syntax von Apache Lucene, der internen Suchmaschine von DocFetcher.
+
+Kurzübersicht
+-------------
+Suchanfrage             | Gefundene Dateien enthalten...
+------------------------|---------------------------------------------
+`Hund Katze`            | sowohl `Hund` als auch `Katze`, irgendwo im Dokument
+`Hund OR Katze`         | `Hund`, oder `Katze`, oder beides
+`Hund -Katze`           | `Hund`, aber nicht `Katze`
+`+Hund Katze`           | `Hund` und `Katze` (`+` kennzeichnet ein Wort, das vorkommen muss)
+`"schwarzer Hund"`      | genau die Phrase `schwarzer Hund`
+`"Müller"`              | genau `Müller`, nicht `Muller` (Anführungszeichen schalten die tolerante Suche ab)
+`Muller`                | `Muller`, `Müller`, `MULLER`, ... (tolerante Suche, siehe unten)
+`Rech*` / `Rech?`       | Wörter, die mit `Rech` beginnen / `Rech` plus ein Zeichen
+`title:Hund`            | `Hund` im Titel (Felder: siehe unten)
+
+Tipps:
+
+* Groß- und Kleinschreibung spielen keine Rolle. Nur die Operatoren `OR`, `AND` und `NOT` müssen großgeschrieben werden.
+* Zeichen wie `+`, `:`, `/` oder Klammern in Wörtern sind kein Problem: `C++`, `Nr: 4711` und `01/2025` werden als Wörter gesucht.
+* Tolerante Suche (standardmäßig an, siehe [Einstellungen](Preferences.html)): Wörter werden auch ohne Umlaute und Akzente gefunden (`Muller` findet `Müller`, `strasse` findet `Straße`) und trotz typischer Erkennungsfehler in gescannten Dokumenten (`Bonn` findet `B0nn`). Setzen Sie ein Wort in Anführungszeichen, um genau diese Schreibweise zu finden.
+* Bei zu vielen Treffern ein Wort hinzufügen, bei keinem Treffer eines weglassen oder `OR` verwenden.
+* Standardmäßig passen die Wörter auch auf Dateinamen: `Rechnung` findet `Rechnung_2024.pdf`.
 
 
 Boolesche Operatoren
 --------------------
-DocFetcher unterstützt die Booleschen Operatoren `OR`, `AND` und `NOT`. Wenn Suchbegriffe *ohne* Boolesche Operatoren hintereinander geschrieben werden, verknüpft DocFetcher sie standardmäßig mittels `OR`. Wenn Sie stattdessen eine `AND`-Verknüpfung als Standard wünschen, können Sie dies in den [Programm-Einstellungen](Preferences.html) festlegen.
+DocFetcher unterstützt die Booleschen Operatoren `OR`, `AND` und `NOT`. Wenn Suchbegriffe *ohne* Boolesche Operatoren hintereinander geschrieben werden, verknüpft DocFetcher sie wie Google mittels `AND`. Wenn Sie stattdessen `OR` als Standard wünschen, können Sie dies in den [Programm-Einstellungen](Preferences.html) festlegen.
 
 Anstelle von `OR`, `AND` und `NOT` können Sie auch `||`, `&&` und `'-'` (Minuszeichen), verwenden. Sie können *Klammern* benutzen, um bestimmte Ausdrücke zu gruppieren. Hier einige Beispiele:
 
@@ -13,7 +35,7 @@ Suchanfrage              | Gefundene Dateien enthalten...
 -------------------------|---------------------------------------------
 `dog OR cat`             | entweder `dog`, oder `cat`, oder beides
 `dog AND cat`            | sowohl `dog` als auch `cat`
-`dog cat`                | (standardmäßig äquivalent zur Suchanfrage `dog OR cat`)
+`dog cat`                | (standardmäßig äquivalent zur Suchanfrage `dog AND cat`)
 `dog NOT cat`            | `dog`, aber nicht `cat`
 `-dog cat`               | `cat`, aber nicht `dog`
 `(dog OR cat) AND mouse` | `mouse`, und entweder `dog` oder `cat`, oder beides
@@ -26,12 +48,12 @@ DocFetcher unterscheidet nicht zwischen Groß- und Kleinschreibung, sodass es ke
 
 Phrasen-Suche und mandatorische Suchbegriffe
 --------------------------------------------
-Um nach einer Phrase zu suchen (d.&nbsp;h. einer festen Abfolge von Wörtern), können Sie die Phrase in Anführungszeichen setzen. Um anzugeben, dass die aufzufindenden Dateien definitiv einen bestimmten Begriff enthalten müssen, können Sie ein `'+'` vor den Begriff setzen. Natürlich können Sie diese beiden Konstrukte mit Booleschen Operatoren und Klammern kombinieren. Hier wieder ein paar Beispiele:
+Um nach einer Phrase zu suchen (d.&nbsp;h. einer festen Abfolge von Wörtern), können Sie die Phrase in Anführungszeichen setzen; Wörter in Anführungszeichen werden genau in dieser Schreibweise gesucht. Um anzugeben, dass die aufzufindenden Dateien definitiv einen bestimmten Begriff enthalten müssen, können Sie ein `'+'` vor den Begriff setzen – mit dem Standard `AND` sind ohnehin alle Wörter nötig, das ist also wichtig, wenn Sie `OR` als Standard gewählt haben. Natürlich können Sie diese Konstrukte mit Booleschen Operatoren und Klammern kombinieren. Hier wieder ein paar Beispiele:
 
 Suchanfrage           | Gefundene Dateien enthalten...
 ----------------------|-------------------------------------
 `"dog cat mouse"`     | die Wörter `dog`, `cat` und `mouse`, in dieser Reihenfolge
-`+dog cat`            | definitiv `dog`, und evtl. auch `cat`
+`+dog cat`            | definitiv `dog`, und auch `cat` (mit `OR` als Standard: evtl. auch `cat`)
 `"dog cat" AND mouse` | die Phrase `dog cat`, und das Wort `mouse`
 `+dog +cat`           | (äquivalent zur Suchanfrage `dog AND cat`)
 

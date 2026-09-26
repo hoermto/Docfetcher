@@ -49,7 +49,8 @@ import net.sourceforge.docfetcher.util.annotations.Nullable;
  * OR müller'. So the indexes never need to be rebuilt for it, the documents
  * are not read again, and the rules can change without touching the indexes.
  * The indexed words that differ from their folded form are collected once per
- * opened index reader and field.
+ * opened index reader and field. Words and phrases in quotes are searched
+ * exactly, as in Google.
  */
 final class TolerantSearch {
 
@@ -105,20 +106,25 @@ final class TolerantSearch {
 		return false;
 	}
 
-	/** Returns the given query with every word expanded to its tolerant variants. */
+	/**
+	 * Returns the given query with every word expanded to its tolerant
+	 * variants, except in the given (quoted) parts of the query.
+	 */
 	@NotNull
-	Query expand(@NotNull Query query) throws IOException {
+	Query expand(@NotNull Query query, @NotNull Set<Query> exact) throws IOException {
+		if (exact.contains(query))
+			return query;
 		if (query instanceof BooleanQuery) {
 			BooleanQuery bool = (BooleanQuery) query;
 			BooleanQuery.Builder builder = new BooleanQuery.Builder();
 			builder.setMinimumNumberShouldMatch(bool.getMinimumNumberShouldMatch());
 			for (BooleanClause clause : bool.clauses())
-				builder.add(expand(clause.getQuery()), clause.getOccur());
+				builder.add(expand(clause.getQuery(), exact), clause.getOccur());
 			return builder.build();
 		}
 		if (query instanceof BoostQuery) {
 			BoostQuery boost = (BoostQuery) query;
-			return new BoostQuery(expand(boost.getQuery()), boost.getBoost());
+			return new BoostQuery(expand(boost.getQuery(), exact), boost.getBoost());
 		}
 		if (query instanceof TermQuery) {
 			Term term = ((TermQuery) query).getTerm();
