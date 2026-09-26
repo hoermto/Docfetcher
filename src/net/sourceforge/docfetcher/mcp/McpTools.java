@@ -201,7 +201,7 @@ final class McpTools {
 				continue;
 			if (before != null && (date == null || !date.before(before)))
 				continue;
-			if (folder != null && !Util.contains(folder, new File(doc.getPathStr())))
+			if (folder != null && !Util.contains(folder, resolve(doc.getPathStr())))
 				continue;
 			docs.add(doc);
 		}
@@ -264,7 +264,7 @@ final class McpTools {
 			Date date = dateOf(doc);
 			if (date != null)
 				increment(periods, periodFormat.format(date));
-			File file = new File(doc.getPathStr());
+			File file = resolve(doc.getPathStr());
 			File parent = file.getParentFile();
 			if (parent != null)
 				increment(folders, parent.getPath().replace('\\', '/')); // Like the paths of the results
@@ -426,7 +426,7 @@ final class McpTools {
 	@NotNull
 	private Map<String, Object> describe(@NotNull ResultDocument doc, boolean withSnippet) {
 		Map<String, Object> map = new LinkedHashMap<String, Object>();
-		map.put("path", doc.getPathStr());
+		map.put("path", display(resolve(doc.getPathStr())));
 		map.put("filename", doc.getFilename());
 		String title = doc.getTitle();
 		if (!title.isEmpty() && !title.equals(doc.getFilename()))
@@ -511,7 +511,7 @@ final class McpTools {
 		File folder = file.getParentFile();
 		try {
 			for (ResultDocument doc : registry.getSearcher().listFolder(registry.findIndexFor(file), folder))
-				if (Util.isCanonicallyEqual(doc.getPath().getCanonicalFile(), file))
+				if (resolve(doc.getPathStr()).equals(file))
 					return doc;
 		}
 		catch (Exception e) {
@@ -557,11 +557,11 @@ final class McpTools {
 			if (entries.size() >= MAX_FOLDER_ENTRIES)
 				break;
 			if (doc.isFolder())
-				entries.add(folderEntry(new File(doc.getPathStr())));
+				entries.add(folderEntry(resolve(doc.getPathStr())));
 			else
 				entries.add(describe(doc, false));
 		}
-		result.put("path", folder.getPath());
+		result.put("path", display(folder));
 		result.put("total_entries", docs.size());
 		result.put("entries", entries);
 		return result;
@@ -570,17 +570,24 @@ final class McpTools {
 	@NotNull
 	private static Map<String, Object> folderEntry(@NotNull File folder) {
 		Map<String, Object> map = new LinkedHashMap<String, Object>();
-		map.put("path", folder.getPath());
-		map.put("name", folder.getName().isEmpty() ? folder.getPath() : folder.getName());
+		File resolved = resolve(folder.getPath());
+		map.put("path", display(resolved));
+		map.put("name", resolved.getName().isEmpty() ? display(resolved) : resolved.getName());
 		map.put("folder", Boolean.TRUE);
 		return map;
 	}
 
 	/** Only the indexed folders (and the fixed move targets) are accessible. */
 	private void checkAllowed(@NotNull File file) throws ToolException {
-		for (File root : FolderPanel.getRootFolders(registry))
-			if (Util.isCanonicallyEqual(root, file) || Util.contains(root, file))
+		for (File root : FolderPanel.getRootFolders(registry)) {
+			/*
+			 * Indexes with relative paths (portable repositories) have roots
+			 * like 'C:/DocFetcher/../Documents', so compare normalized paths
+			 */
+			File normalized = resolve(root.getPath());
+			if (normalized.equals(file) || Util.contains(normalized, file))
 				return;
+		}
 		throw new ToolException("Access denied: " + file.getPath()
 			+ " is not inside an indexed folder. Use list_folder without a path to see the indexed folders.");
 	}
@@ -594,6 +601,12 @@ final class McpTools {
 	@NotNull
 	private static File resolve(@NotNull String path) {
 		return new File(path.trim()).toPath().toAbsolutePath().normalize().toFile();
+	}
+
+	/** The path as shown to the client: absolute, with '/' as in DocFetcher's result tables. */
+	@NotNull
+	private static String display(@NotNull File file) {
+		return file.getPath().replace(File.separatorChar, '/');
 	}
 
 	@Nullable

@@ -229,6 +229,42 @@ public final class McpServerTest {
 		assertTrue("Newest first", ((String) ((Map<String, Object>) entries.get(0)).get("path")).endsWith("stadtwerke.txt"));
 	}
 
+	/**
+	 * Indexes with relative paths report their root like 'C:/DocFetcher/../Documents';
+	 * reading and listing must work with the normalized paths all the same, and
+	 * the results show normalized paths.
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	public void indexRootWithDetour() throws Exception {
+		SearchTestSupport detour = new SearchTestSupport(true, new HashMap<String, Long>(),
+			"Mieter/brief.txt", "Mahnung wegen Mietrückstand an Herrn Nöthen");
+		McpServer detourServer = new McpServer(detour.registry);
+		try {
+			String found = detourServer.handle("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":"
+				+ "{\"name\":\"search\",\"arguments\":{\"query\":\"Nöthen Mahnung\"}}}");
+			Map<String, Object> result = (Map<String, Object>) ((Map<String, Object>) Json.parse(found)).get("result");
+			String text = (String) ((Map<String, Object>) ((List<Object>) result.get("content")).get(0)).get("text");
+			Map<String, Object> search = (Map<String, Object>) Json.parse(text);
+			assertEquals(1L, search.get("total_found"));
+			String path = path(search, 0);
+			assertFalse("Normalized: " + path, path.contains(".."));
+
+			String read = detourServer.handle("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":"
+				+ "{\"name\":\"read_document\",\"arguments\":{\"path\":" + Json.write(path) + "}}}");
+			assertTrue(read, read.contains("\"isError\":false"));
+			assertTrue(read, read.contains("Mahnung wegen Mietrückstand"));
+
+			String list = detourServer.handle("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":"
+				+ "{\"name\":\"list_folder\",\"arguments\":{\"path\":" + Json.write(new File(detour.root, "Mieter").getPath()) + "}}}");
+			assertTrue(list, list.contains("\"isError\":false") && list.contains("brief.txt"));
+		}
+		finally {
+			detourServer.stop();
+			detour.dispose();
+		}
+	}
+
 	@Test
 	public void onlyIndexedFoldersAreAccessible() throws Exception {
 		File outside = File.createTempFile("docfetcher-secret", ".txt");

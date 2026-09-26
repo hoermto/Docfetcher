@@ -366,7 +366,19 @@ public final class IndexRegistry {
 			if (Util.isCanonicallyEqual(root, file) || Util.contains(root, file))
 				return index;
 		}
+		// Relative paths ('C:/DocFetcher/../Documents'): compare normalized paths
+		File normalizedFile = normalize(file);
+		for (LuceneIndex index : indexes) {
+			File root = normalize(index.getCanonicalRootFile());
+			if (root.equals(normalizedFile) || Util.contains(root, normalizedFile))
+				return index;
+		}
 		return null;
+	}
+
+	@NotNull
+	private static File normalize(@NotNull File file) {
+		return file.getAbsoluteFile().toPath().normalize().toFile();
 	}
 
 	@CallOnce

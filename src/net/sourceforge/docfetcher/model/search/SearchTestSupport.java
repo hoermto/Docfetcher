@@ -44,6 +44,15 @@ public final class SearchTestSupport {
 	 * indexes them.
 	 */
 	public SearchTestSupport(java.util.Map<String, Long> modified, String... namesAndTexts) throws Exception {
+		this(false, modified, namesAndTexts);
+	}
+
+	/**
+	 * With {@code detour}, the index root is given as 'parent/detour/../root',
+	 * the form in which indexes with relative paths (portable repositories)
+	 * report their root.
+	 */
+	public SearchTestSupport(boolean detour, java.util.Map<String, Long> modified, String... namesAndTexts) throws Exception {
 		AppUtil.Const.autoInit();
 		root = createDir("docfetcher-search");
 		indexDir = createDir("docfetcher-search-index");
@@ -56,7 +65,14 @@ public final class SearchTestSupport {
 			assertTrue(new File(root, entry.getKey()).setLastModified(entry.getValue()));
 		registry = new IndexRegistry(indexDir, 10, 100);
 		registry.load(Cancelable.nullCancelable);
-		FileIndex index = new FileIndex(indexDir, root);
+		File indexRoot = root;
+		if (detour) {
+			File detourDir = new File(root.getParentFile(), root.getName() + "-detour");
+			detourDir.mkdir();
+			detourDir.deleteOnExit();
+			indexRoot = new File(detourDir, ".." + File.separator + root.getName());
+		}
+		FileIndex index = new FileIndex(indexDir, indexRoot);
 		index.update(new IndexingReporter(), Cancelable.nullCancelable);
 		registry.addIndex(index);
 	}

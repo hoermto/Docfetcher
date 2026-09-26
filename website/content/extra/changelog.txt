@@ -1,6 +1,7 @@
 ==== 2026-09-26 - DocFetcher 2.9 ====
 
 === Bugfixes ===
+  * MCP server: documents of indexes with relative paths (portable repositories) could not be read ('Access denied'), and their paths were returned in relative form; paths are normalized now.
   * Switching on the MCP server crashed in the packages (NoClassDefFoundError: the bundled Java runtime lacked the HTTP server module); the runtime now includes it, and a server that can't start only shows a message.
   * The preferences dialog opened slowly while scans were recognized in the background: it waited for the page being recognized (and loaded the text recognition on first use).
   * The MCP port and 'How to connect Claude...' are now right below the MCP option, and the help opens when the server is switched on.
