@@ -1,6 +1,9 @@
 ==== 2026-09-26 - DocFetcher 2.9 ====
 
 === Bugfixes ===
+  * Switching on the MCP server crashed in the packages (NoClassDefFoundError: the bundled Java runtime lacked the HTTP server module); the runtime now includes it, and a server that can't start only shows a message.
+  * The preferences dialog opened slowly while scans were recognized in the background: it waited for the page being recognized (and loaded the text recognition on first use).
+  * The MCP port and 'How to connect Claude...' are now right below the MCP option, and the help opens when the server is switched on.
   * Storing the recognized text in a scan no longer starts another update of the whole index: the folder watcher saw the replaced file as a change. DocFetcher now ignores its own changes - but only while the file is exactly as DocFetcher left it, so changes of other files (or of the same file afterwards) are still picked up.
 
 === Features ===

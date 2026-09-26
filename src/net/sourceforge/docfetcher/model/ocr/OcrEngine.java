@@ -89,7 +89,7 @@ public final class OcrEngine {
 
 	@Nullable private TessAPI api;
 	@Nullable private Pointer handle;
-	@Nullable private String unavailableReason;
+	@Nullable private volatile String unavailableReason;
 	private boolean initialized = false;
 
 	private OcrEngine() {}
@@ -108,6 +108,18 @@ public final class OcrEngine {
 	@Nullable
 	public synchronized String getUnavailableReason() {
 		init();
+		return unavailableReason;
+	}
+
+	/**
+	 * Returns why recognition is not available, if that is known already;
+	 * null if it works or hasn't been tried yet. Unlike
+	 * {@link #getUnavailableReason()} this neither loads the engine nor
+	 * waits for a running recognition (seconds per page), so the GUI thread
+	 * can call it.
+	 */
+	@Nullable
+	public String peekUnavailableReason() {
 		return unavailableReason;
 	}
 

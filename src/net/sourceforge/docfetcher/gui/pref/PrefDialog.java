@@ -229,6 +229,10 @@ public final class PrefDialog {
 			SettingsConf.Int.McpServerPort,
 			1024, 65535);
 		fieldOptions.addAll(Arrays.asList(
+			// Right below the MCP checkbox, the last of the check options
+			mcpPortOption,
+			new McpHelpOption(mcpPortOption),
+			
 			new DropdownOption(
 				Msg.pref_close_action.get(),
 				SettingsConf.Int.CloseAction,
@@ -248,9 +252,6 @@ public final class PrefDialog {
 				new int[] { SettingsConf.ORIGINALS_ASK, SettingsConf.ORIGINALS_REMOVE,
 					SettingsConf.ORIGINALS_KEEP }),
 			
-			mcpPortOption,
-			new McpHelpOption(mcpPortOption),
-
 			new DropdownOption(
 				Msg.pref_folder_path_segments.get(),
 				SettingsConf.Int.FolderPathSegments,
@@ -330,8 +331,12 @@ public final class PrefDialog {
 		for (PrefOption checkOption : checkOptions)
 			checkOption.createControls(comp);
 
-		// Explain why text recognition can't be used, e.g. missing runtime
-		String ocrProblem = OcrEngine.getInstance().getUnavailableReason();
+		/*
+		 * Explain why text recognition can't be used, e.g. missing runtime -
+		 * if that is known already: loading the engine here, or waiting for a
+		 * recognition running in the background, made the dialog slow.
+		 */
+		String ocrProblem = OcrEngine.getInstance().peekUnavailableReason();
 		if (ocrProblem != null) {
 			Label ocrLabel = new Label(comp, SWT.WRAP);
 			ocrLabel.setText(Msg.ocr_unavailable.format(ocrProblem));
@@ -437,6 +442,7 @@ public final class PrefDialog {
 					tabFolder.setSelection(2);
 					return;
 				}
+				boolean mcpWasEnabled = SettingsConf.Bool.McpServerEnabled.get();
 				for (PrefOption checkOption : checkOptions)
 					checkOption.save();
 				if (resetHints)
@@ -454,7 +460,11 @@ public final class PrefDialog {
 				}
 				indexManagementPanel.saveFolder();
 				evtOKClicked.fire(null);
+				Shell parentShell = (Shell) shell.getParent();
 				shell.close();
+				// Just switched on: show how to connect an assistant
+				if (!mcpWasEnabled && SettingsConf.Bool.McpServerEnabled.get())
+					McpHelpOption.openHelp(parentShell, String.valueOf(SettingsConf.Int.McpServerPort.get()));
 			}
 		});
 

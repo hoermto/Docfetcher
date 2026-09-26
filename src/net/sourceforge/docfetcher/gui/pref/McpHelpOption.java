@@ -66,7 +66,8 @@ final class McpHelpOption extends PrefOption {
 		});
 	}
 
-	private static void openHelp(@NotNull Shell parent, @NotNull final String port) {
+	/** Opens the help on connecting Claude, for the given port. */
+	static void openHelp(@NotNull Shell parent, @NotNull final String port) {
 		final Shell shell = new Shell(parent, SWT.DIALOG_TRIM | SWT.APPLICATION_MODAL | SWT.RESIZE);
 		shell.setText(Msg.mcp_help_title.get());
 		shell.setLayout(new GridLayout(3, false));

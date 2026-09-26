@@ -15,7 +15,7 @@
 - Windows Python needs `C:/...` paths, not `/c/...`.
 - Package on Windows: `build-jre.txt` has `jre_windows=D:/daten/Torsten/Projects/docfetcher-build-jre/windows`, a Java 21
   runtime made with `jlink` from the Zulu JDK (`--add-modules java.se,jdk.unsupported,jdk.crypto.ec,jdk.crypto.cryptoki,
-  jdk.localedata,jdk.charsets,jdk.zipfs,jdk.management,jdk.net,jdk.accessibility --strip-debug --no-header-files
+  jdk.localedata,jdk.charsets,jdk.zipfs,jdk.management,jdk.net,jdk.accessibility,jdk.httpserver --strip-debug --no-header-files
   --no-man-pages`). The manual build needs the Python package Markdown (no `uv` here): use a venv with
   `pip install markdown` and run `PATH="$JDK/bin:$PATH" <venv>/Scripts/python.exe build.py windows` (javac/jar
   come from the PATH). Output: `build/DocFetcher-<version>-Windows-64bit-Portable.zip` and the non-portable folder;
@@ -98,3 +98,6 @@
 - In the app: enable `MCP server for AI assistants` in the preferences (or `McpServerEnabled = true` in bin/settings-conf.txt, on its own line), then
   `curl -s -X POST http://localhost:28835/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":{"query":"Rechnung","sort":"newest"}}}'`.
 - Never register it in the user's own Claude configuration for tests.
+- The package's Java runtime is made with jlink: every JDK module the code uses must be in the list above (jdk.httpserver for
+  the MCP server - missing, enabling MCP crashed with NoClassDefFoundError; the dev build runs on the full JDK and can't show
+  this). So the package test always includes enabling MCP in the preferences and a curl request.

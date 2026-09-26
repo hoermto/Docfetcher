@@ -2549,15 +2549,16 @@ public final class Application {
 				mcpServer.stop();
 			return;
 		}
-		if (mcpServer == null)
-			mcpServer = new McpServer(indexRegistry);
 		int port = SettingsConf.Int.McpServerPort.get();
 		try {
+			if (mcpServer == null)
+				mcpServer = new McpServer(indexRegistry);
 			mcpServer.start(port);
 		}
-		catch (IOException e) {
+		catch (Throwable e) {
+			// Port in use, or e.g. a Java runtime without the HTTP server module
 			Util.printErr(e);
-			AppUtil.showError(Msg.mcp_server_failed.format(port, e.getMessage()), true, true);
+			AppUtil.showError(Msg.mcp_server_failed.format(port, e.toString()), true, true);
 		}
 	}
 
