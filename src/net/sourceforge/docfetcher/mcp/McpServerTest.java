@@ -248,6 +248,70 @@ public final class McpServerTest {
 		}
 	}
 
+	/**
+	 * Snippets must not recognize scans on the fly (minutes per document): a
+	 * scan without stored text, found by its file name, gets no snippet.
+	 */
+	@Test
+	@SuppressWarnings("unchecked")
+	public void snippetsDontRecognizeScans() throws Exception {
+		File scan = new File(support.root, "Posteingang/scan-zebra.pdf");
+		org.apache.pdfbox.pdmodel.PDDocument pdf = new org.apache.pdfbox.pdmodel.PDDocument();
+		try {
+			org.apache.pdfbox.pdmodel.PDPage page = new org.apache.pdfbox.pdmodel.PDPage();
+			pdf.addPage(page);
+			java.awt.image.BufferedImage image = new java.awt.image.BufferedImage(1240, 400, java.awt.image.BufferedImage.TYPE_BYTE_GRAY);
+			java.awt.Graphics2D g = image.createGraphics();
+			g.setColor(java.awt.Color.WHITE);
+			g.fillRect(0, 0, image.getWidth(), image.getHeight());
+			g.setColor(java.awt.Color.BLACK);
+			g.setFont(new java.awt.Font(java.awt.Font.SERIF, java.awt.Font.PLAIN, 60));
+			g.drawString("Stadtwerke Bonn Rechnung", 100, 200);
+			g.dispose();
+			org.apache.pdfbox.pdmodel.PDPageContentStream content = new org.apache.pdfbox.pdmodel.PDPageContentStream(pdf, page);
+			content.drawImage(org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory.createFromImage(pdf, image), 36, 500, 540, 174);
+			content.close();
+			pdf.save(scan);
+		}
+		finally {
+			pdf.close();
+		}
+		updateIndexWithoutOcr(); // Indexed as it is: its text isn't recognized and stored now
+		try {
+			long start = System.currentTimeMillis();
+			Map<String, Object> found = json(call("search", "{\"query\":\"zebra\"}", false), 0);
+			long millis = System.currentTimeMillis() - start;
+			boolean seen = false;
+			for (Object result : (List<Object>) found.get("results")) {
+				Map<String, Object> map = (Map<String, Object>) result;
+				if (((String) map.get("path")).endsWith("scan-zebra.pdf")) {
+					seen = true;
+					assertFalse("No text recognition for the snippet", map.containsKey("snippet"));
+				}
+			}
+			assertTrue("Found by its file name: " + Json.write(found), seen);
+			assertTrue("Search took " + millis + " ms", millis < 10000);
+		}
+		finally {
+			scan.delete();
+			updateIndexWithoutOcr(); // Out of the index again, for the other tests
+		}
+	}
+
+	private static void updateIndexWithoutOcr() throws Exception {
+		boolean ocr = net.sourceforge.docfetcher.enums.SettingsConf.Bool.OcrEnabled.get();
+		net.sourceforge.docfetcher.enums.SettingsConf.Bool.OcrEnabled.set(false);
+		try {
+			((net.sourceforge.docfetcher.model.index.file.FileIndex) support.registry.getIndexes().get(0))
+				.update(new net.sourceforge.docfetcher.model.index.IndexingReporter(),
+					net.sourceforge.docfetcher.model.Cancelable.nullCancelable);
+			support.registry.getSearcher().replaceLuceneSearcher();
+		}
+		finally {
+			net.sourceforge.docfetcher.enums.SettingsConf.Bool.OcrEnabled.set(ocr);
+		}
+	}
+
 	@Test
 	public void longDocumentsComeInParts() {
 		String path = new File(support.root, "Mieter/lang.txt").getPath();

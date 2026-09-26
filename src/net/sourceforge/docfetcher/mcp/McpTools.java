@@ -23,8 +23,6 @@ import java.util.Map;
 import net.sourceforge.docfetcher.gui.FolderPanel;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.parse.PdfVisualText;
-import net.sourceforge.docfetcher.model.search.HighlightedString;
-import net.sourceforge.docfetcher.model.search.Range;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
@@ -47,6 +45,12 @@ final class McpTools {
 	private static final int MAX_RESULTS_LIMIT = 100;
 	private static final int SNIPPET_RESULTS = 10;
 	private static final int SNIPPET_CHARS = 300;
+	/** All snippets of one search together may take at most this long. */
+	private static final long SNIPPET_MILLIS = 5000;
+
+	/** Images: their text comes from text recognition, which is too slow for snippets. */
+	private static final java.util.Set<String> IMAGE_EXTENSIONS = new java.util.HashSet<String>(Arrays.asList(
+		"jpg", "jpeg", "png", "gif", "bmp", "tif", "tiff"));
 	private static final int MAX_FOLDER_ENTRIES = 500;
 	private static final int OVERVIEW_FOLDERS = 10;
 	private static final int OVERVIEW_WORDS = 15;
@@ -226,8 +230,17 @@ final class McpTools {
 		}
 
 		List<Object> results = new ArrayList<Object>();
-		for (int i = 0; i < docs.size() && i < maxResults; i++)
-			results.add(describe(docs.get(i), i < SNIPPET_RESULTS));
+		long snippetDeadline = System.currentTimeMillis() + SNIPPET_MILLIS;
+		java.util.Set<String> queryWords = wordsOf(query);
+		for (int i = 0; i < docs.size() && i < maxResults; i++) {
+			Map<String, Object> described = describe(docs.get(i));
+			if (i < SNIPPET_RESULTS && System.currentTimeMillis() < snippetDeadline) {
+				String snippet = snippet(docs.get(i), queryWords);
+				if (snippet != null)
+					described.put("snippet", snippet);
+			}
+			results.add(described);
+		}
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
 		result.put("query", query);
 		result.put("total_found", docs.size());
@@ -339,19 +352,14 @@ final class McpTools {
 		StringBuilder combined = new StringBuilder();
 		for (int i = 0; i < sampleSize && System.currentTimeMillis() < deadline; i++) {
 			ResultDocument doc = docs.get((int) ((long) i * docs.size() / sampleSize));
-			if (doc.isEmail())
+			String text = quickText(doc); // No text recognition: too slow here
+			if (text == null)
 				continue;
-			try {
-				String text = doc.getText();
-				if (text.length() > SAMPLE_CHARS_PER_DOC)
-					text = text.substring(0, SAMPLE_CHARS_PER_DOC);
-				text = text.toLowerCase(java.util.Locale.ROOT);
-				texts.add(wordsOf(text));
-				combined.append(text).append('\n');
-			}
-			catch (Throwable e) {
-				// Unreadable or moved since indexing: leave it out
-			}
+			if (text.length() > SAMPLE_CHARS_PER_DOC)
+				text = text.substring(0, SAMPLE_CHARS_PER_DOC);
+			text = text.toLowerCase(java.util.Locale.ROOT);
+			texts.add(wordsOf(text));
+			combined.append(text).append('\n');
 		}
 		if (texts.size() < 2)
 			return result;
@@ -429,7 +437,7 @@ final class McpTools {
 	}
 
 	@NotNull
-	private Map<String, Object> describe(@NotNull ResultDocument doc, boolean withSnippet) {
+	private Map<String, Object> describe(@NotNull ResultDocument doc) {
 		Map<String, Object> map = new LinkedHashMap<String, Object>();
 		map.put("path", display(resolve(doc.getPathStr())));
 		map.put("filename", doc.getFilename());
@@ -450,28 +458,49 @@ final class McpTools {
 		}
 		if (doc.getPageCount() > 0)
 			map.put("pages", doc.getPageCount());
-		if (withSnippet && !doc.isEmail()) {
-			String snippet = snippet(doc);
-			if (snippet != null)
-				map.put("snippet", snippet);
-		}
 		return map;
 	}
 
-	/** Text around the first match, or the beginning of the text; null if it can't be read. */
+	/**
+	 * Text around the first query word, or the beginning of the text; null if
+	 * the text can't be read quickly (see {@link #quickText}).
+	 */
 	@Nullable
-	private static String snippet(@NotNull ResultDocument doc) {
+	private static String snippet(@NotNull ResultDocument doc, @NotNull java.util.Set<String> queryWords) {
+		String text = quickText(doc);
+		if (text == null)
+			return null;
+		String lower = text.toLowerCase(java.util.Locale.ROOT);
+		int first = -1;
+		for (String word : queryWords) {
+			int i = lower.indexOf(word);
+			if (i >= 0 && (first < 0 || i < first))
+				first = i;
+		}
+		int start = Math.max(0, first - SNIPPET_CHARS / 3);
+		int end = Math.min(text.length(), start + SNIPPET_CHARS);
+		String snippet = text.substring(start, end).replaceAll("\\s+", " ").trim();
+		return (start > 0 ? "..." : "") + snippet + (end < text.length() ? "..." : "");
+	}
+
+	/**
+	 * The text of a document for snippets and the overview, without the slow
+	 * cases: PDF files give their page text (scans without stored text give
+	 * null instead of being recognized), images and emails give null, other
+	 * documents their normal text. Null also if the file can't be read.
+	 */
+	@Nullable
+	private static String quickText(@NotNull ResultDocument doc) {
+		if (doc.isEmail())
+			return null;
+		File file = resolve(doc.getPathStr());
+		String ext = Util.getExtension(file.getName()).toLowerCase(java.util.Locale.ROOT);
+		if (IMAGE_EXTENSIONS.contains(ext))
+			return null;
+		if (ext.equals("pdf"))
+			return PdfVisualText.of(file);
 		try {
-			HighlightedString text = doc.getHighlightedText();
-			String string = text.getString();
-			int start = 0;
-			if (!text.getRanges().isEmpty()) {
-				Range first = text.getRanges().get(0);
-				start = Math.max(0, first.start - SNIPPET_CHARS / 3);
-			}
-			int end = Math.min(string.length(), start + SNIPPET_CHARS);
-			String snippet = string.substring(start, end).replaceAll("\\s+", " ").trim();
-			return (start > 0 ? "..." : "") + snippet + (end < string.length() ? "..." : "");
+			return doc.getText();
 		}
 		catch (Throwable e) {
 			return null; // E.g. file moved since indexing, or unreadable
@@ -505,7 +534,7 @@ final class McpTools {
 		int start = Math.min(offset, text.length());
 		int end = Math.min(text.length(), start + maxChars);
 
-		Map<String, Object> meta = describe(doc, false);
+		Map<String, Object> meta = describe(doc);
 		meta.put("total_chars", text.length());
 		meta.put("offset", start);
 		meta.put("returned_chars", end - start);
@@ -568,7 +597,7 @@ final class McpTools {
 			if (doc.isFolder())
 				entries.add(folderEntry(resolve(doc.getPathStr())));
 			else
-				entries.add(describe(doc, false));
+				entries.add(describe(doc));
 		}
 		result.put("path", display(folder));
 		result.put("total_entries", docs.size());

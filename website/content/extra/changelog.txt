@@ -1,6 +1,7 @@
 ==== 2026-09-26 - DocFetcher 2.9 ====
 
 === Bugfixes ===
+  * MCP search could take minutes (AI clients gave up): the snippets and the overview read the found documents, and scans without stored text were recognized on the fly. They now use the page text of PDF files without recognition, skip images, and snippets have a time limit of 5 seconds. read_document still recognizes a scan when it is asked for.
   * Storing the recognized text in a file now keeps all its dates - created, modified and accessed - not only the modification date; a PDF converted from a TIFF file gets the dates of the TIFF file.
   * MCP server: documents of indexes with relative paths (portable repositories) could not be read ('Access denied'), and their paths were returned in relative form; paths are normalized now.
   * Switching on the MCP server crashed in the packages (NoClassDefFoundError: the bundled Java runtime lacked the HTTP server module); the runtime now includes it, and a server that can't start only shows a message.
