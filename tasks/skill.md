@@ -92,3 +92,9 @@
 - One commit per task item (`git -c user.name=Torsten -c user.email=claude@thoermann.net commit`), no push.
 - Move finished items from `tasks/tasks.md` to `tasks/tasks_done.md`; add a changelog line in
   `website/content/extra/changelog.txt`; update the EN/DE manuals under `doc/src` when the UI changes.
+
+## MCP server
+- Unit test: `McpServerTest` (JSON-RPC via `McpServer.handle`, real HTTP on a free port with java.net.http.HttpClient - HttpURLConnection silently drops the Origin header).
+- In the app: enable `MCP server for AI assistants` in the preferences (or `McpServerEnabled = true` in bin/settings-conf.txt, on its own line), then
+  `curl -s -X POST http://localhost:28835/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":{"query":"Rechnung","sort":"newest"}}}'`.
+- Never register it in the user's own Claude configuration for tests.
