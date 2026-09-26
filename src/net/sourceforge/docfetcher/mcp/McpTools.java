@@ -47,6 +47,16 @@ final class McpTools {
 	private static final int SNIPPET_RESULTS = 10;
 	private static final int SNIPPET_CHARS = 300;
 	private static final int MAX_FOLDER_ENTRIES = 500;
+	private static final int OVERVIEW_FOLDERS = 10;
+	private static final int OVERVIEW_WORDS = 15;
+	private static final int OVERVIEW_PERIODS = 24;
+
+	/** Words that say nothing about the content of a document, in file and folder names. */
+	private static final java.util.Set<String> NOISE_WORDS = new java.util.HashSet<String>(Arrays.asList(
+		"pdf", "doc", "docx", "txt", "odt", "xls", "xlsx", "jpg", "png", "tif", "tiff", "scan", "scans",
+		"img", "image", "bild", "dokument", "dokumente", "document", "documents", "seite", "page", "datei",
+		"file", "ordner", "folder", "kopie", "copy", "neu", "new", "final", "und", "der", "die", "das",
+		"den", "dem", "des", "ein", "eine", "fur", "für", "von", "mit", "and", "the", "for", "with", "from"));
 
 	/** A wrong argument or a document that can't be read; the message goes to the client. */
 	static final class ToolException extends Exception {
@@ -74,7 +84,11 @@ final class McpTools {
 			+ "Einkommensteuer, *miete* finds Kaltmiete. Umlauts and OCR errors are tolerated "
 			+ "(Muller finds Müller). Returns the "
 			+ "path, name, date and a text snippet of each document. For 'latest' or 'newest' "
-			+ "questions use sort=newest; for a period use modified_after/modified_before.",
+			+ "questions use sort=newest; for a period use modified_after/modified_before. Words "
+			+ "also match file and folder names ('Rosenweg' finds documents in the folder "
+			+ "'Rosenweg 12'). If more documents are found than returned, the newest come first "
+			+ "and an overview (time range, counts per year or month, top folders, significant "
+			+ "words) helps to narrow the search.",
 			props(
 				"query", prop("string", "The search words, e.g. 'Steuer Januar' or '\"Rosenweg 5\" Miete'"),
 				"max_results", prop("integer", "Maximum number of documents (default 20, at most 100)"),
@@ -186,6 +200,10 @@ final class McpTools {
 				continue;
 			docs.add(doc);
 		}
+		// Too many: the newest first (unless another order was asked for), plus an overview
+		boolean tooMany = docs.size() > maxResults;
+		if (tooMany && sort == null)
+			sort = "newest";
 		if ("newest".equals(sort) || "oldest".equals(sort)) {
 			final boolean newest = "newest".equals(sort);
 			Collections.sort(docs, new Comparator<ResultDocument>() {
@@ -204,8 +222,125 @@ final class McpTools {
 		result.put("query", query);
 		result.put("total_found", docs.size());
 		result.put("returned", results.size());
+		if (tooMany)
+			result.put("overview", overview(docs, query, results.size(), sort));
 		result.put("results", results);
 		return result;
+	}
+
+	/**
+	 * Describes a result set that is too big to return: the time range, the
+	 * number of documents per year (or month), the folders with the most
+	 * documents and the significant words of the file and folder names, so
+	 * that the assistant can ask a more specific question.
+	 */
+	@NotNull
+	private static Map<String, Object> overview(@NotNull List<ResultDocument> docs, @NotNull String query,
+			int returned, @Nullable String sort) {
+		Date oldest = null;
+		Date newest = null;
+		for (ResultDocument doc : docs) {
+			Date date = dateOf(doc);
+			if (date == null)
+				continue;
+			if (oldest == null || date.before(oldest))
+				oldest = date;
+			if (newest == null || date.after(newest))
+				newest = date;
+		}
+		// Per year for long periods, else per month; newest first
+		boolean perYear = oldest != null && newest.getTime() - oldest.getTime() > 2 * 365 * 24 * 3600 * 1000L;
+		SimpleDateFormat periodFormat = new SimpleDateFormat(perYear ? "yyyy" : "yyyy-MM");
+		java.util.TreeMap<String, Integer> periods = new java.util.TreeMap<String, Integer>(Collections.reverseOrder());
+		Map<String, Integer> folders = new java.util.HashMap<String, Integer>();
+		Map<String, Integer> words = new java.util.HashMap<String, Integer>();
+		java.util.Set<String> queryWords = wordsOf(query);
+		for (ResultDocument doc : docs) {
+			Date date = dateOf(doc);
+			if (date != null)
+				increment(periods, periodFormat.format(date));
+			File file = new File(doc.getPathStr());
+			File parent = file.getParentFile();
+			if (parent != null)
+				increment(folders, parent.getPath().replace('\\', '/')); // Like the paths of the results
+			// The words of the name, the title and the two folders above the document
+			StringBuilder names = new StringBuilder(doc.getFilename()).append(' ').append(doc.getTitle());
+			for (int i = 0; i < 2 && parent != null; i++, parent = parent.getParentFile())
+				names.append(' ').append(parent.getName());
+			for (String word : wordsOf(names.toString()))
+				if (!queryWords.contains(word) && !NOISE_WORDS.contains(word))
+					increment(words, word);
+		}
+		// Words in (nearly) all documents don't help to narrow the search
+		List<String> significant = new ArrayList<String>();
+		for (Map.Entry<String, Integer> entry : sortByCount(words))
+			if (entry.getValue() >= 2 && (docs.size() < 5 || entry.getValue() <= docs.size() * 9 / 10)
+					&& significant.size() < OVERVIEW_WORDS)
+				significant.add(entry.getKey() + " (" + entry.getValue() + ")");
+		List<Object> topFolders = new ArrayList<Object>();
+		for (Map.Entry<String, Integer> entry : sortByCount(folders)) {
+			if (topFolders.size() >= OVERVIEW_FOLDERS)
+				break;
+			Map<String, Object> folder = new LinkedHashMap<String, Object>();
+			folder.put("path", entry.getKey());
+			folder.put("count", entry.getValue());
+			topFolders.add(folder);
+		}
+		Map<String, Object> periodCounts = new LinkedHashMap<String, Object>();
+		for (Map.Entry<String, Integer> entry : periods.entrySet())
+			if (periodCounts.size() < OVERVIEW_PERIODS)
+				periodCounts.put(entry.getKey(), entry.getValue());
+
+		Map<String, Object> overview = new LinkedHashMap<String, Object>();
+		if (oldest != null) {
+			overview.put("oldest", format(oldest));
+			overview.put("newest", format(newest));
+		}
+		overview.put(perYear ? "by_year" : "by_month", periodCounts);
+		overview.put("top_folders", topFolders);
+		overview.put("significant_words", significant);
+		String order = "oldest".equals(sort) ? "oldest" : "newest".equals(sort) ? "newest" : "best matching";
+		overview.put("hint", docs.size() + " documents found"
+			+ (oldest != null ? " (" + format(oldest).substring(0, 10) + " to " + format(newest).substring(0, 10) + ")" : "")
+			+ ", only the " + returned + " " + order + " are listed. To narrow the search, add more specific "
+			+ "words (see significant_words), a period (modified_after/modified_before, see "
+			+ (perYear ? "by_year" : "by_month") + ") or a folder (see top_folders).");
+		return overview;
+	}
+
+	/** The lower case words of a text with at least 3 characters and a letter. */
+	@NotNull
+	private static java.util.Set<String> wordsOf(@NotNull String text) {
+		java.util.Set<String> words = new java.util.LinkedHashSet<String>();
+		for (String word : text.toLowerCase(java.util.Locale.ROOT).split("[^\\p{L}\\p{N}]+")) {
+			if (word.length() < 3)
+				continue;
+			for (int i = 0; i < word.length(); i++) {
+				if (Character.isLetter(word.charAt(i))) {
+					words.add(word);
+					break;
+				}
+			}
+		}
+		return words;
+	}
+
+	private static void increment(@NotNull Map<String, Integer> counts, @NotNull String key) {
+		Integer count = counts.get(key);
+		counts.put(key, count == null ? 1 : count + 1);
+	}
+
+	/** Entries by descending count, then by key. */
+	@NotNull
+	private static List<Map.Entry<String, Integer>> sortByCount(@NotNull Map<String, Integer> counts) {
+		List<Map.Entry<String, Integer>> entries = new ArrayList<Map.Entry<String, Integer>>(counts.entrySet());
+		Collections.sort(entries, new Comparator<Map.Entry<String, Integer>>() {
+			public int compare(Map.Entry<String, Integer> e1, Map.Entry<String, Integer> e2) {
+				int result = e2.getValue().compareTo(e1.getValue());
+				return result != 0 ? result : e1.getKey().compareTo(e2.getKey());
+			}
+		});
+		return entries;
 	}
 
 	@NotNull

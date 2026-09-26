@@ -18,7 +18,7 @@ workflow: scanned documents are recognized (OCR), named, split, merged and filed
 
 | Use case | What DocFetcher does |
 |----------|----------------------|
-| **Find a document by its content** | Full-text search over all indexed folders, Google-style syntax (`invoice 2025 -gas`, `"exact phrase"`, `OR`), tolerant to umlauts and OCR errors (`Muller` finds `Müller`), highlighted matches in the preview. |
+| **Find a document by its content** | Full-text search over all indexed folders, Google-style syntax (`invoice 2025 -gas`, `"exact phrase"`, `OR`), tolerant to umlauts and OCR errors (`Muller` finds `Müller`); words also match file and folder names (`Rosenweg rent` finds the contract in `Tenants/Rosenweg 12`); highlighted matches in the preview. |
 | **Process the scanner inbox** | Inbox tabs list new documents; DocFetcher suggests a file name (`2025-03-12_Stadtwerke-Invoice.pdf`) and a target folder from similar documents; rename and move with one click or by drag and drop. |
 | **Split and merge scans** | Split a scanned stack into single documents at separator sheets or where the text changes; merge PDF files; blank pages are left out. |
 | **Search scanned paper** | Built-in Tesseract OCR (German and English) makes image PDFs and pictures searchable; the recognized text is stored once in the file. |
@@ -38,7 +38,9 @@ Everything is undoable (`Ctrl+Z`), removed files go to the recycle bin, and docu
 - Inbox folders, name and folder suggestions, rename, move, copy (`Ctrl` + drag), delete to recycle bin.
 - PDF split and merge, OCR with Tesseract, print, email.
 - MCP server (Model Context Protocol, Streamable HTTP on `http://localhost:28835/mcp`) with the read-only tools
-  `search`, `read_document` and `list_folder`; e.g. `claude mcp add --transport http docfetcher http://localhost:28835/mcp`.
+  `search`, `read_document` and `list_folder`; e.g. `claude mcp add --transport http docfetcher http://localhost:28835/mcp`
+  (the preferences show how to connect Claude). Large result sets come newest first with an overview (time range,
+  counts per year/month, top folders, significant words) that helps the assistant to narrow the search.
 - Portable version (settings and indexes next to the program) and installed version.
 - User interface in several languages; manual in English and German for the features of this version.
 

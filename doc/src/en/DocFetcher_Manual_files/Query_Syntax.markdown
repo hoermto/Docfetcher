@@ -22,7 +22,7 @@ Tips:
 * Characters like `+`, `:`, `/` or parentheses inside words are no problem: `C++`, `Nr: 4711` and `01/2025` are searched as words.
 * Tolerant search (on by default, see the [preferences](Preferences.html)): words are also found without umlauts and accents (`Muller` finds `Müller`, `strasse` finds `Straße`) and despite typical recognition errors in scanned documents (`Bonn` finds `B0nn`). Put a word in quotes to find exactly that spelling.
 * If there are too many results, add a word; if there are none, remove one or use `OR`.
-* By default the words also match file names: `invoice` finds `myinvoice_2024.pdf`.
+* By default the words also match file and folder names: `invoice` finds `myinvoice_2024.pdf`, and `Rosenweg rent` finds a contract in the folder `Tenants/Rosenweg 12` even if its text doesn't mention `Rosenweg` (search settings: `Also match file and folder names`).
 
 
 Boolean Operators

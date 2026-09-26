@@ -22,7 +22,7 @@ Tipps:
 * Zeichen wie `+`, `:`, `/` oder Klammern in Wörtern sind kein Problem: `C++`, `Nr: 4711` und `01/2025` werden als Wörter gesucht.
 * Tolerante Suche (standardmäßig an, siehe [Einstellungen](Preferences.html)): Wörter werden auch ohne Umlaute und Akzente gefunden (`Muller` findet `Müller`, `strasse` findet `Straße`) und trotz typischer Erkennungsfehler in gescannten Dokumenten (`Bonn` findet `B0nn`). Setzen Sie ein Wort in Anführungszeichen, um genau diese Schreibweise zu finden.
 * Bei zu vielen Treffern ein Wort hinzufügen, bei keinem Treffer eines weglassen oder `OR` verwenden.
-* Standardmäßig passen die Wörter auch auf Dateinamen: `Rechnung` findet `Rechnung_2024.pdf`.
+* Standardmäßig passen die Wörter auch auf Datei- und Ordnernamen: `Rechnung` findet `Rechnung_2024.pdf`, und `Rosenweg Miete` findet einen Vertrag im Ordner `Mieter/Rosenweg 12`, auch wenn sein Text `Rosenweg` nicht enthält (Suchoptionen: `Auch Datei- und Ordnernamen durchsuchen`).
 
 
 Boolesche Operatoren

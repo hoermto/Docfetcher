@@ -62,6 +62,12 @@ final class IntFieldOption extends PrefOption {
 		});
 	}
 
+	/** The text currently in the field. */
+	@NotNull
+	String getText() {
+		return field.getText().trim();
+	}
+
 	@Override
 	protected void restoreDefault() {
 		field.setText(String.valueOf(option.defaultValue));

@@ -224,6 +224,10 @@ public final class PrefDialog {
 			};
 		}
 		
+		IntFieldOption mcpPortOption = new IntFieldOption(
+			Msg.pref_mcp_port.get(),
+			SettingsConf.Int.McpServerPort,
+			1024, 65535);
 		fieldOptions.addAll(Arrays.asList(
 			new DropdownOption(
 				Msg.pref_close_action.get(),
@@ -244,10 +248,8 @@ public final class PrefDialog {
 				new int[] { SettingsConf.ORIGINALS_ASK, SettingsConf.ORIGINALS_REMOVE,
 					SettingsConf.ORIGINALS_KEEP }),
 			
-			new IntFieldOption(
-				Msg.pref_mcp_port.get(),
-				SettingsConf.Int.McpServerPort,
-				1024, 65535),
+			mcpPortOption,
+			new McpHelpOption(mcpPortOption),
 
 			new DropdownOption(
 				Msg.pref_folder_path_segments.get(),

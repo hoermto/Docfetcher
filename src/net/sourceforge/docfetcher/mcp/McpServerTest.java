@@ -158,6 +158,32 @@ public final class McpServerTest {
 
 	@Test
 	@SuppressWarnings("unchecked")
+	public void tooManyResultsComeWithAnOverview() {
+		// Four documents mention Bonn, only one is returned: the newest (the lease,
+		// written just now), plus an overview
+		Map<String, Object> found = json(call("search", "{\"query\":\"Bonn\",\"max_results\":1}", false), 0);
+		assertEquals(4L, found.get("total_found"));
+		assertEquals(1L, found.get("returned"));
+		assertTrue("Newest first", path(found, 0).endsWith("mietvertrag-rosenweg.txt"));
+		Map<String, Object> overview = (Map<String, Object>) found.get("overview");
+		assertTrue(Json.write(overview), overview.containsKey("oldest") && overview.containsKey("newest"));
+		assertTrue(Json.write(overview), overview.containsKey("by_month"));
+		List<Object> folders = (List<Object>) overview.get("top_folders");
+		assertTrue(Json.write(folders), ((String) ((Map<String, Object>) folders.get(0)).get("path")).endsWith("Posteingang"));
+		assertEquals(3L, ((Map<String, Object>) folders.get(0)).get("count"));
+		assertFalse("Same path format as the results", ((String) ((Map<String, Object>) folders.get(0)).get("path")).contains("\\"));
+		String words = Json.write(overview.get("significant_words"));
+		assertTrue(words, words.contains("finanzamt (2)"));
+		assertFalse("Query words are no hints", words.contains("bonn"));
+		assertTrue((String) overview.get("hint"), ((String) overview.get("hint")).startsWith("4 documents found"));
+
+		// Everything returned: no overview
+		Map<String, Object> all = json(call("search", "{\"query\":\"Bonn\"}", false), 0);
+		assertFalse(all.containsKey("overview"));
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
 	public void rentOfTheTenantInRosenweg() {
 		// 'What rent does my client in Rosenweg have?'
 		Map<String, Object> found = json(call("search", "{\"query\":\"Rosenweg *miete*\"}", false), 0);

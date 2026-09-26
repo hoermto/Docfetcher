@@ -308,7 +308,7 @@ public final class Searcher {
 		readLock.lock();
 		try {
 			checkIndexesExist();
-			query = tolerant(query, queryWrapper.exactQueries);
+			query = tolerant(matchNames(query), queryWrapper.exactQueries);
 
 			// Perform search; might throw OutOfMemoryError
 			DelegatingCollector collector = new DelegatingCollector(){
@@ -799,7 +799,7 @@ public final class Searcher {
 		readLock.lock();
 		try {
 			checkIndexesExist();
-			query = tolerant(query, queryWrapper.exactQueries);
+			query = tolerant(matchNames(query), queryWrapper.exactQueries);
 
 			// Perform search; might throw OutOfMemoryError
 			// Protect against integer overflow when calculating maxResults
@@ -877,20 +877,6 @@ public final class Searcher {
 				query = queryParser.parse(asPlainWords(queryString));
 			}
 			boolean isPhraseQuery = queryParser.isPhraseQuery();
-			if (SettingsConf.Bool.MatchFilenames.get()) {
-				Query filenameQuery = createFilenameQuery(query);
-				if (filenameQuery != null) {
-					BooleanQuery.Builder builder = new BooleanQuery.Builder();
-					builder.add(query, BooleanClause.Occur.SHOULD);
-					builder.add(filenameQuery, BooleanClause.Occur.SHOULD);
-					// Excluded words ('-dog') exclude documents with a matching name, too
-					if (query instanceof BooleanQuery)
-						for (BooleanClause clause : ((BooleanQuery) query).clauses())
-							if (clause.getOccur() == BooleanClause.Occur.MUST_NOT)
-								builder.add(clause.getQuery(), BooleanClause.Occur.MUST_NOT);
-					query = builder.build();
-				}
-			}
 			return new QueryWrapper(query, isPhraseQuery, queryParser.getExactQueries());
 		}
 		catch (TooComplexToDeterminizeException e) {
@@ -917,6 +903,13 @@ public final class Searcher {
 		}
 	}
 	
+	/** Lets the words of the query also match file and folder names, if wanted (see NameMatch). */
+	@NotNull
+	@NotThreadSafe
+	private Query matchNames(@NotNull Query query) {
+		return SettingsConf.Bool.MatchFilenames.get() ? new NameMatch(indexes).expand(query) : query;
+	}
+
 	/** Expands the words of the query to their tolerant variants, if wanted (see TolerantSearch). */
 	@NotNull
 	@NotThreadSafe
@@ -1072,70 +1065,6 @@ public final class Searcher {
 			}
 		}
 		return sb.toString();
-	}
-
-	/**
-	 * Builds a query that matches the search terms as case-insensitive
-	 * substrings of the file names, so that e.g. "invoice" also finds
-	 * "myinvoice_2024.pdf". The terms are the words of the parsed query that
-	 * are not excluded ('-invoice'). Returns null if there are none.
-	 */
-	@Nullable
-	private static Query createFilenameQuery(@NotNull Query query) {
-		List<String> terms = new ArrayList<String>();
-		collectIncludedWords(query, terms);
-		if (terms.isEmpty())
-			return null;
-		
-		BooleanClause.Occur occur = SettingsConf.Bool.UseOrOperator.get()
-			? BooleanClause.Occur.SHOULD
-			: BooleanClause.Occur.MUST;
-		BooleanQuery.Builder builder = new BooleanQuery.Builder();
-		for (String term : terms) {
-			WildcardQuery wildcard = new WildcardQuery(
-				new Term(Fields.FILENAME.key(), "*" + term + "*"));
-			/*
-			 * Constant score rewriting avoids the boolean clause limit that
-			 * scoring rewrites can hit when a substring matches many names.
-			 */
-			wildcard.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
-			builder.add(wildcard, occur);
-		}
-		return builder.build();
-	}
-	
-	/** Collects the words of the query that are not excluded, without wildcards. */
-	private static void collectIncludedWords(@NotNull Query query, @NotNull List<String> words) {
-		List<Term> terms = new ArrayList<Term>();
-		if (query instanceof BooleanQuery) {
-			for (BooleanClause clause : ((BooleanQuery) query).clauses())
-				if (clause.getOccur() != BooleanClause.Occur.MUST_NOT)
-					collectIncludedWords(clause.getQuery(), words);
-		}
-		else if (query instanceof BoostQuery) {
-			collectIncludedWords(((BoostQuery) query).getQuery(), words);
-		}
-		else if (query instanceof TermQuery) {
-			terms.add(((TermQuery) query).getTerm());
-		}
-		else if (query instanceof PhraseQuery) {
-			terms.addAll(Arrays.asList(((PhraseQuery) query).getTerms()));
-		}
-		else if (query instanceof PrefixQuery) {
-			terms.add(((PrefixQuery) query).getPrefix());
-		}
-		else if (query instanceof WildcardQuery) {
-			terms.add(((WildcardQuery) query).getTerm());
-		}
-		else if (query instanceof FuzzyQuery) {
-			terms.add(((FuzzyQuery) query).getTerm());
-		}
-		for (Term term : terms) {
-			// Wildcard characters are query syntax, not part of the name
-			String word = term.text().replace("*", "").replace("?", "").trim();
-			if (!word.isEmpty() && !words.contains(word))
-				words.add(word);
-		}
 	}
 
 	private static final class QueryWrapper {

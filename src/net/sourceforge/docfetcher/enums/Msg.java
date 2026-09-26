@@ -1105,7 +1105,7 @@ public enum Msg {
 		"Error message shown when deleting the original document after a " +
 		"copy failed. The path is inserted in the {0} slot."),
 	
-	match_filenames ("Also match file names (any part of the name)",
+	match_filenames ("Also match file and folder names (any part of the name)",
 		"Checkbox on the search settings dialog: If checked, the search " +
 		"terms are additionally matched against the file names, as " +
 		"substrings."),
@@ -1404,6 +1404,16 @@ public enum Msg {
 		"Label of the port field of the MCP server on the preferences window."),
 	mcp_server_failed ("The MCP server could not be started on port {0}: {1}\nPerhaps another program uses this port; choose another one in the preferences.",
 		"Error message; the port in {0}, the error in {1}."),
+	mcp_help_link ("How to connect Claude...",
+		"Link below the MCP server options on the preferences window; opens a short help."),
+	mcp_help_title ("Connect Claude to DocFetcher",
+		"Window title of the help on connecting an AI assistant to the MCP server."),
+	mcp_help_text ("1. Switch on 'MCP server for AI assistants' and click OK. The server runs while DocFetcher runs.\n\n2a. Claude Code (terminal): run this command once:\n{0}\n\n2b. Claude Desktop: Settings > Developer > Edit Config, add this to claude_desktop_config.json (needs Node.js), then restart Claude Desktop:\n{1}\n\n3. Ask for example: 'Which letters about tax arrived last?' or 'What rent does my tenant in Rosenweg pay?'\n\nOnly programs on this computer can connect, and they can only read the indexed folders. The text of the documents the assistant reads is sent to its AI service.",
+		"Help on connecting Claude to the MCP server. {0} is the command for Claude Code, {1} the configuration for Claude Desktop; don't translate them. Menu names of Claude Desktop as shown in its user interface."),
+	mcp_copy_command ("Copy Claude Code Command",
+		"Button in the help on connecting Claude: copies the command to the clipboard."),
+	mcp_copy_config ("Copy Claude Desktop Configuration",
+		"Button in the help on connecting Claude: copies the configuration to the clipboard."),
 	pref_originals_ask ("Ask what to do with the originals",
 		"Choice of the dropdown After merging or splitting PDFs."),
 	pref_originals_remove ("Move the originals to the recycle bin",
