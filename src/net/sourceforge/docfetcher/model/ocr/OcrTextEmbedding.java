@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.CRC32;
 
+import net.sourceforge.docfetcher.model.OwnFileChanges;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 
@@ -85,16 +86,19 @@ public final class OcrTextEmbedding {
 	/** Writes the bytes to the file via a temporary file, keeping the mtime. */
 	static void replaceFile(@NotNull File file, @NotNull byte[] data) throws IOException {
 		long lastModified = file.lastModified();
-		File temp = new File(file.getParentFile(), file.getName() + ".docfetcher-tmp");
+		File temp = new File(file.getParentFile(), file.getName() + OwnFileChanges.TEMP_SUFFIX);
 		Files.write(temp.toPath(), data);
+		// Our own change: the folder watcher shouldn't start another update for it
+		OwnFileChanges.begin(file);
 		try {
 			Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+			if (lastModified > 0)
+				Files.setLastModifiedTime(file.toPath(), FileTime.fromMillis(lastModified));
 		}
 		finally {
 			temp.delete();
+			OwnFileChanges.end(file);
 		}
-		if (lastModified > 0)
-			Files.setLastModifiedTime(file.toPath(), FileTime.fromMillis(lastModified));
 	}
 
 	private static boolean isPng(@NotNull byte[] data) {

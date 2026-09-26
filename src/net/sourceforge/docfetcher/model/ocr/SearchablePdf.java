@@ -34,6 +34,7 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.util.Matrix;
 
 import net.sourceforge.docfetcher.model.Cancelable;
+import net.sourceforge.docfetcher.model.OwnFileChanges;
 import net.sourceforge.docfetcher.model.ocr.OcrEngine.Result;
 import net.sourceforge.docfetcher.model.ocr.OcrEngine.Word;
 import net.sourceforge.docfetcher.util.Util;
@@ -132,7 +133,7 @@ public final class SearchablePdf {
 								@NotNull Cancelable cancelable) throws IOException {
 		Util.checkNotNull(pdfFile, engine, cancelable);
 		long lastModified = pdfFile.lastModified();
-		File temp = new File(pdfFile.getParentFile(), pdfFile.getName() + ".docfetcher-tmp");
+		File temp = new File(pdfFile.getParentFile(), pdfFile.getName() + OwnFileChanges.TEMP_SUFFIX);
 		try {
 			PDDocument doc = PDDocument.load(pdfFile);
 			try {
@@ -160,13 +161,20 @@ public final class SearchablePdf {
 				 */
 				doc.close();
 			}
-			Files.move(temp.toPath(), pdfFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+			// Our own change: the folder watcher shouldn't start another update for it
+			OwnFileChanges.begin(pdfFile);
+			try {
+				Files.move(temp.toPath(), pdfFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+				if (lastModified > 0)
+					Files.setLastModifiedTime(pdfFile.toPath(), FileTime.fromMillis(lastModified));
+			}
+			finally {
+				OwnFileChanges.end(pdfFile);
+			}
 		}
 		finally {
 			temp.delete();
 		}
-		if (lastModified > 0)
-			Files.setLastModifiedTime(pdfFile.toPath(), FileTime.fromMillis(lastModified));
 		return true;
 	}
 
@@ -191,7 +199,7 @@ public final class SearchablePdf {
 		if (pdfFile.exists())
 			return null;
 		long lastModified = tiffFile.lastModified();
-		File temp = new File(pdfFile.getParentFile(), pdfFile.getName() + ".docfetcher-tmp");
+		File temp = new File(pdfFile.getParentFile(), pdfFile.getName() + OwnFileChanges.TEMP_SUFFIX);
 		PDDocument doc = new PDDocument();
 		boolean success = false;
 		try {
@@ -227,19 +235,34 @@ public final class SearchablePdf {
 			if (!success)
 				temp.delete();
 		}
-		Files.move(temp.toPath(), pdfFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-		if (lastModified > 0)
-			Files.setLastModifiedTime(pdfFile.toPath(), FileTime.fromMillis(lastModified));
+		// Our own changes (the new PDF is indexed right away): no extra update for them
+		OwnFileChanges.begin(pdfFile);
+		try {
+			Files.move(temp.toPath(), pdfFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+			if (lastModified > 0)
+				Files.setLastModifiedTime(pdfFile.toPath(), FileTime.fromMillis(lastModified));
+		}
+		finally {
+			OwnFileChanges.end(pdfFile);
+		}
 		if (keepOriginal) {
 			File renamed = new File(tiffFile.getParentFile(), tiffFile.getName() + CONVERTED_SUFFIX);
+			OwnFileChanges.begin(renamed);
 			try {
 				Files.move(tiffFile.toPath(), renamed.toPath(), StandardCopyOption.REPLACE_EXISTING);
+				OwnFileChanges.removed(tiffFile);
 			}
 			catch (IOException e) {
 				Util.printErr("Could not rename " + tiffFile + " after converting it to PDF: " + e);
 			}
+			finally {
+				OwnFileChanges.end(renamed);
+			}
 		}
-		else if (!tiffFile.delete()) {
+		else if (tiffFile.delete()) {
+			OwnFileChanges.removed(tiffFile);
+		}
+		else {
 			Util.printErr("Could not delete " + tiffFile + " after converting it to PDF.");
 		}
 		return pdfFile;

@@ -1,6 +1,7 @@
 ==== 2026-09-26 - DocFetcher 2.9 ====
 
 === Bugfixes ===
+  * Storing the recognized text in a scan no longer starts another update of the whole index: the folder watcher saw the replaced file as a change. DocFetcher now ignores its own changes - but only while the file is exactly as DocFetcher left it, so changes of other files (or of the same file afterwards) are still picked up.
 
 === Features ===
   * Search words also match the folder names of the path, not only the file name: 'Rosenweg rent' finds a contract in the folder 'Tenants/Rosenweg 12' even if its text doesn't mention 'Rosenweg'; excluded words ('-Rosenweg') exclude such folders. Works at search time with the existing indexes (search settings: 'Also match file and folder names').
