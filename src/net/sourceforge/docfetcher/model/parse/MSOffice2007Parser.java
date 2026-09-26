@@ -31,6 +31,7 @@ import org.apache.poi.openxml4j.opc.PackageAccess;
 import org.apache.poi.openxml4j.opc.PackageProperties;
 import org.apache.poi.openxml4j.util.ZipSecureFile;
 import org.apache.poi.xssf.extractor.XSSFExcelExtractor;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.openxmlformats.schemas.officeDocument.x2006.extendedProperties.CTProperties;
 
 import com.google.common.io.Closeables;
@@ -312,10 +313,9 @@ abstract class MSOffice2007Parser extends FileParser {
 	private static String extractText(@NotNull OPCPackage pkg) throws Exception {
 		POITextExtractor extractor = ExtractorFactory.createExtractor(pkg);
 		if (extractor instanceof XSSFExcelExtractor) {
-			XSSFExcelExtractor excelExtractor = (XSSFExcelExtractor) extractor;
-			boolean indexFormulas = ProgramConf.Bool.IndexExcelFormulas.get();
-			excelExtractor.setFormulasNotResults(indexFormulas);
-			excelExtractor.setIncludeCellComments(true);
+			// Results of formula cells, and the formulas themselves if wanted
+			XSSFWorkbook workbook = (XSSFWorkbook) ((XSSFExcelExtractor) extractor).getDocument();
+			return ExcelText.extract(workbook, ProgramConf.Bool.IndexExcelFormulas.get());
 		}
 		String text = extractor.getText();
 		return text;

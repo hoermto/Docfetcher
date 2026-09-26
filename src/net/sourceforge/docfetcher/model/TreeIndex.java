@@ -18,6 +18,7 @@ import java.util.List;
 import net.sourceforge.docfetcher.model.index.IndexingConfig;
 import net.sourceforge.docfetcher.model.index.IndexingReporter;
 import net.sourceforge.docfetcher.util.AppUtil;
+import net.sourceforge.docfetcher.model.parse.ExcelText;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.annotations.ImmutableCopy;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
@@ -62,6 +63,13 @@ public abstract class TreeIndex <
 	private final F rootFolder;
 	private final long created;
 	private int formatVersion = CURRENT_FORMAT_VERSION;
+
+	/**
+	 * Version of the Excel text in the index (see ExcelText.VERSION).
+	 * Deserialized indexes from older versions have version 0; their Excel
+	 * files are parsed again on the next update, and only those.
+	 */
+	private int excelTextVersion = ExcelText.VERSION;
 	/** Time of the last successful update or creation, 0 if unknown (older indexes). */
 	private long lastUpdated = 0;
 	@Nullable private final Path fileIndexDirPath;
@@ -116,6 +124,16 @@ public abstract class TreeIndex <
 	
 	public final int getFormatVersion() {
 		return formatVersion;
+	}
+
+	/** Returns true if the Excel files must be parsed again (older text format). */
+	public final boolean isExcelTextOutdated() {
+		return excelTextVersion < ExcelText.VERSION;
+	}
+
+	/** To be called after all Excel files were parsed with the current text format. */
+	public final void setExcelTextCurrent() {
+		excelTextVersion = ExcelText.VERSION;
 	}
 	
 	@NotNull
@@ -229,8 +247,10 @@ public abstract class TreeIndex <
 	
 	private void clear(boolean removeTopLevel) {
 		// A rebuild re-parses everything, so the index gets the current format
-		if (!removeTopLevel)
+		if (!removeTopLevel) {
 			formatVersion = CURRENT_FORMAT_VERSION;
+			excelTextVersion = ExcelText.VERSION;
+		}
 		if (fileIndexDirPath != null) {
 			File fileIndexDir = getIndexDirPath().getCanonicalFile();
 			if (fileIndexDir.exists()) {

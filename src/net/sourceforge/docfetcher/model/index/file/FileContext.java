@@ -60,6 +60,9 @@ class FileContext {
 	 * them at the end, so that all other documents become searchable first.
 	 */
 	private boolean deferOcr = false;
+	
+	/* Excel files are parsed again even if unchanged (see ExcelText.VERSION) */
+	private boolean reparseExcel = false;
 	private List<DeferredFile> deferredFiles = new ArrayList<DeferredFile>(); // shared
 	
 	/** A file whose text recognition was deferred to the end of the task. */
@@ -117,6 +120,15 @@ class FileContext {
 	
 	public final boolean isDeferOcr() {
 		return deferOcr;
+	}
+	
+	/** Makes the update parse Excel files again, even if they weren't changed. */
+	public final void setReparseExcel(boolean reparseExcel) {
+		this.reparseExcel = reparseExcel;
+	}
+	
+	public final boolean isReparseExcel() {
+		return reparseExcel;
 	}
 	
 	/** The files whose text recognition was deferred, in indexing order. */

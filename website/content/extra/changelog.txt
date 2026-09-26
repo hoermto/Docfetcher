@@ -8,6 +8,7 @@
   * Storing the recognized text in a scan no longer starts another update of the whole index: the folder watcher saw the replaced file as a change. DocFetcher now ignores its own changes - but only while the file is exactly as DocFetcher left it, so changes of other files (or of the same file afterwards) are still picked up.
 
 === Features ===
+  * Excel files (.xls, .xlsx) are indexed with the results of their formulas and the formulas themselves, e.g. '286,52 € [=SUM(B1:B3)]': the search finds totals, and AI assistants see the numbers. Existing indexes parse only their Excel files once more on the next update, no rebuild needed. (program-conf.txt: IndexExcelFormulas = false indexes only the results.)
   * Search words also match the folder names of the path, not only the file name: 'Rosenweg rent' finds a contract in the folder 'Tenants/Rosenweg 12' even if its text doesn't mention 'Rosenweg'; excluded words ('-Rosenweg') exclude such folders. Works at search time with the existing indexes (search settings: 'Also match file and folder names').
   * MCP search: if more documents are found than returned, the newest come first, with an overview (time range, documents per year or month, top folders, characteristic words of the texts - from a sample of up to 20 documents - and of the names, each with the share of documents containing it) and a hint how to narrow the search by adding or excluding words.
   * Preferences: 'How to connect Claude...' below the MCP server options, with buttons to copy the Claude Code command and the Claude Desktop configuration.

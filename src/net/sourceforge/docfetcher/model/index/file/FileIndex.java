@@ -37,6 +37,7 @@ import net.sourceforge.docfetcher.model.index.IndexingError.ErrorType;
 import net.sourceforge.docfetcher.model.index.IndexingException;
 import net.sourceforge.docfetcher.model.index.IndexingInfo.InfoType;
 import net.sourceforge.docfetcher.model.index.IndexingReporter;
+import net.sourceforge.docfetcher.model.parse.ExcelText;
 import net.sourceforge.docfetcher.model.ocr.OcrPreprocessor;
 import net.sourceforge.docfetcher.model.index.MutableInt;
 import net.sourceforge.docfetcher.model.index.file.FileFolder.FileFolderVisitor;
@@ -239,12 +240,18 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 				// Count the files first so that progress can be shown
 				context.setProgressTotal(countFiles(getCanonicalRootFile(), cancelable));
 				
+				// Excel files of an older text format are parsed again, once
+				boolean reparseExcel = isExcelTextOutdated();
+				context.setReparseExcel(reparseExcel);
+
 				// Recognize text at the end, so that the other documents
 				// become searchable first
 				context.setDeferOcr(true);
 				visitDirOrZip(context, rootFolder, rootFile);
 				context.setDeferOcr(false);
 				processDeferredOcr(context, cancelable);
+				if (reparseExcel && !cancelable.isCanceled())
+					setExcelTextCurrent();
 			}
 			else {
 				// Return immediately if the root file wasn't modified
@@ -382,8 +389,9 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 						return; // Created and indexed by this run already
 					FileDocument doc = unseenDocs.remove(file.getName());
 					boolean added = doc == null;
-					boolean modified = !added && doc.isModified(context, file, null);
-					
+					boolean modified = !added && (doc.isModified(context, file, null)
+						|| (context.isReparseExcel() && ExcelText.isExcelFile(file.getName())));
+
 					/*
 					 * Text recognition may replace the file (TIFF -> PDF), in
 					 * which case the new file is indexed and the entry of the
