@@ -101,6 +101,7 @@ public final class SettingsConf {
 		SplitAutoRename (true), // Name the parts of a split by date and keywords
 		SyncFolderPanels (true), // The folders tab shows the parent of the folder panel
 		TolerantSearch (true), // Umlauts and OCR errors: 'Muller' finds 'Müller', 'Bonn' finds 'B0nn'
+		McpServerEnabled (false), // MCP server for AI assistants on localhost (read-only access to the indexes)
 		ShowFolderPanel (true), // Show a second folder browser next to the tabs
 		SyncFolderView (true), // Folder view follows the selected search result
 		FolderSortAscending (false), // Sort order of the folder view
@@ -179,6 +180,9 @@ public final class SettingsConf {
 		 * Application.getPaneMode); 0 = not set yet, taken from ShowFolderPanel.
 		 */
 		PaneMode (0),
+
+		// Port of the MCP server on localhost (see Bool.McpServerEnabled)
+		McpServerPort (28835),
 		;
 
 		public final Event<Integer> evtChanged = new Event<Integer> ();

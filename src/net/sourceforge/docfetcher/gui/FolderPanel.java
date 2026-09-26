@@ -423,7 +423,7 @@ public final class FolderPanel {
 		if (searcher == null)
 			return docs;
 		for (File root : getRootFolders())
-			docs.add(searcher.createFolderRow(findIndexFor(root), root));
+			docs.add(searcher.createFolderRow(indexRegistry.findIndexFor(root), root));
 		return docs;
 	}
 
@@ -441,12 +441,12 @@ public final class FolderPanel {
 		if (up != null || isRootFolder(folder)) {
 			// Leads to the parent folder, or back to the list of root folders
 			ResultDocument parentRow = searcher.createFolderRow(
-				findIndexFor(up != null ? up : folder),
+				indexRegistry.findIndexFor(up != null ? up : folder),
 				up != null ? up : folder, PARENT_ROW_NAME);
 			parentRow.setParentRow(true);
 			entries.add(parentRow);
 		}
-		entries.addAll(searcher.listFolderEntries(findIndexFor(folder), folder));
+		entries.addAll(searcher.listFolderEntries(indexRegistry.findIndexFor(folder), folder));
 		return entries;
 	}
 	
@@ -471,15 +471,5 @@ public final class FolderPanel {
 		return folder.getParentFile();
 	}
 
-	/** Returns the index covering the given folder, or null. */
-	@Nullable
-	private LuceneIndex findIndexFor(@NotNull File folder) {
-		for (LuceneIndex index : indexRegistry.getIndexes()) {
-			File root = index.getCanonicalRootFile();
-			if (Util.isCanonicallyEqual(root, folder) || Util.contains(root, folder))
-				return index;
-		}
-		return null;
-	}
 
 }

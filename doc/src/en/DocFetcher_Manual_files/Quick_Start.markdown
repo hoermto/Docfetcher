@@ -40,4 +40,5 @@ The toolbar buttons with the columns choose one, two or three panes next to the 
 * The toolbar works on the list you clicked last; hover over a button to see what it does.
 * `View > Icon size` makes the toolbar icons bigger or smaller.
 * DocFetcher never changes documents that contain text. Only scans without text get their recognized text stored in the file, once (can be switched off in the preferences).
+* AI assistants like Claude can search your documents and read them (read-only, this computer only): switch on `MCP server for AI assistants` in the preferences - see 'AI assistants' in the [full manual](../DocFetcher_Manual.html).
 * More: [preferences](Preferences.html), [search syntax](Query_Syntax.html), [full manual](../DocFetcher_Manual.html).

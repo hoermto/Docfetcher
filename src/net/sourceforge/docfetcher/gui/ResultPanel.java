@@ -1408,7 +1408,7 @@ public final class ResultPanel {
 		// results once the index is updated, so remove them right away
 		List<ResultDocument> outside = new ArrayList<ResultDocument>();
 		for (ResultDocument doc : moved)
-			if (findIndexFor(doc.getPath().getCanonicalFile()) == null)
+			if (indexRegistry.findIndexFor(doc.getPath().getCanonicalFile()) == null)
 				outside.add(doc);
 		viewer.removeElements(outside);
 		viewer.refresh();
@@ -1601,21 +1601,7 @@ public final class ResultPanel {
 		}
 	}
 	
-	@Nullable
-	private LuceneIndex findIndexFor(@NotNull File file) {
-		return findIndexFor(indexRegistry, file);
-	}
 	
-	@Nullable
-	private static LuceneIndex findIndexFor(	@NotNull IndexRegistry indexRegistry,
-												@NotNull File file) {
-		for (LuceneIndex index : indexRegistry.getIndexes()) {
-			File root = index.getCanonicalRootFile();
-			if (Util.contains(root, file) || Util.isCanonicallyEqual(root, file))
-				return index;
-		}
-		return null;
-	}
 	
 	/**
 	 * Enqueues updates for all indexes containing any of the given files.
@@ -1630,7 +1616,7 @@ public final class ResultPanel {
 											@NotNull Collection<File> files) {
 		Set<LuceneIndex> indexes = new HashSet<LuceneIndex>();
 		for (File file : files) {
-			LuceneIndex index = findIndexFor(indexRegistry, file);
+			LuceneIndex index = indexRegistry.findIndexFor(file);
 			if (index != null)
 				indexes.add(index);
 		}

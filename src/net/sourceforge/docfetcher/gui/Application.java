@@ -94,6 +94,7 @@ import net.sourceforge.docfetcher.model.FolderWatcher;
 import net.sourceforge.docfetcher.model.IndexLoadingProblems;
 import net.sourceforge.docfetcher.model.IndexLoadingProblems.CorruptedIndex;
 import net.sourceforge.docfetcher.model.IndexLoadingProblems.OverflowIndex;
+import net.sourceforge.docfetcher.mcp.McpServer;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.LuceneIndex;
 import net.sourceforge.docfetcher.model.TreeIndex;
@@ -133,6 +134,7 @@ public final class Application {
 	private static final int sashWidth = 9;
 
 	private static volatile IndexRegistry indexRegistry;
+	@Nullable private static McpServer mcpServer;
 	private static volatile FolderWatcher folderWatcher;
 	@Nullable private static HotkeyHandler hotkeyHandler;
 	private static File programConfFile;
@@ -435,6 +437,19 @@ public final class Application {
 		if(ProgramConf.Bool.PythonApiEnabled.get())
             Py4jHandler.openGatewayServer();
 
+		// MCP server for AI assistants, if enabled in the preferences
+		updateMcpServer();
+		SettingsConf.Bool.McpServerEnabled.evtChanged.add(new Event.Listener<Boolean>() {
+			public void update(Boolean eventData) {
+				updateMcpServer();
+			}
+		});
+		SettingsConf.Int.McpServerPort.evtChanged.add(new Event.Listener<Integer>() {
+			public void update(Integer eventData) {
+				updateMcpServer();
+			}
+		});
+
 		shell.addShellListener(new ShellAdapter() {
 			public void shellClosed(final ShellEvent e) {
 				handleShellClosed(e);
@@ -455,6 +470,8 @@ public final class Application {
 		// Close Py4j Gateway Server
 		if(ProgramConf.Bool.PythonApiEnabled.get())
 			Py4jHandler.shutdownGatewayServer();
+		if (mcpServer != null)
+			mcpServer.stop();
 
 		/*
 		 * Do not set this to null; the index registry loading thread must be
@@ -2520,6 +2537,28 @@ public final class Application {
 			dialog.addButton(Msg.keep.get(), CancelAction.KEEP);
 		}
 		return dialog.open();
+	}
+
+	/**
+	 * Starts, restarts or stops the MCP server according to the settings;
+	 * shows an error if the port is in use.
+	 */
+	private static void updateMcpServer() {
+		if (!SettingsConf.Bool.McpServerEnabled.get()) {
+			if (mcpServer != null)
+				mcpServer.stop();
+			return;
+		}
+		if (mcpServer == null)
+			mcpServer = new McpServer(indexRegistry);
+		int port = SettingsConf.Int.McpServerPort.get();
+		try {
+			mcpServer.start(port);
+		}
+		catch (IOException e) {
+			Util.printErr(e);
+			AppUtil.showError(Msg.mcp_server_failed.format(port, e.getMessage()), true, true);
+		}
 	}
 
 	private static void showManual() {

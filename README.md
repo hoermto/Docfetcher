@@ -2,7 +2,7 @@
 
 **Desktop full-text search and document filing for your own files - PDFs, scans, Office documents and emails.**
 
-![Version](https://img.shields.io/badge/version-2.8-blue)
+![Version](https://img.shields.io/badge/version-2.9-blue)
 ![Java](https://img.shields.io/badge/Java-21-orange)
 ![UI](https://img.shields.io/badge/UI-SWT-lightgrey)
 ![License](https://img.shields.io/badge/license-EPL--1.0-green)
@@ -23,6 +23,7 @@ workflow: scanned documents are recognized (OCR), named, split, merged and filed
 | **Split and merge scans** | Split a scanned stack into single documents at separator sheets or where the text changes; merge PDF files; blank pages are left out. |
 | **Search scanned paper** | Built-in Tesseract OCR (German and English) makes image PDFs and pictures searchable; the recognized text is stored once in the file. |
 | **Sort folders** | One, two or three panes with synced folder browsers next to the document view, for filing documents into a folder structure. |
+| **Ask an AI assistant** | A built-in MCP server (off by default, localhost only, read-only) lets assistants like Claude search the indexes and read documents: *"Which letters about tax arrived last?"* - *"What rent does my tenant in Rosenweg pay?"* |
 | **Print and send** | Print or email one or several selected documents directly from the result list. |
 
 Everything is undoable (`Ctrl+Z`), removed files go to the recycle bin, and documents containing text are never modified.
@@ -36,6 +37,8 @@ Everything is undoable (`Ctrl+Z`), removed files go to the recycle bin, and docu
 - Google-style query syntax, plus wildcards, fuzzy, proximity and field searches (`title:report`).
 - Inbox folders, name and folder suggestions, rename, move, copy (`Ctrl` + drag), delete to recycle bin.
 - PDF split and merge, OCR with Tesseract, print, email.
+- MCP server (Model Context Protocol, Streamable HTTP on `http://localhost:28835/mcp`) with the read-only tools
+  `search`, `read_document` and `list_folder`; e.g. `claude mcp add --transport http docfetcher http://localhost:28835/mcp`.
 - Portable version (settings and indexes next to the program) and installed version.
 - User interface in several languages; manual in English and German for the features of this version.
 
@@ -91,6 +94,7 @@ GUI tests drive the running development build with `dev/guitest/win.py` (Windows
 |------|---------|
 | `src/net/sourceforge/docfetcher/gui` | SWT user interface (main window, toolbar, panes, dialogs) |
 | `src/net/sourceforge/docfetcher/model` | Indexing, parsing, search (Lucene), OCR, PDF operations |
+| `src/net/sourceforge/docfetcher/mcp` | MCP server for AI assistants (HTTP, JSON-RPC, tools) |
 | `src/net/sourceforge/docfetcher/enums` | Messages (`Msg`), settings (`SettingsConf`), images (`Img`) |
 | `dist/` | Files shipped with the package: language files, images, launchers |
 | `doc/` | Manual sources (Markdown) and the manual build |

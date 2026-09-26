@@ -436,7 +436,7 @@ public final class SearchQueue {
 				continue;
 			}
 			checked++;
-			LuceneIndex index = findIndexFor(indexes, doc.getPath().getCanonicalFile());
+			LuceneIndex index = IndexRegistry.findIndexFor(indexes, doc.getPath().getCanonicalFile());
 			if (index == null || !index.getCanonicalRootFile().exists()) {
 				existing.add(doc); // Unavailable drive: keep the result
 				continue;
@@ -463,18 +463,9 @@ public final class SearchQueue {
 		List<LuceneIndex> indexes = indexRegistry.getIndexes();
 		for (File folder : FolderSearch.find(
 				FolderPanel.getRootFolders(indexRegistry), terms))
-			rows.add(searcher.createFolderRow(findIndexFor(indexes, folder), folder));
+			rows.add(searcher.createFolderRow(IndexRegistry.findIndexFor(indexes, folder), folder));
 		return rows;
 	}
 	
-	@Nullable
-	private static LuceneIndex findIndexFor(@NotNull List<LuceneIndex> indexes, @NotNull File file) {
-		for (LuceneIndex index : indexes) {
-			File root = index.getCanonicalRootFile();
-			if (Util.contains(root, file) || Util.isCanonicallyEqual(root, file))
-				return index;
-		}
-		return null;
-	}
 
 }

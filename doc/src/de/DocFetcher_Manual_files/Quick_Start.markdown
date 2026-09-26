@@ -40,4 +40,5 @@ Die Buttons mit den Spalten in der Symbolleiste wählen ein, zwei oder drei Fens
 * Die Symbolleiste wirkt auf die zuletzt angeklickte Liste; wenn Sie mit der Maus über einem Button verweilen, wird angezeigt, was er tut.
 * `Ansicht > Symbolgröße` macht die Symbole der Symbolleiste größer oder kleiner.
 * DocFetcher verändert nie Dokumente, die Text enthalten. Nur bei Scans ohne Text wird der erkannte Text einmalig in der Datei gespeichert (in den Einstellungen abschaltbar).
+* KI-Assistenten wie Claude können Ihre Dokumente durchsuchen und lesen (nur lesend, nur dieser Computer): `MCP-Server für KI-Assistenten` in den Einstellungen einschalten – siehe 'KI-Assistenten' im [vollständigen Handbuch](../DocFetcher_Manual.html).
 * Mehr: [Einstellungen](Preferences.html), [Suchanfrage-Syntax](Query_Syntax.html), [vollständiges Handbuch](../DocFetcher_Manual.html).

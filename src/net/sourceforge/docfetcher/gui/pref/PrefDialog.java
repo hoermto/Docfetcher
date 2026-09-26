@@ -66,6 +66,9 @@ public final class PrefDialog {
 	private final IndexPanel indexPanel;
 	private final File defaultIndexDir;
 	private final DropdownOption analyzerOption;
+	private final DropdownOption removeOriginalsOption;
+	private final CheckOption askRebuildOption;
+	private boolean resetHints = false;
 	private final int oldAnalyzer;
 	@NotNull private TabFolder tabFolder;
 	@NotNull private IndexManagementPanel indexManagementPanel;
@@ -162,7 +165,15 @@ public final class PrefDialog {
 
 			new CheckOption(
 				Msg.pref_keep_tiff.get(),
-				SettingsConf.Bool.KeepTiffAfterConversion)
+				SettingsConf.Bool.KeepTiffAfterConversion),
+
+			askRebuildOption = new CheckOption(
+				Msg.pref_ask_rebuild_outdated.get(),
+				SettingsConf.Bool.AskRebuildOutdatedIndexes),
+
+			new CheckOption(
+				Msg.pref_mcp_server.get(),
+				SettingsConf.Bool.McpServerEnabled)
 
 			// TODO post-release-1.1: Implement this; requires saving and restoring the tree expansion state
 			//	new CheckOption(
@@ -225,7 +236,7 @@ public final class PrefDialog {
 				Msg.pref_preview_bottom.get(),
 				Msg.pref_preview_right.get()),
 			
-			new DropdownOption(
+			removeOriginalsOption = new DropdownOption(
 				Msg.pref_remove_originals.get(),
 				SettingsConf.Int.RemoveOriginals,
 				new String[] { Msg.pref_originals_ask.get(),
@@ -233,6 +244,11 @@ public final class PrefDialog {
 				new int[] { SettingsConf.ORIGINALS_ASK, SettingsConf.ORIGINALS_REMOVE,
 					SettingsConf.ORIGINALS_KEEP }),
 			
+			new IntFieldOption(
+				Msg.pref_mcp_port.get(),
+				SettingsConf.Int.McpServerPort,
+				1024, 65535),
+
 			new DropdownOption(
 				Msg.pref_folder_path_segments.get(),
 				SettingsConf.Int.FolderPathSegments,
@@ -331,6 +347,21 @@ public final class PrefDialog {
 		for (PrefOption fieldOption : fieldOptions)
 			fieldOption.createControls(comp);
 
+		/*
+		 * Answers remembered in dialogs ('Remember my choice', 'Don't ask
+		 * again') and hints shown only once: the button sets the options above
+		 * back to asking; the hints come back when the dialog is confirmed.
+		 */
+		Button resetAnswersBt = UtilGui.createPushButton(comp, Msg.pref_reset_answers.get(), new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				removeOriginalsOption.restoreDefault();
+				askRebuildOption.restoreDefault();
+				resetHints = true;
+			}
+		});
+		resetAnswersBt.setToolTipText(Msg.pref_reset_answers_hint.get());
+		resetAnswersBt.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false, 2, 1));
+
 		Label spacing2 = new Label(comp, SWT.NONE);
 		spacing2.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 2, 1));
 		
@@ -406,6 +437,8 @@ public final class PrefDialog {
 				}
 				for (PrefOption checkOption : checkOptions)
 					checkOption.save();
+				if (resetHints)
+					SettingsConf.Bool.ShowRelativePathsMessage.set(true);
 				for (PrefOption fieldOption : fieldOptions) {
 					fieldOption.save();
 					

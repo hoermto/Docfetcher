@@ -3,6 +3,8 @@
 === Bugfixes ===
 
 === Features ===
+  * MCP server for AI assistants (preferences, off by default): assistants like Claude can search the indexes (Google-style query, sorted by date, date range, folder), read the text of documents (in parts of 20,000 characters) and list folders, via http://localhost:28835/mcp. Read-only, only programs on this computer can connect, only the indexed folders are accessible.
+  * Remembered answers can be changed and reset in the preferences: 'Ask to rebuild indexes created by older versions' (turned off by 'Don't Ask Again') and the button 'Reset Remembered Answers', which also brings back one-time hints; what happens to the originals after merging or splitting could already be chosen there.
 
 ==== 2026-09-26 - DocFetcher 2.8 ====
 
