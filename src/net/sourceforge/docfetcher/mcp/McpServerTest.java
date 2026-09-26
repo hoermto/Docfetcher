@@ -262,7 +262,8 @@ public final class McpServerTest {
 	}
 
 	private static int freePort() throws Exception {
-		ServerSocket socket = new ServerSocket(0);
+		// Only on this computer: a socket on all interfaces makes the Windows firewall ask
+		ServerSocket socket = new ServerSocket(0, 0, java.net.InetAddress.getLoopbackAddress());
 		int port = socket.getLocalPort();
 		socket.close();
 		return port;
