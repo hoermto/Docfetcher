@@ -409,7 +409,7 @@ public final class Application {
 		boolean showManualHint = true;
 		if (SettingsConf.Bool.ShowManualOnStartup.get()
 				&& SettingsConf.Bool.ShowPreviewPanel.get()) {
-			File file = ManualLocator.getManualFile();
+			File file = ManualLocator.getStartPage();
 			if (file == null) {
 				showManualHint = false;
 				/*
@@ -1887,6 +1887,11 @@ public final class Application {
 				searchSettingsDialog.open();
 			}
 		});
+		searchBar.evtOpenSearchHelp.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				showSearchHelp();
+			}
+		});
 
 		// Optionally let the folder view follow the selected result
 		resultPanel.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
@@ -2518,7 +2523,16 @@ public final class Application {
 	}
 
 	private static void showManual() {
-		File file = ManualLocator.getManualFile();
+		showHelpPage(ManualLocator.getStartPage());
+	}
+
+	/** Shows the search help (query syntax) next to the results. */
+	private static void showSearchHelp() {
+		File file = ManualLocator.getManualSubpageFile("Query_Syntax.html");
+		showHelpPage(file != null && file.isFile() ? file : ManualLocator.getStartPage());
+	}
+
+	private static void showHelpPage(@Nullable File file) {
 		if (file != null) {
 			if (previewPanel.setHtmlFile(file))
 				twoPanelForm.setSecondSubControlVisible(true);

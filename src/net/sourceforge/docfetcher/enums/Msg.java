@@ -1212,6 +1212,8 @@ public enum Msg {
 	search_settings_bt ("Search Settings...",
 		"Label of the button next to the 'Search' button that opens the " +
 		"search settings dialog."),
+	search_help ("Search help: how to search (like Google: all words, -word excludes, \"exact phrase\", OR)",
+		"Tooltip of the '?' button next to the search field; it opens the page about the query syntax."),
 	
 	// Rich document preview
 	preview_render_failed (

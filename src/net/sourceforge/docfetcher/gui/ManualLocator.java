@@ -57,6 +57,18 @@ public final class ManualLocator {
 		return htmlFiles[0];
 	}
 	
+	/**
+	 * Returns the page shown at startup and by the help button: the quick
+	 * start guide, or the full manual in languages that have no guide.
+	 */
+	@Nullable
+	public static File getStartPage() {
+		File quickStart = getManualSubpageFile("Quick_Start.html");
+		if (quickStart != null && quickStart.isFile())
+			return quickStart;
+		return getManualFile();
+	}
+	
 	@Nullable
 	public static File getManualSubpageFile(@NotNull String htmlFilename) {
 		File manFile = getManualFile();

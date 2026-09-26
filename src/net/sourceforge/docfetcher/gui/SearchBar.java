@@ -47,11 +47,13 @@ public final class SearchBar {
 	public final Event<String> evtSearch = new Event<String>();
 	public final Event<String> evtSearchTypeAhead = new Event<String>();
 	public final Event<Void> evtOpenSearchSettings = new Event<Void>();
+	public final Event<Void> evtOpenSearchHelp = new Event<Void>();
 
 	private final Composite comp;
 	private final Combo searchBox;
 	private final Button searchBt;
 	private final Button searchSettingsBt;
+	private final Button helpBt;
 	private final MemoryList<String> searchHistory;
 
 	public SearchBar(@NotNull Composite parent) {
@@ -114,11 +116,22 @@ public final class SearchBar {
 			}
 		});
 
+		// Opens the search help (query syntax) in the preview pane
+		helpBt = new Button(comp, SWT.PUSH);
+		helpBt.setText("?");
+		helpBt.setToolTipText(Msg.search_help.get());
+		helpBt.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				evtOpenSearchHelp.fire(null);
+			}
+		});
+
 		// Make the search box smaller when there's not enough space left
 		comp.addControlListener(new ControlAdapter() {
 			public void controlResized(ControlEvent e) {
 				Point searchBoxSize = computeSize(searchBox);
 				Point searchBtSize = computeSize(searchBt);
+				Point helpBtSize = computeSize(helpBt);
 				/*
 				 * In a narrow pane (e.g. with three panes), the settings button
 				 * gets a short label rather than leaving no room for the search
@@ -128,7 +141,7 @@ public final class SearchBar {
 				searchSettingsBt.setText(Msg.search_settings_bt.get());
 				Point fullSettingsSize = computeSize(searchSettingsBt);
 				int room = comp.getClientArea().width - MARGIN * 2 - searchBtSize.x
-					- fullSettingsSize.x - SPACING * 2;
+					- fullSettingsSize.x - helpBtSize.x - SPACING * 3;
 				if (room < minBoxWidth)
 					searchSettingsBt.setText("...");
 				Point settingsBtSize = computeSize(searchSettingsBt);
@@ -140,6 +153,7 @@ public final class SearchBar {
 				int spaceLeft = caWidth - MARGIN * 2;
 				spaceLeft -= searchBtSize.x;
 				spaceLeft -= settingsBtSize.x + SPACING;
+				spaceLeft -= helpBtSize.x + SPACING;
 
 				int searchBoxMaxWidth = ProgramConf.Int.SearchBoxMaxWidth.get();
 				int searchBoxWidth = Util.clamp(spaceLeft, Math.min(minBoxWidth, searchBoxMaxWidth), searchBoxMaxWidth);
@@ -150,6 +164,9 @@ public final class SearchBar {
 
 				int settingsBtX = searchBtX + searchBtSize.x + SPACING;
 				setBounds(searchSettingsBt, settingsBtX, settingsBtSize.x, caHeight, settingsBtSize.y);
+
+				int helpBtX = settingsBtX + settingsBtSize.x + SPACING;
+				setBounds(helpBt, helpBtX, helpBtSize.x, caHeight, helpBtSize.y);
 			}
 		});
 	}
@@ -169,12 +186,14 @@ public final class SearchBar {
 		Point searchBoxSize = computeSize(searchBox);
 		Point searchBtSize = computeSize(searchBt);
 		Point settingsBtSize = computeSize(searchSettingsBt);
+		Point helpBtSize = computeSize(helpBt);
 
 		int width = 0;
 		width += searchBoxSize.x;
 		width += searchBtSize.x;
 		width += settingsBtSize.x;
-		width += MARGIN * 2 + SPACING * 2;
+		width += helpBtSize.x;
+		width += MARGIN * 2 + SPACING * 3;
 
 		int height = Math.max(searchBoxSize.y, searchBtSize.y);
 		height = Math.max(height, settingsBtSize.y);
