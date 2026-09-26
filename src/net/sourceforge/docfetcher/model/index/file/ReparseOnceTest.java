@@ -27,10 +27,11 @@ import net.sourceforge.docfetcher.model.Cancelable;
 import net.sourceforge.docfetcher.model.search.SearchTestSupport;
 
 /**
- * Tests that an index with an older Excel text format parses its Excel files
- * again on the next update - only those, and only once - without a rebuild.
+ * Tests that an index with an older text format for Excel files or PDF forms
+ * parses those files again on the next update - only those, and only once -
+ * without a rebuild.
  */
-public final class ExcelReparseTest {
+public final class ReparseOnceTest {
 
 	/** Writes a workbook with one cell; keeps the file's date if it exists. */
 	private static void writeXlsx(File file, String word) throws Exception {
@@ -66,6 +67,74 @@ public final class ExcelReparseTest {
 		FileIndex index = (FileIndex) support.registry.getIndexes().get(0);
 		index.update(new IndexingReporter(), Cancelable.nullCancelable);
 		support.registry.getSearcher().replaceLuceneSearcher();
+	}
+
+	/** A PDF without form fields; keeps the file's date if it exists. */
+	private static void writePlainPdf(File file, String word) throws Exception {
+		long lastModified = file.exists() ? file.lastModified() : 0;
+		org.apache.pdfbox.pdmodel.PDDocument pdf = new org.apache.pdfbox.pdmodel.PDDocument();
+		try {
+			org.apache.pdfbox.pdmodel.PDPage page = new org.apache.pdfbox.pdmodel.PDPage();
+			pdf.addPage(page);
+			org.apache.pdfbox.pdmodel.PDPageContentStream content =
+				new org.apache.pdfbox.pdmodel.PDPageContentStream(pdf, page);
+			content.beginText();
+			content.setFont(org.apache.pdfbox.pdmodel.font.PDType1Font.HELVETICA, 12);
+			content.newLineAtOffset(72, 700);
+			content.showText(word);
+			content.endText();
+			content.close();
+			pdf.save(file);
+		}
+		finally {
+			pdf.close();
+		}
+		if (lastModified > 0)
+			assertTrue(file.setLastModified(lastModified));
+	}
+
+	private static void writeForm(File file, String rent) throws Exception {
+		long lastModified = file.exists() ? file.lastModified() : 0;
+		net.sourceforge.docfetcher.model.parse.PdfFormsTest.writeForm(file, rent);
+		if (lastModified > 0)
+			assertTrue(file.setLastModified(lastModified));
+	}
+
+	@Test
+	public void outdatedIndexesParseOnlyTheirPdfFormsOnce() throws Exception {
+		SearchTestSupport support = new SearchTestSupport("note.txt", "alpha");
+		try {
+			File contract = new File(support.root, "contract.pdf");
+			File letter = new File(support.root, "letter.pdf");
+			writeForm(contract, "850,00 EUR");
+			writePlainPdf(letter, "firstletter");
+			update(support);
+			assertEquals("[contract.pdf]", support.search("850,00").toString());
+
+			// New contents, same dates: a normal update sees no change
+			writeForm(contract, "912,34 EUR");
+			writePlainPdf(letter, "secondletter");
+			update(support);
+			assertEquals("[]", support.search("912,34").toString());
+
+			// Older form text: only PDFs with filled forms are parsed again
+			TreeIndex<?, ?> index = (TreeIndex<?, ?>) support.registry.getIndexes().get(0);
+			Field field = TreeIndex.class.getDeclaredField("pdfFormsVersion");
+			field.setAccessible(true);
+			field.setInt(index, 0);
+			update(support);
+			assertEquals("[contract.pdf]", support.search("912,34").toString());
+			assertEquals("PDFs without forms are not read again", "[]", support.search("secondletter").toString());
+			assertFalse(index.isPdfFormsOutdated());
+
+			// Only once
+			writeForm(contract, "777,77 EUR");
+			update(support);
+			assertEquals("[]", support.search("777,77").toString());
+		}
+		finally {
+			support.dispose();
+		}
 	}
 
 	@Test

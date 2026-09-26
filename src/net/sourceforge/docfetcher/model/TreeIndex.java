@@ -19,6 +19,7 @@ import net.sourceforge.docfetcher.model.index.IndexingConfig;
 import net.sourceforge.docfetcher.model.index.IndexingReporter;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.model.parse.ExcelText;
+import net.sourceforge.docfetcher.model.parse.PdfForms;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.annotations.ImmutableCopy;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
@@ -70,7 +71,14 @@ public abstract class TreeIndex <
 	 * files are parsed again on the next update, and only those.
 	 */
 	private int excelTextVersion = ExcelText.VERSION;
-	/** Time of the last successful update or creation, 0 if unknown (older indexes). */
+
+	/**
+	 * Version of the PDF form text in the index (see PdfForms.VERSION); 0 in
+	 * older indexes, whose PDF files with filled form fields are then parsed
+	 * again on the next update, and only those.
+	 */
+	private int pdfFormsVersion = PdfForms.VERSION;
+/** Time of the last successful update or creation, 0 if unknown (older indexes). */
 	private long lastUpdated = 0;
 	@Nullable private final Path fileIndexDirPath;
 	@Nullable private transient RAMDirectory ramIndexDir;
@@ -135,7 +143,17 @@ public abstract class TreeIndex <
 	public final void setExcelTextCurrent() {
 		excelTextVersion = ExcelText.VERSION;
 	}
-	
+
+	/** Returns true if the PDF files with form fields must be parsed again. */
+	public final boolean isPdfFormsOutdated() {
+		return pdfFormsVersion < PdfForms.VERSION;
+	}
+
+	/** To be called after all PDF files with form fields were parsed again. */
+	public final void setPdfFormsCurrent() {
+		pdfFormsVersion = PdfForms.VERSION;
+	}
+
 	@NotNull
 	public final File getCanonicalRootFile() {
 		return rootFolder.getPath().getCanonicalFile();
@@ -250,6 +268,7 @@ public abstract class TreeIndex <
 		if (!removeTopLevel) {
 			formatVersion = CURRENT_FORMAT_VERSION;
 			excelTextVersion = ExcelText.VERSION;
+			pdfFormsVersion = PdfForms.VERSION;
 		}
 		if (fileIndexDirPath != null) {
 			File fileIndexDir = getIndexDirPath().getCanonicalFile();

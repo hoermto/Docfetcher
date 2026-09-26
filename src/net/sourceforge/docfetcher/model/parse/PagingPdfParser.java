@@ -55,6 +55,10 @@ public final class PagingPdfParser {
 				stripper.setSortByPosition(true);
 			}
 			stripper.writeText(doc, writer);
+			// Values of filled form fields as an extra page at the end
+			String formText = PdfForms.text(doc);
+			if (!formText.isEmpty())
+				handler.handlePage(formText);
 		}
 		catch (Exception e) {
 			if (e instanceof ParseException) {
