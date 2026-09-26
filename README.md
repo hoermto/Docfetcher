@@ -40,7 +40,8 @@ Everything is undoable (`Ctrl+Z`), removed files go to the recycle bin, and docu
 - MCP server (Model Context Protocol, Streamable HTTP on `http://localhost:28835/mcp`) with the read-only tools
   `search`, `read_document` and `list_folder`; e.g. `claude mcp add --transport http docfetcher http://localhost:28835/mcp`
   (the preferences show how to connect Claude). Large result sets come newest first with an overview (time range,
-  counts per year/month, top folders, significant words) that helps the assistant to narrow the search.
+  counts per year/month, top folders, characteristic words of the texts and names with their share of documents)
+  that helps the assistant to narrow the search by adding or excluding words.
 - Portable version (settings and indexes next to the program) and installed version.
 - User interface in several languages; manual in English and German for the features of this version.
 

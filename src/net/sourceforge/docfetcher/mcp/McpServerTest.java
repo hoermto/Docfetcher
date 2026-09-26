@@ -172,9 +172,15 @@ public final class McpServerTest {
 		assertTrue(Json.write(folders), ((String) ((Map<String, Object>) folders.get(0)).get("path")).endsWith("Posteingang"));
 		assertEquals(3L, ((Map<String, Object>) folders.get(0)).get("count"));
 		assertFalse("Same path format as the results", ((String) ((Map<String, Object>) folders.get(0)).get("path")).contains("\\"));
-		String words = Json.write(overview.get("significant_words"));
+		String words = Json.write(overview.get("name_words"));
 		assertTrue(words, words.contains("finanzamt (2)"));
 		assertFalse("Query words are no hints", words.contains("bonn"));
+		// Words of the texts, with the share of the sampled documents containing them
+		assertEquals(4L, overview.get("sampled_documents"));
+		String content = Json.write(overview.get("content_words"));
+		assertTrue(content, content.contains("renate (2/4)"));
+		assertTrue(content, content.contains("januar (3/4)"));
+		assertFalse(content, content.contains("bonn"));
 		assertTrue((String) overview.get("hint"), ((String) overview.get("hint")).startsWith("4 documents found"));
 
 		// Everything returned: no overview

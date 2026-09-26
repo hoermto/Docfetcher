@@ -50,6 +50,10 @@ final class McpTools {
 	private static final int OVERVIEW_FOLDERS = 10;
 	private static final int OVERVIEW_WORDS = 15;
 	private static final int OVERVIEW_PERIODS = 24;
+	/** Content words: the text of at most this many documents is read, within the time limit. */
+	private static final int SAMPLE_SIZE = 20;
+	private static final long SAMPLE_MILLIS = 5000;
+	private static final int SAMPLE_CHARS_PER_DOC = 20000;
 
 	/** Words that say nothing about the content of a document, in file and folder names. */
 	private static final java.util.Set<String> NOISE_WORDS = new java.util.HashSet<String>(Arrays.asList(
@@ -87,8 +91,9 @@ final class McpTools {
 			+ "questions use sort=newest; for a period use modified_after/modified_before. Words "
 			+ "also match file and folder names ('Rosenweg' finds documents in the folder "
 			+ "'Rosenweg 12'). If more documents are found than returned, the newest come first "
-			+ "and an overview (time range, counts per year or month, top folders, significant "
-			+ "words) helps to narrow the search.",
+			+ "and an overview (time range, counts per year or month, top folders, characteristic "
+			+ "words of the texts and names with the share of documents containing them) helps to "
+			+ "narrow the search by adding or excluding (-word) words.",
 			props(
 				"query", prop("string", "The search words, e.g. 'Steuer Januar' or '\"Rosenweg 5\" Miete'"),
 				"max_results", prop("integer", "Maximum number of documents (default 20, at most 100)"),
@@ -223,7 +228,7 @@ final class McpTools {
 		result.put("total_found", docs.size());
 		result.put("returned", results.size());
 		if (tooMany)
-			result.put("overview", overview(docs, query, results.size(), sort));
+			result.put("overview", overview(docs, query, results.size(), sort, contentWords(docs, query)));
 		result.put("results", results);
 		return result;
 	}
@@ -236,7 +241,7 @@ final class McpTools {
 	 */
 	@NotNull
 	private static Map<String, Object> overview(@NotNull List<ResultDocument> docs, @NotNull String query,
-			int returned, @Nullable String sort) {
+			int returned, @Nullable String sort, @NotNull Map<String, Object> contentWords) {
 		Date oldest = null;
 		Date newest = null;
 		for (ResultDocument doc : docs) {
@@ -298,14 +303,89 @@ final class McpTools {
 		}
 		overview.put(perYear ? "by_year" : "by_month", periodCounts);
 		overview.put("top_folders", topFolders);
-		overview.put("significant_words", significant);
+		overview.put("name_words", significant);
+		overview.putAll(contentWords);
 		String order = "oldest".equals(sort) ? "oldest" : "newest".equals(sort) ? "newest" : "best matching";
 		overview.put("hint", docs.size() + " documents found"
 			+ (oldest != null ? " (" + format(oldest).substring(0, 10) + " to " + format(newest).substring(0, 10) + ")" : "")
-			+ ", only the " + returned + " " + order + " are listed. To narrow the search, add more specific "
-			+ "words (see significant_words), a period (modified_after/modified_before, see "
+			+ ", only the " + returned + " " + order + " are listed. To narrow the search, add a word "
+			+ "(see content_words and name_words, with the share of documents containing it) or exclude "
+			+ "one with -word, add a period (modified_after/modified_before, see "
 			+ (perYear ? "by_year" : "by_month") + ") or a folder (see top_folders).");
 		return overview;
+	}
+
+	/**
+	 * The words that characterize the found documents: the text of a sample
+	 * of them (spread over the whole result list, within a time limit) is
+	 * read, and its words that are frequent there but rare in the other
+	 * indexed documents (TF-IDF) are returned with the number of sampled
+	 * documents containing them - words in some of the documents help to
+	 * narrow the search by adding or excluding them. Returns
+	 * {"content_words": [...], "sampled_documents": n}, or nothing if too
+	 * few documents could be read.
+	 */
+	@NotNull
+	private Map<String, Object> contentWords(@NotNull List<ResultDocument> docs, @NotNull String query) {
+		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		long deadline = System.currentTimeMillis() + SAMPLE_MILLIS;
+		int sampleSize = Math.min(SAMPLE_SIZE, docs.size());
+		List<java.util.Set<String>> texts = new ArrayList<java.util.Set<String>>(); // The words of each document
+		StringBuilder combined = new StringBuilder();
+		for (int i = 0; i < sampleSize && System.currentTimeMillis() < deadline; i++) {
+			ResultDocument doc = docs.get((int) ((long) i * docs.size() / sampleSize));
+			if (doc.isEmail())
+				continue;
+			try {
+				String text = doc.getText();
+				if (text.length() > SAMPLE_CHARS_PER_DOC)
+					text = text.substring(0, SAMPLE_CHARS_PER_DOC);
+				text = text.toLowerCase(java.util.Locale.ROOT);
+				texts.add(wordsOf(text));
+				combined.append(text).append('\n');
+			}
+			catch (Throwable e) {
+				// Unreadable or moved since indexing: leave it out
+			}
+		}
+		if (texts.size() < 2)
+			return result;
+		List<String> candidates;
+		try {
+			candidates = registry.getSearcher().extractKeywords(combined.toString(), 100);
+		}
+		catch (Exception e) {
+			return result;
+		}
+		java.util.Set<String> queryWords = new java.util.HashSet<String>();
+		for (String word : wordsOf(query))
+			queryWords.add(plain(word));
+		List<String> words = new ArrayList<String>();
+		for (String candidate : candidates) {
+			if (words.size() >= OVERVIEW_WORDS)
+				break;
+			if (!wordsOf(candidate).contains(candidate) || candidate.matches(".*\\d.*")
+					|| NOISE_WORDS.contains(candidate) || queryWords.contains(plain(candidate)))
+				continue; // Numbers, codes and OCR noise, short words, noise words, the query itself
+			int count = 0;
+			for (java.util.Set<String> docWords : texts)
+				if (docWords.contains(candidate))
+					count++;
+			// Words in one document or in all of them don't split the results
+			if (count < 2 || (texts.size() >= 5 && count == texts.size()))
+				continue;
+			words.add(candidate + " (" + count + "/" + texts.size() + ")");
+		}
+		result.put("content_words", words);
+		result.put("sampled_documents", texts.size());
+		return result;
+	}
+
+	/** The word without umlauts and accents, for comparing it with the query words. */
+	@NotNull
+	private static String plain(@NotNull String word) {
+		String decomposed = java.text.Normalizer.normalize(word.replace("ß", "ss"), java.text.Normalizer.Form.NFD);
+		return decomposed.replaceAll("\\p{M}", "");
 	}
 
 	/** The lower case words of a text with at least 3 characters and a letter. */
