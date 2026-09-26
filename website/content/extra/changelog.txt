@@ -4,6 +4,9 @@
   * The tolerant search (umlauts, OCR errors) works at search time now: each word of a query is expanded to the variants the index contains ('Muller' to 'Muller' or 'Müller'). The indexes stay as they are, and DocFetcher no longer asks to rebuild them for it - a rebuild reads every document again. Indexing never writes documents that contain text (checked by a new test); only scans without text get their recognized text once, if 'Store the recognized text in the files' is on.
 
 === Features ===
+  * Search like Google: all words must occur (existing settings switch from OR to AND once), '-word' excludes, '+word' requires, "..." searches exactly (without the tolerant variants), OR allows alternatives; characters like ':', '/', '+' or parentheses in words no longer cause errors. Excluded words also exclude documents by their file name.
+  * A '?' button next to the search field opens the search help with a quick reference.
+  * A short quick start guide for this version is shown at startup and by the help button, instead of the full manual (which it links to).
   * One, two or three panes next to the document view (toolbar buttons, View menu, F3 switches in turn): one pane shows only the tabs; two panes add the folder panel (as before); three panes show the inbox and search tabs, then the Folders browser and the folder panel side by side, synced. A click on a document in the search results or an inbox shows it in the folder panel, the browser before it follows to the parent folder.
 
 ==== 2026-09-25 - DocFetcher 2.7 ====
