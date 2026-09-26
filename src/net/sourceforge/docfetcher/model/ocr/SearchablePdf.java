@@ -13,7 +13,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.FileTime;
 import java.util.List;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -125,14 +124,14 @@ public final class SearchablePdf {
 	/**
 	 * Recognizes the text of all pages of the given PDF file and writes it
 	 * back into the file as an invisible text layer, keeping the file's
-	 * modification time. Returns false if the file was left unchanged (it
+	 * dates (created, modified, accessed). Returns false if the file was left unchanged (it
 	 * already has text, is encrypted, or recognition was cancelled).
 	 */
 	public static boolean ocr(	@NotNull File pdfFile,
 								@NotNull OcrEngine engine,
 								@NotNull Cancelable cancelable) throws IOException {
 		Util.checkNotNull(pdfFile, engine, cancelable);
-		long lastModified = pdfFile.lastModified();
+		FileDates dates = FileDates.of(pdfFile); // All dates stay as they are
 		File temp = new File(pdfFile.getParentFile(), pdfFile.getName() + OwnFileChanges.TEMP_SUFFIX);
 		try {
 			PDDocument doc = PDDocument.load(pdfFile);
@@ -165,8 +164,8 @@ public final class SearchablePdf {
 			OwnFileChanges.begin(pdfFile);
 			try {
 				Files.move(temp.toPath(), pdfFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-				if (lastModified > 0)
-					Files.setLastModifiedTime(pdfFile.toPath(), FileTime.fromMillis(lastModified));
+				if (dates != null)
+					dates.applyTo(pdfFile);
 			}
 			finally {
 				OwnFileChanges.end(pdfFile);
@@ -183,7 +182,7 @@ public final class SearchablePdf {
 	
 	/**
 	 * Converts the given TIFF file into a PDF with a text layer, next to the
-	 * TIFF file and with its modification time. Returns the PDF file, or null
+	 * TIFF file and with its dates. Returns the PDF file, or null
 	 * if the target file exists already or the conversion was cancelled.
 	 * After a successful conversion the TIFF file is deleted, or, with
 	 * {@code keepOriginal}, renamed by appending {@link #CONVERTED_SUFFIX}.
@@ -198,7 +197,7 @@ public final class SearchablePdf {
 			Util.splitFilename(tiffFile.getName())[0] + ".pdf");
 		if (pdfFile.exists())
 			return null;
-		long lastModified = tiffFile.lastModified();
+		FileDates dates = FileDates.of(tiffFile); // The PDF gets the dates of the TIFF file
 		File temp = new File(pdfFile.getParentFile(), pdfFile.getName() + OwnFileChanges.TEMP_SUFFIX);
 		PDDocument doc = new PDDocument();
 		boolean success = false;
@@ -239,8 +238,8 @@ public final class SearchablePdf {
 		OwnFileChanges.begin(pdfFile);
 		try {
 			Files.move(temp.toPath(), pdfFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-			if (lastModified > 0)
-				Files.setLastModifiedTime(pdfFile.toPath(), FileTime.fromMillis(lastModified));
+			if (dates != null)
+				dates.applyTo(pdfFile);
 		}
 		finally {
 			OwnFileChanges.end(pdfFile);
