@@ -21,6 +21,11 @@
 ## changes
 [] add support for encrypted containers like cryptomator (follow you 1a) 1b) suggestions)
 ## features/stories
+[] v2.9: dialog options with 'remember': allow to change / reset them
+  - answer: preferences get each remembered answer (remove originals: exists; ask to rebuild outdated indexes: new) and a 'Reset all remembered answers' button (also brings back one-time hints)
+[] v2.9: MCP server (HTTP), enabled in the settings: access to the indexes, returns document paths and content
+  - sample questions: 'I am Renate: what letters did arrive latest regarding tax for Jan?', 'what rent does my client in Rosenweg have?'
+  - answers: localhost only, off by default, port in the preferences; read only (search, read_document, list_folder, list_indexes; only files inside the indexes); read_document returns up to 20,000 characters per call, paged
 [] any ideas about document encryption?
   Analysis (v2.7, answer: encrypted folder + protect the index, write-up only for now):
   - What leaks today: the documents themselves, and in the app data folder the index (full text of every
