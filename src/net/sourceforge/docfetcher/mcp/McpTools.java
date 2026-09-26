@@ -22,6 +22,7 @@ import java.util.Map;
 
 import net.sourceforge.docfetcher.gui.FolderPanel;
 import net.sourceforge.docfetcher.model.IndexRegistry;
+import net.sourceforge.docfetcher.model.parse.PdfVisualText;
 import net.sourceforge.docfetcher.model.search.HighlightedString;
 import net.sourceforge.docfetcher.model.search.Range;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
@@ -110,7 +111,11 @@ final class McpTools {
 				"path", prop("string", "Absolute path of the document, as returned by search or list_folder"),
 				"offset", prop("integer", "Character offset to start at (default 0)"),
 				"max_chars", prop("integer", "Maximum number of characters (default " + DEFAULT_MAX_CHARS
-					+ ", at most " + MAX_CHARS_LIMIT + ")")),
+					+ ", at most " + MAX_CHARS_LIMIT + ")"),
+				"order", enumProp("PDF files only: 'visual' (default) gives the text line by line as it "
+					+ "appears on the page, which keeps labels and values of forms and tables together "
+					+ "('Grundmiete 620,00 Euro'); 'stream' gives the order in which the text was drawn - "
+					+ "use it if columns of a multi-column page appear mixed", "visual", "stream")),
 			"path"));
 		tools.add(tool("list_folder",
 			"Lists a folder: subfolders first, then the files, newest first, with dates. Without a "
@@ -486,9 +491,13 @@ final class McpTools {
 		int maxChars = Util.clamp(integer(args, "max_chars", DEFAULT_MAX_CHARS), 1, MAX_CHARS_LIMIT);
 
 		ResultDocument doc = findDocument(file);
-		String text;
+		String text = null;
+		// PDF files in visual order, unless asked otherwise (see the tool description)
+		if (!"stream".equals(string(args, "order")) && file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf"))
+			text = PdfVisualText.of(file);
 		try {
-			text = doc.getText();
+			if (text == null)
+				text = doc.getText(); // Also recognizes scans whose text wasn't stored
 		}
 		catch (Throwable e) {
 			throw new ToolException("The text of the document could not be read: " + e.getMessage());

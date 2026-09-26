@@ -202,6 +202,52 @@ public final class McpServerTest {
 		assertTrue(text(content, 1), text(content, 1).contains("Kaltmiete beträgt 850,00 EUR"));
 	}
 
+	/**
+	 * Like generated contract forms: the printed form (labels) is drawn
+	 * first, the filled in values afterwards, on the same lines.
+	 */
+	private static void writeGeneratedForm(File file) throws Exception {
+		org.apache.pdfbox.pdmodel.PDDocument pdf = new org.apache.pdfbox.pdmodel.PDDocument();
+		try {
+			org.apache.pdfbox.pdmodel.PDPage page = new org.apache.pdfbox.pdmodel.PDPage();
+			pdf.addPage(page);
+			org.apache.pdfbox.pdmodel.PDPageContentStream content = new org.apache.pdfbox.pdmodel.PDPageContentStream(pdf, page);
+			String[][] lines = { { "Grundmiete", "620,00 Euro" }, { "Betriebskostenvorauszahlung", "70,00 Euro" },
+				{ "Gesamtbetrag", "790,00 Euro" } };
+			for (int pass = 0; pass < 2; pass++) {
+				for (int i = 0; i < lines.length; i++) {
+					content.beginText();
+					content.setFont(org.apache.pdfbox.pdmodel.font.PDType1Font.HELVETICA, 12);
+					content.newLineAtOffset(pass == 0 ? 72 : 300, 700 - i * 20);
+					content.showText(lines[i][pass]);
+					content.endText();
+				}
+			}
+			content.close();
+			pdf.save(file);
+		}
+		finally {
+			pdf.close();
+		}
+	}
+
+	@Test
+	public void pdfsAreReadInVisualOrder() throws Exception {
+		File file = new File(support.root, "Mieter/vertrag-generiert.pdf");
+		writeGeneratedForm(file);
+		try {
+			String visual = text(call("read_document", "{\"path\":" + Json.write(file.getPath()) + "}", false), 1);
+			assertTrue(visual, visual.contains("Grundmiete 620,00 Euro"));
+			assertTrue(visual, visual.contains("Gesamtbetrag 790,00 Euro"));
+			String stream = text(call("read_document", "{\"path\":" + Json.write(file.getPath()) + ",\"order\":\"stream\"}", false), 1);
+			assertTrue(stream, stream.contains("620,00 Euro"));
+			assertFalse("Drawing order separates labels and values: " + stream, stream.contains("Grundmiete 620,00"));
+		}
+		finally {
+			file.delete();
+		}
+	}
+
 	@Test
 	public void longDocumentsComeInParts() {
 		String path = new File(support.root, "Mieter/lang.txt").getPath();
