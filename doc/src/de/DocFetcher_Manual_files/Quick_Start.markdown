@@ -33,7 +33,7 @@ Alles lässt sich mit `Strg+Z` rückgängig machen; entfernte Dateien landen im 
 
 4. Ordner durchblättern
 -----------------------
-Die Buttons mit den Spalten in der Symbolleiste wählen ein, zwei oder drei Fenster neben der Dokumentansicht (`F3` wechselt): nur die Reiter, die Reiter und einen Ordner-Browser, oder zwei Ordner-Browser nebeneinander zum Einsortieren von Dokumenten. Mit dem Synchronisieren-Button bewegen sich die Browser gemeinsam, und ein Klick auf ein Suchergebnis oder ein Postbox-Dokument zeigt es in seinem Ordner. `F5` springt zur Postbox (erneut: zur nächsten), `F6` ins Suchfeld, `F7` in den Ordner-Browser.
+Die Buttons mit den Spalten in der Symbolleiste wählen ein, zwei oder drei Fenster neben der Dokumentansicht (`F3` wechselt): nur die Reiter, die Reiter und einen Ordner-Browser, oder zwei Ordner-Browser nebeneinander zum Einsortieren von Dokumenten. Mit dem Synchronisieren-Button bewegen sich die Browser gemeinsam, und ein Klick auf ein Suchergebnis zeigt es in seinem Ordner. `F7` springt ins Suchfeld, `F8` zur Postbox (erneut: zur nächsten), `F5` in den Ordner-Browser.
 
 5. Gut zu wissen
 ----------------

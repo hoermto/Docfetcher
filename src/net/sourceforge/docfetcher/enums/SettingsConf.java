@@ -278,9 +278,9 @@ FolderSortAscending (false), // Sort order of the folder view
 		Hotkey (SWT.CTRL, SWT.F8),
 
 		// Keys of the main window (state mask, key code), set in the preferences
-		KeyInbox (SWT.NONE, SWT.F5), // The inbox tabs; pressed again: the next inbox
-		KeySearch (SWT.NONE, SWT.F6), // The search field on the Search tab
-		KeyFolders (SWT.NONE, SWT.F7), // The folder browser (Folders tab or middle pane)
+		SearchKey (SWT.NONE, SWT.F7), // The search field on the Search tab
+		InboxKey (SWT.NONE, SWT.F8), // The inbox tabs; pressed again: the next inbox
+		FoldersKey (SWT.NONE, SWT.F5), // The folder browser (Folders tab or middle pane)
 
 		FilterSash (1, 1),
 		RightSashHorizontal (1, 1),

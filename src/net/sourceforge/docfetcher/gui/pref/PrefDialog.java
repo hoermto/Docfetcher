@@ -287,9 +287,9 @@ new CheckOption(
 			fieldOptions.add(new HotkeyOption(Msg.pref_hotkey.get()));
 		}
 		// Keys of the main window
-		fieldOptions.add(new HotkeyOption(Msg.pref_key_inbox.get(), SettingsConf.IntArray.KeyInbox, true));
-		fieldOptions.add(new HotkeyOption(Msg.pref_key_search.get(), SettingsConf.IntArray.KeySearch, true));
-		fieldOptions.add(new HotkeyOption(Msg.pref_key_folders.get(), SettingsConf.IntArray.KeyFolders, true));
+		fieldOptions.add(new HotkeyOption(Msg.pref_key_inbox.get(), SettingsConf.IntArray.InboxKey, true));
+		fieldOptions.add(new HotkeyOption(Msg.pref_key_search.get(), SettingsConf.IntArray.SearchKey, true));
+		fieldOptions.add(new HotkeyOption(Msg.pref_key_folders.get(), SettingsConf.IntArray.FoldersKey, true));
 
 		new ConfigComposite(shell, SWT.H_SCROLL | SWT.V_SCROLL) {
 			protected Control createContents(Composite parent) {

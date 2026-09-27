@@ -32,7 +32,7 @@ Hervorhebungsfarbe  |  Die Farbe, die im Vorschau-Fenster zur Hervorhebung von F
 Schriftart für Vorschau (normal)  |  Die Schriftart, die im Vorschau-Fenster für alle Dateien außer Textdateien verwendet werden soll.
 Schriftart für Vorschau (fixe Breite)  |  Die Schriftart, die im Vorschau-Fenster für Textdateien verwendet werden soll. Sie müssen hier nicht unbedingt eine Schriftart mit fixer Breite einstellen, wobei dies jedoch in der Regel Sinn macht.
 Schnellzugriffstaste  |  Mit dieser Tastenkombination können Sie das DocFetcher-Programmfenster nach oben befördern, nachdem es den Fokus an andere Programme verloren hat.
-Taste für die Postbox-Reiter / das Suchfeld / den Ordner-Browser  |  Tasten im Programmfenster: Sie zeigen die Postbox-Reiter (erneut gedrückt: die nächste Postbox), den Reiter `Suche` mit dem Cursor im Suchfeld und den Ordner-Browser (den Reiter `Ordner` bzw. bei drei Fenstern das mittlere). Vorgabe sind `F5`, `F6` und `F7`; Funktionstasten funktionieren ohne `Strg`, `Alt` oder `Umschalt`.
+Taste für die Postbox-Reiter / das Suchfeld / den Ordner-Browser  |  Tasten im Programmfenster: Sie zeigen die Postbox-Reiter (erneut gedrückt: die nächste Postbox), den Reiter `Suche` mit dem Cursor im Suchfeld und den Ordner-Browser (den Reiter `Ordner` bzw. bei drei Fenstern das mittlere). Vorgabe sind `F8`, `F7` und `F5`, angezeigt in den Reiter-Titeln; Funktionstasten funktionieren ohne `Strg`, `Alt` oder `Umschalt`.
 
 Reiter „Indizes“
 ----------------

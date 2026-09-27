@@ -32,7 +32,7 @@ Highlight color  |  The color to use for highlighting matches in the preview pan
 Preview font (normal)  |  The font to use in the text preview; applies to all document formats except plain text files.
 Preview font (fixed width)  |  The font to use for the text preview; applies only to plain text files. You are not required to pick a fixed-width font here, although it's usually a sensible choice.
 Global hotkey  |  The keyboard shortcut specified here can be used to move the DocFetcher window to the top after it has lost focus.
-Key for the inbox tabs / the search field / the folder browser  |  Keys inside the program window: they show the inbox tabs (pressed again: the next inbox), the `Search` tab with the cursor in the search field, and the folder browser (the `Folders` tab, or the middle pane with three panes). Defaults are `F5`, `F6` and `F7`; function keys work without `Ctrl`, `Alt` or `Shift`.
+Key for the inbox tabs / the search field / the folder browser  |  Keys inside the program window: they show the inbox tabs (pressed again: the next inbox), the `Search` tab with the cursor in the search field, and the folder browser (the `Folders` tab, or the middle pane with three panes). Defaults are `F8`, `F7` and `F5`, shown in the tab titles; function keys work without `Ctrl`, `Alt` or `Shift`.
 
 Indexes tab
 -----------

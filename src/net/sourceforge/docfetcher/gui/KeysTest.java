@@ -9,6 +9,7 @@
 package net.sourceforge.docfetcher.gui;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -19,35 +20,53 @@ import net.sourceforge.docfetcher.enums.SettingsConf;
 
 /**
  * Tests the keys of the main window that are set in the preferences: the
- * defaults F5 (inbox), F6 (search), F7 (folders), and matching key events.
+ * defaults F7 (search), F8 (inbox), F5 (folders), the tab titles with the key,
+ * and matching key events.
  */
 public final class KeysTest {
 
 	@Test
-	public void defaultsAreF5F6F7() {
-		assertArrayEquals(new int[] { SWT.NONE, SWT.F5 }, SettingsConf.IntArray.KeyInbox.defaultValue);
-		assertArrayEquals(new int[] { SWT.NONE, SWT.F6 }, SettingsConf.IntArray.KeySearch.defaultValue);
-		assertArrayEquals(new int[] { SWT.NONE, SWT.F7 }, SettingsConf.IntArray.KeyFolders.defaultValue);
+	public void defaults() {
+		assertArrayEquals(new int[] { SWT.NONE, SWT.F7 }, SettingsConf.IntArray.SearchKey.defaultValue);
+		assertArrayEquals(new int[] { SWT.NONE, SWT.F8 }, SettingsConf.IntArray.InboxKey.defaultValue);
+		assertArrayEquals(new int[] { SWT.NONE, SWT.F5 }, SettingsConf.IntArray.FoldersKey.defaultValue);
+	}
+
+	@Test
+	public void tabTitlesShowTheKey() {
+		int[] saved = SettingsConf.IntArray.SearchKey.get();
+		try {
+			SettingsConf.IntArray.SearchKey.set(new int[] { SWT.NONE, SWT.F7 });
+			assertEquals("Search (F7)", Application.withKey("Search", SettingsConf.IntArray.SearchKey));
+			SettingsConf.IntArray.SearchKey.set(new int[] { SWT.CTRL, SWT.F9 });
+			assertTrue(Application.withKey("Search", SettingsConf.IntArray.SearchKey).matches("Search \\(.+\\+ ?F9\\)"));
+			// No key, no parentheses
+			SettingsConf.IntArray.SearchKey.set(new int[] { SWT.NONE, 0 });
+			assertEquals("Search", Application.withKey("Search", SettingsConf.IntArray.SearchKey));
+		}
+		finally {
+			SettingsConf.IntArray.SearchKey.set(saved);
+		}
 	}
 
 	@Test
 	public void keyEventsMatchTheSetting() {
-		int[] saved = SettingsConf.IntArray.KeySearch.get();
+		int[] saved = SettingsConf.IntArray.SearchKey.get();
 		try {
-			SettingsConf.IntArray.KeySearch.set(new int[] { SWT.NONE, SWT.F6 });
-			assertTrue(Application.isKey(SettingsConf.IntArray.KeySearch, SWT.NONE, SWT.F6));
-			assertFalse("With Ctrl it's another key", Application.isKey(SettingsConf.IntArray.KeySearch, SWT.CTRL, SWT.F6));
-			assertFalse(Application.isKey(SettingsConf.IntArray.KeySearch, SWT.NONE, SWT.F7));
+			SettingsConf.IntArray.SearchKey.set(new int[] { SWT.NONE, SWT.F7 });
+			assertTrue(Application.isKey(SettingsConf.IntArray.SearchKey, SWT.NONE, SWT.F7));
+			assertFalse("With Ctrl it's another key", Application.isKey(SettingsConf.IntArray.SearchKey, SWT.CTRL, SWT.F7));
+			assertFalse(Application.isKey(SettingsConf.IntArray.SearchKey, SWT.NONE, SWT.F8));
 
 			// Letters are saved in upper case, key events come in lower case
-			SettingsConf.IntArray.KeySearch.set(new int[] { SWT.CTRL | SWT.SHIFT, 'S' });
-			assertTrue(Application.isKey(SettingsConf.IntArray.KeySearch, SWT.CTRL | SWT.SHIFT, 's'));
-			assertFalse(Application.isKey(SettingsConf.IntArray.KeySearch, SWT.CTRL, 's'));
+			SettingsConf.IntArray.SearchKey.set(new int[] { SWT.CTRL | SWT.SHIFT, 'S' });
+			assertTrue(Application.isKey(SettingsConf.IntArray.SearchKey, SWT.CTRL | SWT.SHIFT, 's'));
+			assertFalse(Application.isKey(SettingsConf.IntArray.SearchKey, SWT.CTRL, 's'));
 			// Mouse buttons in the state mask don't matter
-			assertTrue(Application.isKey(SettingsConf.IntArray.KeySearch, SWT.CTRL | SWT.SHIFT | SWT.BUTTON1, 's'));
+			assertTrue(Application.isKey(SettingsConf.IntArray.SearchKey, SWT.CTRL | SWT.SHIFT | SWT.BUTTON1, 's'));
 		}
 		finally {
-			SettingsConf.IntArray.KeySearch.set(saved);
+			SettingsConf.IntArray.SearchKey.set(saved);
 		}
 	}
 

@@ -723,8 +723,8 @@ public enum Msg {
 		"Global hotkey:",
 		Comments.prefOption + "The global hotkey to move the program window " +
 		"to the top."),
-	toolbar_sync ("Synchronize the folder browsers: a document selected in the search results or an inbox is shown in the rightmost folder browser, and the one on the left shows its parent folder",
-		"Tooltip of the toggle button in the toolbar that couples the folder browsers with each other and with the search results and inboxes."),
+	toolbar_sync ("Synchronize the folder browsers: a document selected in the search results is shown in the rightmost folder browser, and the one on the left shows its parent folder",
+		"Tooltip of the toggle button in the toolbar that couples the folder browsers with each other and with the search results."),
 	pref_key_inbox ("Key for the inbox tabs (again: next inbox):",
 		"Label of a key setting on the preferences window: the key shows the inbox tab; pressed again, the next inbox tab."),
 	pref_key_search ("Key for the search field:",

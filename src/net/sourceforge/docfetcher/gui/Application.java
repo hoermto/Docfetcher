@@ -643,13 +643,13 @@ private static SashForm folderSash;
 					undoFileOperation();
 				}
 				// Keys set in the preferences
-				else if (isKey(SettingsConf.IntArray.KeyInbox, m, k)) {
+				else if (isKey(SettingsConf.IntArray.InboxKey, m, k)) {
 					goToInbox();
 				}
-				else if (isKey(SettingsConf.IntArray.KeySearch, m, k)) {
+				else if (isKey(SettingsConf.IntArray.SearchKey, m, k)) {
 					goToSearch();
 				}
-				else if (isKey(SettingsConf.IntArray.KeyFolders, m, k)) {
+				else if (isKey(SettingsConf.IntArray.FoldersKey, m, k)) {
 					goToFolders();
 				}
 				else {
@@ -1408,7 +1408,17 @@ private static SashForm folderSash;
 		folderPanelHolder.setLayout(new FillLayout());
 		
 		searchTab = new TabItem(mainTabFolder, SWT.NONE);
-		searchTab.setText(Msg.search_tab.get());
+		// The tab titles show the keys of the preferences
+		Event.Listener<int[]> keyListener = new Event.Listener<int[]>() {
+			public void update(int[] eventData) {
+				if (!mainTabFolder.isDisposed())
+					updateTabTitles();
+			}
+		};
+		SettingsConf.IntArray.SearchKey.evtChanged.add(keyListener);
+		SettingsConf.IntArray.InboxKey.evtChanged.add(keyListener);
+		SettingsConf.IntArray.FoldersKey.evtChanged.add(keyListener);
+		searchTab.setText(withKey(Msg.search_tab.get(), SettingsConf.IntArray.SearchKey));
 		searchTab.setControl(createSearchPanel(mainTabFolder));
 		mainTabFolder.setSelection(searchTab);
 		mainTabFolder.addSelectionListener(new SelectionAdapter() {
@@ -1498,7 +1508,7 @@ private static SashForm folderSash;
 			if (foldersTab == null) {
 				moveFolderTabPanel(mainTabFolder);
 				foldersTab = new TabItem(mainTabFolder, SWT.NONE, inboxTabs.size());
-				foldersTab.setText(Msg.folders_tab.get());
+				foldersTab.setText(withKey(Msg.folders_tab.get(), SettingsConf.IntArray.FoldersKey));
 				foldersTab.setControl(folderTabPanel.getControl());
 			}
 			folderTabPanel.setShowLabel(false);
@@ -1724,14 +1734,12 @@ private static SashForm folderSash;
 											int index) {
 		InboxPanel inboxPanel = new InboxPanel(mainTabFolder, indexRegistry);
 		TabItem tab = new TabItem(mainTabFolder, SWT.NONE, index);
-		tab.setText(entry.getTabName());
+		tab.setText(withKey(entry.getTabName(), SettingsConf.IntArray.InboxKey));
 		tab.setControl(inboxPanel.getControl());
 
 		final ResultPanel inboxResults = inboxPanel.getResultPanel();
 		inboxResults.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
 			public void update(List<ResultDocument> eventData) {
-				// Follow first: the folder panel clears the preview on the way
-				followInFolderPanel(eventData);
 				if (!eventData.isEmpty())
 					previewPanel.setPreview(eventData.get(0));
 				showSelectedPath(eventData);
@@ -1831,9 +1839,10 @@ private static SashForm folderSash;
 	
 	/**
 	 * With the sync button on, shows the document selected in the search
-	 * results or an inbox in the rightmost folder browser: the folder panel,
-	 * whose left neighbour follows through the sync; with one pane the
-	 * Folders tab, in the background (the tab in front stays).
+	 * results in the rightmost folder browser: the folder panel, whose left
+	 * neighbour follows through the sync; with one pane the Folders tab, in
+	 * the background (the tab in front stays). Not for the inboxes: they are
+	 * the source for filing documents, and the browsers keep the target.
 	 */
 	private static void followInFolderPanel(@NotNull List<ResultDocument> selection) {
 		if (!SettingsConf.Bool.SyncFolderPanels.get() || selection.size() != 1)
@@ -1865,6 +1874,23 @@ private static SashForm folderSash;
 			if (mainTabFolder.getSelection().length > 0 && mainTabFolder.getSelection()[0] == searchTab)
 				searchBar.setFocus();
 		}
+	}
+
+	/** Returns the tab title with the key of the setting, e.g. "Search (F7)". */
+	static String withKey(@NotNull String title, @NotNull SettingsConf.IntArray key) {
+		int[] k = key.get();
+		if (k.length != 2 || k[1] == 0)
+			return title;
+		return title + " (" + UtilGui.toString(k) + ")";
+	}
+
+	/** Shows the keys of the preferences in the tab titles. */
+	private static void updateTabTitles() {
+		searchTab.setText(withKey(Msg.search_tab.get(), SettingsConf.IntArray.SearchKey));
+		if (foldersTab != null && !foldersTab.isDisposed())
+			foldersTab.setText(withKey(Msg.folders_tab.get(), SettingsConf.IntArray.FoldersKey));
+		for (InboxTab inboxTab : inboxTabs)
+			inboxTab.tab.setText(withKey(inboxTab.entry.getTabName(), SettingsConf.IntArray.InboxKey));
 	}
 
 	/** Returns true if the key event matches the key combination of the setting. */
