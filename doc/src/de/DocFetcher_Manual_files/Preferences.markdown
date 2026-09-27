@@ -15,7 +15,6 @@ Beim Schließen des Programm-Fensters  |  Legt fest, was beim Klick auf den Schl
 Suchanfragen beim Beenden nicht speichern  |  Stellt ein, ob DocFetcher eingegebene Suchanfragen bei Programmende speichern soll oder nicht.
 Indizes beim Programmstart aktualisieren  |  Stellt ein, ob alle Indizes, deren Ordner auf Änderungen überwacht werden (siehe die Indizierungs-Option `Automatische Detektion von Datei-Änderungen`), beim Programmstart im Hintergrund aktualisiert werden. Dadurch werden Dateien erfasst, die hinzugefügt, geändert, umbenannt oder gelöscht wurden, während DocFetcher nicht lief – auch ohne den DocFetcher-Daemon.
 Symbolgröße  |  Größe der Symbole im Programmfenster. `Automatisch` leitet die Größe aus der Auflösung des Bildschirms ab, sodass die Symbole auf einem hochauflösenden Bildschirm größer sind. Vorgabe ist 200 %. Die Größe lässt sich auch unter `Ansicht > Symbolgröße` wählen; eine neue Größe wird nach einem Neustart wirksam.
-Ordner des ausgewählten Suchergebnisses in der Ordner-Ansicht anzeigen  |  Ist die Option aktiviert, öffnet ein Klick auf ein Suchergebnis dessen Ordner in der Ordner-Ansicht.
 Ordner eines Dokuments als Spalte in den Ergebnis-Tabellen anzeigen  |  Ist die Option deaktiviert, wird die Ordner-Spalte ausgeblendet; der vollständige Pfad wird weiterhin als Tooltip und in der Statuszeile angezeigt.
 Alle Indizes einmal täglich im Hintergrund aktualisieren  |  Stellt ein, ob alle Indizes einmal täglich aktualisiert werden, solange DocFetcher läuft, damit gelöschte oder geänderte Dateien auch in nicht überwachten Ordnern erfasst werden. Unabhängig davon werden Suchergebnisse, deren Dateien nicht mehr existieren, ausgeblendet und der betroffene Index aktualisiert.
 Text in Bildern und gescannten PDFs erkennen (OCR)  |  Stellt ein, ob beim Indizieren der Text von Bilddateien und PDF-Dateien ohne Text erkannt und in den Dateien gespeichert wird (siehe den Abschnitt zur Texterkennung im Handbuch). Deaktivieren, wenn Dateien nicht verändert werden dürfen oder die Erkennung zu lange dauert.
@@ -33,6 +32,7 @@ Hervorhebungsfarbe  |  Die Farbe, die im Vorschau-Fenster zur Hervorhebung von F
 Schriftart für Vorschau (normal)  |  Die Schriftart, die im Vorschau-Fenster für alle Dateien außer Textdateien verwendet werden soll.
 Schriftart für Vorschau (fixe Breite)  |  Die Schriftart, die im Vorschau-Fenster für Textdateien verwendet werden soll. Sie müssen hier nicht unbedingt eine Schriftart mit fixer Breite einstellen, wobei dies jedoch in der Regel Sinn macht.
 Schnellzugriffstaste  |  Mit dieser Tastenkombination können Sie das DocFetcher-Programmfenster nach oben befördern, nachdem es den Fokus an andere Programme verloren hat.
+Taste für die Postbox-Reiter / das Suchfeld / den Ordner-Browser  |  Tasten im Programmfenster: Sie zeigen die Postbox-Reiter (erneut gedrückt: die nächste Postbox), den Reiter `Suche` mit dem Cursor im Suchfeld und den Ordner-Browser (den Reiter `Ordner` bzw. bei drei Fenstern das mittlere). Vorgabe sind `F5`, `F6` und `F7`; Funktionstasten funktionieren ohne `Strg`, `Alt` oder `Umschalt`.
 
 Reiter „Indizes“
 ----------------

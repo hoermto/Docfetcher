@@ -28,21 +28,35 @@ final class HotkeyOption extends PrefOption {
 	
 	@NotNull private StyledLabel st;
 	@NotNull private int[] hotkey;
+	@NotNull private final SettingsConf.IntArray option;
+	private final boolean plainKeysAllowed;
 
+	/** The global hotkey. */
 	public HotkeyOption(@NotNull String labelText) {
+		this(labelText, SettingsConf.IntArray.Hotkey, false);
+	}
+
+	/**
+	 * A key combination saved in the given setting; with {@code
+	 * plainKeysAllowed} (keys of the main window), plain function keys too.
+	 */
+	public HotkeyOption(@NotNull String labelText, @NotNull SettingsConf.IntArray option,
+			boolean plainKeysAllowed) {
 		super(labelText);
+		this.option = option;
+		this.plainKeysAllowed = plainKeysAllowed;
 	}
 
 	public void createControls(@NotNull Composite parent) {
 		st = PrefDialog.createLabeledStyledLabel(parent, labelText);
 		st.setCursor(st.getDisplay().getSystemCursor(SWT.CURSOR_HAND));
 
-		hotkey = SettingsConf.IntArray.Hotkey.get();
+		hotkey = option.get();
 		st.setText(UtilGui.toString(hotkey));
 
 		st.addMouseListener(new MouseAdapter() {
 			public void mouseDown(MouseEvent e) {
-				HotkeyDialog dialog = new HotkeyDialog(st.getShell());
+				HotkeyDialog dialog = new HotkeyDialog(st.getShell(), hotkey, option.defaultValue, plainKeysAllowed);
 				hotkey = dialog.open();
 				st.setText(UtilGui.toString(hotkey));
 			}
@@ -50,12 +64,12 @@ final class HotkeyOption extends PrefOption {
 	}
 
 	protected void restoreDefault() {
-		hotkey = SettingsConf.IntArray.Hotkey.defaultValue;
+		hotkey = option.defaultValue;
 		st.setText(UtilGui.toString(hotkey));
 	}
 
 	protected void save() {
-		SettingsConf.IntArray.Hotkey.set(hotkey);
+		option.set(hotkey);
 	}
 	
 }

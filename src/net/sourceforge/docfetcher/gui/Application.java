@@ -155,7 +155,8 @@ public final class Application {
 	@Nullable private static FolderPanel folderPanel; // Next to the tabs
 	@Nullable private static FolderPanel folderTabPanel; // On the 'Folders' tab
 	@Nullable private static TabItem foldersTab;
-	private static SashForm folderSash;
+	@NotNull private static TabItem searchTab;
+private static SashForm folderSash;
 	private static Composite folderPanelHolder;
 	private static Composite firstFolderHolder;
 	private static PreviewPanel previewPanel;
@@ -640,6 +641,16 @@ public final class Application {
 				}
 				else if (m == SWT.MOD1 && k == 'z') {
 					undoFileOperation();
+				}
+				// Keys set in the preferences
+				else if (isKey(SettingsConf.IntArray.KeyInbox, m, k)) {
+					goToInbox();
+				}
+				else if (isKey(SettingsConf.IntArray.KeySearch, m, k)) {
+					goToSearch();
+				}
+				else if (isKey(SettingsConf.IntArray.KeyFolders, m, k)) {
+					goToFolders();
 				}
 				else {
 					e.doit = true;
@@ -1396,27 +1407,13 @@ public final class Application {
 		folderPanelHolder = new Composite(folderSash, SWT.NONE);
 		folderPanelHolder.setLayout(new FillLayout());
 		
-		TabItem searchTab = new TabItem(mainTabFolder, SWT.NONE);
+		searchTab = new TabItem(mainTabFolder, SWT.NONE);
 		searchTab.setText(Msg.search_tab.get());
 		searchTab.setControl(createSearchPanel(mainTabFolder));
 		mainTabFolder.setSelection(searchTab);
 		mainTabFolder.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				// The toolbar works on the result table of the tab in front
-				InboxTab selected = getSelectedInboxTab();
-				if (selected != null) {
-					selected.panel.refresh();
-					selected.panel.getResultPanel().activate();
-				}
-				else if (folderTabPanel != null
-						&& mainTabFolder.getSelection().length > 0
-						&& mainTabFolder.getSelection()[0] == foldersTab) {
-					folderTabPanel.refresh();
-					folderTabPanel.getResultPanel().activate();
-				}
-				else {
-					resultPanel.activate();
-				}
+				onTabSelected();
 			}
 		});
 		applyPaneMode();
@@ -1833,17 +1830,83 @@ public final class Application {
 	}
 	
 	/**
-	 * Shows the document selected in the search results or an inbox in the
-	 * folder panel (the right one of the three-pane mode), if wanted; the
-	 * browser before it follows through the sync. Only the panel follows;
-	 * the Folders tab would steal the view.
+	 * With the sync button on, shows the document selected in the search
+	 * results or an inbox in the rightmost folder browser: the folder panel,
+	 * whose left neighbour follows through the sync; with one pane the
+	 * Folders tab, in the background (the tab in front stays).
 	 */
 	private static void followInFolderPanel(@NotNull List<ResultDocument> selection) {
-		if (!SettingsConf.Bool.SyncFolderView.get() || selection.size() != 1 || folderPanel == null)
+		if (!SettingsConf.Bool.SyncFolderPanels.get() || selection.size() != 1)
 			return;
 		ResultDocument doc = selection.get(0);
-		if (doc.isPlainFileOnDisk())
-			folderPanel.showFile(doc.getPath().getCanonicalFile());
+		if (!doc.isPlainFileOnDisk())
+			return;
+		FolderPanel rightmost = folderPanel != null ? folderPanel : folderTabPanel;
+		if (rightmost != null)
+			rightmost.showFile(doc.getPath().getCanonicalFile());
+	}
+
+	/** The result table of the tab in front becomes the toolbar's; the Search tab focuses its field. */
+	private static void onTabSelected() {
+		InboxTab selected = getSelectedInboxTab();
+		if (selected != null) {
+			selected.panel.refresh();
+			selected.panel.getResultPanel().activate();
+		}
+		else if (folderTabPanel != null
+				&& mainTabFolder.getSelection().length > 0
+				&& mainTabFolder.getSelection()[0] == foldersTab) {
+			folderTabPanel.refresh();
+			folderTabPanel.getResultPanel().activate();
+		}
+		else {
+			resultPanel.activate();
+			// Ready for typing a query
+			if (mainTabFolder.getSelection().length > 0 && mainTabFolder.getSelection()[0] == searchTab)
+				searchBar.setFocus();
+		}
+	}
+
+	/** Returns true if the key event matches the key combination of the setting. */
+	static boolean isKey(@NotNull SettingsConf.IntArray setting, int stateMask, int keyCode) {
+		int[] key = setting.get();
+		if (key.length != 2 || key[1] == 0)
+			return false;
+		int modifiers = stateMask & (SWT.CTRL | SWT.ALT | SWT.SHIFT | SWT.COMMAND);
+		return modifiers == key[0] && (keyCode == key[1] || Character.toUpperCase(keyCode) == key[1]);
+	}
+
+	/** Shows the first inbox tab, or the next one if an inbox tab is in front. */
+	private static void goToInbox() {
+		if (inboxTabs.isEmpty())
+			return;
+		InboxTab selected = getSelectedInboxTab();
+		int next = selected == null ? 0 : (inboxTabs.indexOf(selected) + 1) % inboxTabs.size();
+		InboxTab tab = inboxTabs.get(next);
+		mainTabFolder.setSelection(tab.tab);
+		onTabSelected();
+		tab.panel.getResultPanel().getControl().setFocus();
+	}
+
+	/** Shows the Search tab with the cursor in the search field. */
+	private static void goToSearch() {
+		mainTabFolder.setSelection(searchTab);
+		onTabSelected();
+		searchBar.setFocus();
+	}
+
+	/** Focuses the folder browser: the Folders tab, or the middle pane with three panes. */
+	private static void goToFolders() {
+		if (folderTabPanel == null)
+			return;
+		if (foldersTab != null && !foldersTab.isDisposed()) {
+			mainTabFolder.setSelection(foldersTab);
+			onTabSelected();
+		}
+		else {
+			folderTabPanel.getResultPanel().activate();
+		}
+		folderTabPanel.getResultPanel().getControl().setFocus();
 	}
 
 	/** Creates the 'Folders' tab, which browses the indexed folders. */

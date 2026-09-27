@@ -122,8 +122,9 @@ final class DocToolBar {
 
 	/**
 	 * A toggle for the synced folder view: the 'Folders' tab shows the parent
-	 * of the folder browser next to it. Only enabled while that browser is
-	 * shown.
+	 * of the folder browser next to it, and the rightmost folder browser
+	 * follows the document selected in the search results or an inbox (with
+	 * one pane: the Folders tab). Always enabled, since it works in all modes.
 	 */
 	private void createSyncItem() {
 		final ToolItem item = new ToolItemFactory(toolBar)
@@ -132,29 +133,20 @@ final class DocToolBar {
 			.toolTip(Msg.toolbar_sync.get())
 			.create();
 		item.setSelection(SettingsConf.Bool.SyncFolderPanels.get());
-		item.setEnabled(SettingsConf.Bool.ShowFolderPanel.get());
 		item.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
 				SettingsConf.Bool.SyncFolderPanels.set(item.getSelection());
 			}
 		});
-		final Event.Listener<Boolean> panelListener = new Event.Listener<Boolean>() {
-			public void update(Boolean shown) {
-				if (!item.isDisposed())
-					item.setEnabled(shown);
-			}
-		};
 		final Event.Listener<Boolean> syncListener = new Event.Listener<Boolean>() {
 			public void update(Boolean enabled) {
 				if (!item.isDisposed())
 					item.setSelection(enabled);
 			}
 		};
-		SettingsConf.Bool.ShowFolderPanel.evtChanged.add(panelListener);
 		SettingsConf.Bool.SyncFolderPanels.evtChanged.add(syncListener);
 		item.addDisposeListener(new DisposeListener() {
 			public void widgetDisposed(DisposeEvent e) {
-				SettingsConf.Bool.ShowFolderPanel.evtChanged.remove(panelListener);
 				SettingsConf.Bool.SyncFolderPanels.evtChanged.remove(syncListener);
 			}
 		});

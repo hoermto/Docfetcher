@@ -147,11 +147,7 @@ public final class PrefDialog {
 				Msg.pref_show_path_column.get(),
 				SettingsConf.Bool.ShowPathColumn),
 
-			new CheckOption(
-				Msg.pref_sync_folder_view.get(),
-				SettingsConf.Bool.SyncFolderView),
-
-			new CheckOption(
+new CheckOption(
 				Msg.pref_ocr.get(),
 				SettingsConf.Bool.OcrEnabled),
 
@@ -290,6 +286,10 @@ public final class PrefDialog {
 		if (hotkeyEnabled) {
 			fieldOptions.add(new HotkeyOption(Msg.pref_hotkey.get()));
 		}
+		// Keys of the main window
+		fieldOptions.add(new HotkeyOption(Msg.pref_key_inbox.get(), SettingsConf.IntArray.KeyInbox, true));
+		fieldOptions.add(new HotkeyOption(Msg.pref_key_search.get(), SettingsConf.IntArray.KeySearch, true));
+		fieldOptions.add(new HotkeyOption(Msg.pref_key_folders.get(), SettingsConf.IntArray.KeyFolders, true));
 
 		new ConfigComposite(shell, SWT.H_SCROLL | SWT.V_SCROLL) {
 			protected Control createContents(Composite parent) {

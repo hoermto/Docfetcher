@@ -33,7 +33,7 @@ Everything can be undone with `Ctrl+Z`; removed files go to the recycle bin.
 
 4. Browse folders
 -----------------
-The toolbar buttons with the columns choose one, two or three panes next to the document view (`F3` switches): the tabs only, the tabs plus a folder browser, or two folder browsers side by side for sorting documents into folders. With the sync button the browsers move together, and a click on a search result or an inbox document shows it in its folder.
+The toolbar buttons with the columns choose one, two or three panes next to the document view (`F3` switches): the tabs only, the tabs plus a folder browser, or two folder browsers side by side for sorting documents into folders. With the sync button the browsers move together, and a click on a search result or an inbox document shows it in its folder. `F5` jumps to the inbox (again: the next one), `F6` to the search field, `F7` to the folder browser.
 
 5. Good to know
 ---------------

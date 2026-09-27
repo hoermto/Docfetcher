@@ -103,8 +103,7 @@ public final class SettingsConf {
 		TolerantSearch (true), // Umlauts and OCR errors: 'Muller' finds 'Müller', 'Bonn' finds 'B0nn'
 		McpServerEnabled (false), // MCP server for AI assistants on localhost (read-only access to the indexes)
 		ShowFolderPanel (true), // Show a second folder browser next to the tabs
-		SyncFolderView (true), // Folder view follows the selected search result
-		FolderSortAscending (false), // Sort order of the folder view
+FolderSortAscending (false), // Sort order of the folder view
 
 		ShowPreviewPanel (true),
 		ShowPreviewPanelAtBottom (false),
@@ -277,6 +276,11 @@ public final class SettingsConf {
 		FolderSashWeights3 (3, 2, 2), // Three-pane mode: tabs, Folders tab's browser, folder panel
 		PreviewHighlighting (255, 255, 0),
 		Hotkey (SWT.CTRL, SWT.F8),
+
+		// Keys of the main window (state mask, key code), set in the preferences
+		KeyInbox (SWT.NONE, SWT.F5), // The inbox tabs; pressed again: the next inbox
+		KeySearch (SWT.NONE, SWT.F6), // The search field on the Search tab
+		KeyFolders (SWT.NONE, SWT.F7), // The folder browser (Folders tab or middle pane)
 
 		FilterSash (1, 1),
 		RightSashHorizontal (1, 1),

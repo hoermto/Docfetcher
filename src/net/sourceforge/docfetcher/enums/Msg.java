@@ -723,6 +723,14 @@ public enum Msg {
 		"Global hotkey:",
 		Comments.prefOption + "The global hotkey to move the program window " +
 		"to the top."),
+	toolbar_sync ("Synchronize the folder browsers: a document selected in the search results or an inbox is shown in the rightmost folder browser, and the one on the left shows its parent folder",
+		"Tooltip of the toggle button in the toolbar that couples the folder browsers with each other and with the search results and inboxes."),
+	pref_key_inbox ("Key for the inbox tabs (again: next inbox):",
+		"Label of a key setting on the preferences window: the key shows the inbox tab; pressed again, the next inbox tab."),
+	pref_key_search ("Key for the search field:",
+		"Label of a key setting on the preferences window: the key shows the Search tab with the cursor in the search field."),
+	pref_key_folders ("Key for the folder browser:",
+		"Label of a key setting on the preferences window: the key shows the Folders tab (with three panes: the middle folder browser)."),
 	keybox_title (
 		"Enter Key",
 		"Window title for a dialog where the user can change a keyboard shortcut."),
@@ -987,10 +995,6 @@ public enum Msg {
 		"Context menu entry of the result table that opens the file's " +
 		"folder in the folder browser, in contrast to 'Open Parent Folder', " +
 		"which opens the system's file manager."),
-	pref_sync_folder_view (
-		"Show the folder of the selected search result in the folder view",
-		Comments.prefOption + "If checked, clicking a search result opens " +
-		"its folder in the folder browser."),
 	delete_document ("Delete...\tDel",
 		"Context menu entry of the result table for deleting the selected " +
 		"files. The '\tDel' is a keyboard shortcut."),
@@ -1244,8 +1248,6 @@ public enum Msg {
 		"Tooltip of the toolbar button that deletes the selected documents."),
 	toolbar_print ("Print (Ctrl+P)",
 		"Tooltip of the toolbar button that prints the selected documents."),
-	toolbar_sync ("Synchronize the folder browsers: the Folders tab shows the parent of the folder next to it",
-		"Tooltip of the toggle button in the toolbar that couples the folder browser on the Folders tab with the one next to it."),
 	folder_nothing_to_show ("(No subfolder - select a folder on the left)",
 		"Shown in the folder browser next to the tabs when it is synchronized and the folder on the left has no subfolder."),
 	toolbar_mail ("Send by Email",

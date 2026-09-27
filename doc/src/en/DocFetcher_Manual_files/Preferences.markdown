@@ -15,7 +15,6 @@ When closing the program window  |  What happens when you click on the close but
 Clear search history on exit  |  If checked, DocFetcher will wipe out its history of entered queries on exit.
 Update indexes on startup  |  If checked, all indexes whose folders are watched for changes (see the `Watch folders for file changes` indexing option) are updated in the background when DocFetcher starts. This picks up files that were added, changed, renamed or removed while DocFetcher was not running, even if the DocFetcher daemon is not installed.
 Icon size  |  Size of the icons in the program window. `Automatic` derives the size from the resolution of the screen, which makes the icons bigger on a high resolution display. The default is 200 %. The size can also be chosen under `View > Icon size`; a new size takes effect after a restart.
-Show the folder of the selected search result in the folder view  |  If checked, clicking a search result opens its folder in the folder view.
 Show the folder of a document as a column in the result tables  |  If unchecked, the folder column is hidden; the full path is still shown as a tooltip and in the status bar.
 Update all indexes once a day in the background  |  If checked, all indexes are updated once a day while DocFetcher runs, so that deleted or changed files are picked up even in folders that aren't watched. Independently of this option, search results whose files no longer exist are dropped and the affected index is updated.
 Recognize text in images and scanned PDFs (OCR)  |  If checked, the text of image files and of PDF files without text is recognized while indexing and stored in the files (see the manual's section on text recognition). Uncheck it if files must not be modified or recognition takes too long.
@@ -33,6 +32,7 @@ Highlight color  |  The color to use for highlighting matches in the preview pan
 Preview font (normal)  |  The font to use in the text preview; applies to all document formats except plain text files.
 Preview font (fixed width)  |  The font to use for the text preview; applies only to plain text files. You are not required to pick a fixed-width font here, although it's usually a sensible choice.
 Global hotkey  |  The keyboard shortcut specified here can be used to move the DocFetcher window to the top after it has lost focus.
+Key for the inbox tabs / the search field / the folder browser  |  Keys inside the program window: they show the inbox tabs (pressed again: the next inbox), the `Search` tab with the cursor in the search field, and the folder browser (the `Folders` tab, or the middle pane with three panes). Defaults are `F5`, `F6` and `F7`; function keys work without `Ctrl`, `Alt` or `Shift`.
 
 Indexes tab
 -----------
