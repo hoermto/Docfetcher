@@ -343,6 +343,15 @@ public final class FolderWatcher {
 			 */
 			if (Util.contains(indexRegistry.getIndexParentDir(), target))
 				return false;
+
+			/*
+			 * Ignore the changes DocFetcher makes itself while indexing (text
+			 * recognized in scans is stored in the files), unless the file
+			 * was changed again since - otherwise each stored text would
+			 * start another update of the whole index.
+			 */
+			if (OwnFileChanges.isOwnChange(target))
+				return false;
 			
 			// Accept if target is an archive root or a PST file
 			if (target.equals(watchedIndex.getCanonicalRootFile()))

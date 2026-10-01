@@ -30,9 +30,11 @@ import net.sourceforge.docfetcher.model.index.IndexingReporter;
 import net.sourceforge.docfetcher.model.index.MutableInt;
 import net.sourceforge.docfetcher.model.index.PatternAction;
 import net.sourceforge.docfetcher.model.ocr.OcrPreprocessor;
+import net.sourceforge.docfetcher.model.parse.ExcelText;
 import net.sourceforge.docfetcher.model.parse.ParseException;
 import net.sourceforge.docfetcher.model.parse.ParseResult;
 import net.sourceforge.docfetcher.model.parse.ParseService;
+import net.sourceforge.docfetcher.model.parse.PdfForms;
 import net.sourceforge.docfetcher.util.CheckedOutOfMemoryError;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
@@ -60,7 +62,13 @@ class FileContext {
 	 * them at the end, so that all other documents become searchable first.
 	 */
 	private boolean deferOcr = false;
-	private List<DeferredFile> deferredFiles = new ArrayList<DeferredFile>(); // shared
+	
+	/* Excel files are parsed again even if unchanged (see ExcelText.VERSION) */
+	private boolean reparseExcel = false;
+
+	/* PDF files with filled form fields likewise (see PdfForms.VERSION) */
+	private boolean reparsePdfForms = false;
+private List<DeferredFile> deferredFiles = new ArrayList<DeferredFile>(); // shared
 	
 	/** A file whose text recognition was deferred to the end of the task. */
 	public static final class DeferredFile {
@@ -119,6 +127,32 @@ class FileContext {
 		return deferOcr;
 	}
 	
+	/** Makes the update parse Excel files again, even if they weren't changed. */
+	public final void setReparseExcel(boolean reparseExcel) {
+		this.reparseExcel = reparseExcel;
+	}
+	
+	public final boolean isReparseExcel() {
+		return reparseExcel;
+	}
+
+	/** Makes the update parse PDF files with filled form fields again. */
+	public final void setReparsePdfForms(boolean reparsePdfForms) {
+		this.reparsePdfForms = reparsePdfForms;
+	}
+
+	/**
+	 * Returns true if the unchanged file must be parsed again, because the
+	 * index has an older text format for it (Excel files, PDF forms).
+	 */
+	public final boolean needsReparse(@NotNull java.io.File file) {
+		String name = file.getName();
+		if (reparseExcel && ExcelText.isExcelFile(name))
+			return true;
+		return reparsePdfForms && name.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")
+			&& PdfForms.hasFilledFields(file);
+	}
+
 	/** The files whose text recognition was deferred, in indexing order. */
 	@NotNull
 	public final List<DeferredFile> getDeferredFiles() {

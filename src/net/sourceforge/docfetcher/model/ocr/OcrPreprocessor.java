@@ -75,10 +75,12 @@ public final class OcrPreprocessor {
 				}
 			}
 			else if (OcrTextEmbedding.supports(ext)) {
+				// The dates before reading the file, which changes the access date
+				FileDates dates = FileDates.of(plain);
 				if (OcrTextEmbedding.read(plain) == null) {
 					String text = recognize(plain, engine, cancelable);
 					if (text != null)
-						OcrTextEmbedding.write(plain, text);
+						OcrTextEmbedding.write(plain, text, dates);
 				}
 			}
 		}

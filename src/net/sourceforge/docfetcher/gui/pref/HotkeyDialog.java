@@ -42,10 +42,20 @@ final class HotkeyDialog {
 	
 	private final Shell shell;
 	private final Text hotkeyBox;
-	private final int[] initialHotkey = SettingsConf.IntArray.Hotkey.get();
-	@NotNull private int[] hotkey = initialHotkey;
-	
-	public HotkeyDialog(@NotNull Shell parentShell) {
+	private final int[] initialHotkey;
+	@NotNull private int[] hotkey;
+	private final boolean plainKeysAllowed;
+
+	/**
+	 * A dialog for entering a key combination, starting with the given one.
+	 * With {@code plainKeysAllowed} (keys of the main window, not the global
+	 * hotkey), function keys without Ctrl, Alt or Shift are accepted too.
+	 */
+	public HotkeyDialog(@NotNull Shell parentShell, @NotNull int[] current,
+			@NotNull final int[] defaultValue, boolean plainKeysAllowed) {
+		this.initialHotkey = current;
+		this.hotkey = current;
+		this.plainKeysAllowed = plainKeysAllowed;
 		shell = new Shell(parentShell, SWT.RESIZE | SWT.CLOSE | SWT.TITLE);
 		shell.setLayout(new FormLayout());
 		shell.setImage(Img.LETTERS.get());
@@ -100,7 +110,7 @@ final class HotkeyDialog {
 		
 		restoreBt.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				hotkey = SettingsConf.IntArray.Hotkey.defaultValue;
+				hotkey = defaultValue;
 				hotkeyBox.setText(UtilGui.toString(hotkey));
 			}
 		});
@@ -109,9 +119,8 @@ final class HotkeyDialog {
 			public void widgetSelected(SelectionEvent e) {
 				/*
 				 * Don't call shell.close() here, we don't want to reset the
-				 * hotkey.
+				 * hotkey. The preferences dialog saves it.
 				 */
-				SettingsConf.IntArray.Hotkey.set(hotkey);
 				shell.dispose();
 			}
 		});
@@ -150,8 +159,10 @@ final class HotkeyDialog {
 	private int[] acceptHotkey(int stateMask, int keyCode) {
 		int[] hotkey = new int[] { stateMask, keyCode };
 		
-		// State mask must be SWT.NONE or a combination of SWT.CTRL, SWT.ALT and SWT.SHIFT
-		if ((stateMask & (SWT.CTRL | SWT.ALT | SWT.SHIFT)) == 0)
+		// State mask must be a combination of SWT.CTRL, SWT.ALT and SWT.SHIFT;
+		// keys of the main window may also be plain function keys
+		boolean plain = (stateMask & (SWT.CTRL | SWT.ALT | SWT.SHIFT)) == 0;
+		if (plain && !(plainKeysAllowed && keyCode >= SWT.F1 && keyCode <= SWT.F12))
 			return null;
 
 		// Accept special keys

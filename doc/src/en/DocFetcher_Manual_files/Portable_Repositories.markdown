@@ -19,6 +19,7 @@ Note that DocFetcher can only *attempt* to store relative paths: Obviously, it c
 Usability tips
 --------------
 
+* ***Where the settings are***: The preferences are stored in `settings.conf` in the folder the system has for the settings of the user (Windows: `%APPDATA%\docfetcher`, macOS: `~/Library/Application Support/docfetcher`, Linux: `~/.config/docfetcher`), not in the DocFetcher folder, so they are kept when a new version is extracted over it; the indexes stay in the `indexes` folder. To keep the settings with DocFetcher, e.g. on a USB stick, set a folder under `settings` in `misc/paths.txt`, e.g. `settings=conf`.
 * ***CD-ROM archiving***: Just common sense, but still: If you put DocFetcher on a CD-ROM, you won't be able to save changes to the preferences or the indexes, so remember to properly configure everything before burning it onto the CD-ROM. Also, you might want to include a Java runtime installer.
 * ***Different program titles***: For redistribution of your portable document repository, or to make working with multiple DocFetcher instances less confusing, you can give each DocFetcher instance a different program window title. To do so, open the `Advanced Settings` on the preferences dialog and modify the `AppName` setting.
 

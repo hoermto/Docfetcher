@@ -288,6 +288,11 @@ public final class PdfParser extends StreamParser {
 				}
 			}
 			
+			// Values of filled form fields, e.g. the rent in a contract form
+			String formText = PdfForms.text(pdfDoc);
+			if (!formText.isEmpty())
+				writer.write("\n" + formText);
+
 			ParseResult result = new ParseResult(writer.getBuffer());
 			result.setPageCount(pageCount);
 			extractMetadata(pdfDoc, result);

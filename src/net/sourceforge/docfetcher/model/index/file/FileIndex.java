@@ -239,12 +239,24 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 				// Count the files first so that progress can be shown
 				context.setProgressTotal(countFiles(getCanonicalRootFile(), cancelable));
 				
+				// Excel files and PDF forms of an older text format are parsed again, once
+				boolean reparseExcel = isExcelTextOutdated();
+				boolean reparsePdfForms = isPdfFormsOutdated();
+				context.setReparseExcel(reparseExcel);
+				context.setReparsePdfForms(reparsePdfForms);
+
 				// Recognize text at the end, so that the other documents
 				// become searchable first
 				context.setDeferOcr(true);
 				visitDirOrZip(context, rootFolder, rootFile);
 				context.setDeferOcr(false);
 				processDeferredOcr(context, cancelable);
+				if (!cancelable.isCanceled()) {
+					if (reparseExcel)
+						setExcelTextCurrent();
+					if (reparsePdfForms)
+						setPdfFormsCurrent();
+				}
 			}
 			else {
 				// Return immediately if the root file wasn't modified
@@ -382,8 +394,9 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 						return; // Created and indexed by this run already
 					FileDocument doc = unseenDocs.remove(file.getName());
 					boolean added = doc == null;
-					boolean modified = !added && doc.isModified(context, file, null);
-					
+					boolean modified = !added && (doc.isModified(context, file, null)
+						|| context.needsReparse(file));
+
 					/*
 					 * Text recognition may replace the file (TIFF -> PDF), in
 					 * which case the new file is indexed and the entry of the

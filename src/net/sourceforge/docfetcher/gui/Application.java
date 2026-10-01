@@ -60,6 +60,12 @@ import org.eclipse.swt.widgets.Menu;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.TabFolder;
 import org.eclipse.swt.widgets.TabItem;
+import org.eclipse.swt.dnd.DND;
+import org.eclipse.swt.dnd.DropTarget;
+import org.eclipse.swt.dnd.DropTargetAdapter;
+import org.eclipse.swt.dnd.DropTargetEvent;
+import org.eclipse.swt.dnd.FileTransfer;
+import org.eclipse.swt.dnd.Transfer;
 
 import com.drew.lang.Charsets;
 import com.google.common.base.Joiner;
@@ -88,6 +94,7 @@ import net.sourceforge.docfetcher.model.FolderWatcher;
 import net.sourceforge.docfetcher.model.IndexLoadingProblems;
 import net.sourceforge.docfetcher.model.IndexLoadingProblems.CorruptedIndex;
 import net.sourceforge.docfetcher.model.IndexLoadingProblems.OverflowIndex;
+import net.sourceforge.docfetcher.mcp.McpServer;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.LuceneIndex;
 import net.sourceforge.docfetcher.model.TreeIndex;
@@ -103,6 +110,7 @@ import net.sourceforge.docfetcher.util.CharsetDetectorHelper;
 import net.sourceforge.docfetcher.util.ConfLoader;
 import net.sourceforge.docfetcher.util.ConfLoader.Loadable;
 import net.sourceforge.docfetcher.util.Event;
+import net.sourceforge.docfetcher.util.SettingsLocation;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
@@ -126,6 +134,7 @@ public final class Application {
 	private static final int sashWidth = 9;
 
 	private static volatile IndexRegistry indexRegistry;
+	@Nullable private static McpServer mcpServer;
 	private static volatile FolderWatcher folderWatcher;
 	@Nullable private static HotkeyHandler hotkeyHandler;
 	private static File programConfFile;
@@ -138,14 +147,18 @@ public final class Application {
 	private static TwoPanelForm twoPanelForm;
 	private static SearchBar searchBar;
 	private static ResultPanel resultPanel;
+	private static DocToolBar docToolBar;
+	@Nullable private static FolderSync folderSync;
 	private static TabFolder mainTabFolder;
 	private static final List<InboxTab> inboxTabs = new ArrayList<InboxTab>();
 	private static final Set<File> inboxIndexRequests = new HashSet<File>();
 	@Nullable private static FolderPanel folderPanel; // Next to the tabs
 	@Nullable private static FolderPanel folderTabPanel; // On the 'Folders' tab
 	@Nullable private static TabItem foldersTab;
-	private static SashForm folderSash;
+	@NotNull private static TabItem searchTab;
+private static SashForm folderSash;
 	private static Composite folderPanelHolder;
+	private static Composite firstFolderHolder;
 	private static PreviewPanel previewPanel;
 	private static volatile StatusBarPart indexingStatus;
 	// Tasks of the current batch of indexing jobs, for the overall progress
@@ -279,6 +292,12 @@ public final class Application {
 			SettingsConf.Bool.CloseToTray.set(false);
 		}
 		
+		// Google-style search: version 2.8 switches the old OR default to AND once
+		if (!SettingsConf.Bool.AndOperatorApplied.get()) {
+			SettingsConf.Bool.UseOrOperator.set(false);
+			SettingsConf.Bool.AndOperatorApplied.set(true);
+		}
+		
 		/*
 		 * Determine the index folder. A custom index folder set in the
 		 * preferences dialog takes precedence over the one in paths.txt. If the
@@ -352,6 +371,9 @@ public final class Application {
 		initSystemTrayHider();
 		initMenuBar();
 		initSearchSettingsDialog();
+		// Backups of PDF files removed after a merge or split, for the undo
+		FileOperationHistory.getInstance().setBackupDir(new File(AppUtil.getAppDataDir(), "undo"));
+		docToolBar = new DocToolBar(shell);
 		initTwoPanelForm();
 		InboxFolders.migrateLegacySetting();
 		applyInboxFolders();
@@ -380,7 +402,8 @@ public final class Application {
 
 		FormDataFactory fdf = FormDataFactory.getInstance();
 		fdf.bottom().left().right().applyTo(statusBar);
-		fdf.top().bottom(statusBar).applyTo(twoPanelForm);
+		fdf.reset().top().left().right().applyTo(docToolBar.getControl());
+		fdf.top(docToolBar.getControl()).bottom(statusBar).applyTo(twoPanelForm);
 
 		// Move focus to search text field
 		searchBar.setFocus();
@@ -389,7 +412,7 @@ public final class Application {
 		boolean showManualHint = true;
 		if (SettingsConf.Bool.ShowManualOnStartup.get()
 				&& SettingsConf.Bool.ShowPreviewPanel.get()) {
-			File file = ManualLocator.getManualFile();
+			File file = ManualLocator.getStartPage();
 			if (file == null) {
 				showManualHint = false;
 				/*
@@ -415,6 +438,19 @@ public final class Application {
 		if(ProgramConf.Bool.PythonApiEnabled.get())
             Py4jHandler.openGatewayServer();
 
+		// MCP server for AI assistants, if enabled in the preferences
+		updateMcpServer();
+		SettingsConf.Bool.McpServerEnabled.evtChanged.add(new Event.Listener<Boolean>() {
+			public void update(Boolean eventData) {
+				updateMcpServer();
+			}
+		});
+		SettingsConf.Int.McpServerPort.evtChanged.add(new Event.Listener<Integer>() {
+			public void update(Integer eventData) {
+				updateMcpServer();
+			}
+		});
+
 		shell.addShellListener(new ShellAdapter() {
 			public void shellClosed(final ShellEvent e) {
 				handleShellClosed(e);
@@ -435,6 +471,8 @@ public final class Application {
 		// Close Py4j Gateway Server
 		if(ProgramConf.Bool.PythonApiEnabled.get())
 			Py4jHandler.shutdownGatewayServer();
+		if (mcpServer != null)
+			mcpServer.stop();
 
 		/*
 		 * Do not set this to null; the index registry loading thread must be
@@ -442,6 +480,7 @@ public final class Application {
 		 */
 		display.dispose();
 		saveSettingsConfFile();
+		FileOperationHistory.getInstance().clear(); // Deletes the undo backups
 	}
 	
 	@Nullable
@@ -595,13 +634,23 @@ public final class Application {
 					requestExit();
 				}
 				else if (k == SWT.F3) {
-					toggleFolderPanel();
+					cyclePaneMode();
 				}
 				else if (k == SWT.F4) {
 					togglePreviewPanel();
 				}
 				else if (m == SWT.MOD1 && k == 'z') {
 					undoFileOperation();
+				}
+				// Keys set in the preferences
+				else if (isKey(SettingsConf.IntArray.InboxKey, m, k)) {
+					goToInbox();
+				}
+				else if (isKey(SettingsConf.IntArray.SearchKey, m, k)) {
+					goToSearch();
+				}
+				else if (isKey(SettingsConf.IntArray.FoldersKey, m, k)) {
+					goToFolders();
 				}
 				else {
 					e.doit = true;
@@ -1287,17 +1336,25 @@ public final class Application {
 		AppUtil.checkConstInitialized();
 		AppUtil.ensureNoDisplay();
 
+		/*
+		 * The settings are kept in the folder the system has for the settings
+		 * of the user, also for the portable version, so that they survive when
+		 * a new version is unpacked over the program folder. Settings of
+		 * earlier versions are copied from their old place once.
+		 */
 		File confFile;
 		if (SystemConf.Bool.IsDevelopmentVersion.get()) {
 			confFile = new File("bin/settings-conf.txt");
 		}
 		else if (pathOverride != null && !pathOverride.isFile()) {
 			pathOverride.mkdirs();
-			confFile = new File(pathOverride, "settings-conf.txt");
+			confFile = SettingsLocation.getFile(pathOverride,
+				new File(pathOverride, SettingsLocation.OLD_FILE_NAME));
 		}
 		else {
-			File appDataDir = AppUtil.getAppDataDir();
-			confFile = new File(appDataDir, "conf/settings-conf.txt");
+			File oldFile = new File(AppUtil.getAppDataDir(), "conf/" + SettingsLocation.OLD_FILE_NAME);
+			confFile = SettingsLocation.getFile(SettingsLocation.getDefaultDir(), oldFile);
+			confFile.getParentFile().mkdirs();
 		}
 
 		try {
@@ -1343,74 +1400,227 @@ public final class Application {
 		folderSash.setSashWidth(sashWidth);
 		UtilGui.paintSashHandles(folderSash);
 		mainTabFolder = new TabFolder(folderSash, SWT.TOP);
+		initInboxTabDrop();
+		// Place of the Folders tab's browser in the three-pane mode
+		firstFolderHolder = new Composite(folderSash, SWT.NONE);
+		firstFolderHolder.setLayout(new FillLayout());
 		folderPanelHolder = new Composite(folderSash, SWT.NONE);
 		folderPanelHolder.setLayout(new FillLayout());
 		
-		TabItem searchTab = new TabItem(mainTabFolder, SWT.NONE);
-		searchTab.setText(Msg.search_tab.get());
+		searchTab = new TabItem(mainTabFolder, SWT.NONE);
+		// The tab titles show the keys of the preferences
+		Event.Listener<int[]> keyListener = new Event.Listener<int[]>() {
+			public void update(int[] eventData) {
+				if (!mainTabFolder.isDisposed())
+					updateTabTitles();
+			}
+		};
+		SettingsConf.IntArray.SearchKey.evtChanged.add(keyListener);
+		SettingsConf.IntArray.InboxKey.evtChanged.add(keyListener);
+		SettingsConf.IntArray.FoldersKey.evtChanged.add(keyListener);
+		searchTab.setText(withKey(Msg.search_tab.get(), SettingsConf.IntArray.SearchKey));
 		searchTab.setControl(createSearchPanel(mainTabFolder));
 		mainTabFolder.setSelection(searchTab);
 		mainTabFolder.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				InboxTab selected = getSelectedInboxTab();
-				if (selected != null)
-					selected.panel.refresh();
-				else if (folderTabPanel != null
-						&& mainTabFolder.getSelection().length > 0
-						&& mainTabFolder.getSelection()[0] == foldersTab)
-					folderTabPanel.refresh();
+				onTabSelected();
 			}
 		});
-		applyFolderPanelMode();
-		folderSash.setWeights(SettingsConf.IntArray.FolderSashWeights.get());
+		applyPaneMode();
 		folderSash.addControlListener(new ControlAdapter() {
 			public void controlResized(ControlEvent e) {
-				if (folderSash.getMaximizedControl() == null)
-					SettingsConf.IntArray.FolderSashWeights.set(folderSash.getWeights());
+				saveFolderSashWeights();
+			}
+		});
+		// The toolbar buttons and the View menu change the setting
+		SettingsConf.Int.PaneMode.evtChanged.add(new Event.Listener<Integer>() {
+			public void update(Integer eventData) {
+				UtilGui.runAsyncExec(folderSash, new Runnable() {
+					public void run() {
+						applyPaneMode();
+					}
+				});
 			}
 		});
 		return folderSash;
 	}
+
+	/**
+	 * The number of panes next to the document view: 1 = the tabs (Folders,
+	 * inboxes, Search), 2 = plus a folder browser, 3 = the inbox and search
+	 * tabs, the Folders tab's browser as a pane of its own and the other
+	 * folder browser. Settings of older versions only knew whether the folder
+	 * panel was shown.
+	 */
+	static int getPaneMode() {
+		int mode = SettingsConf.Int.PaneMode.get();
+		if (mode < 1 || mode > 3)
+			mode = SettingsConf.Bool.ShowFolderPanel.get() ? 2 : 1;
+		return mode;
+	}
+
+	/** Switches to the next pane mode: 1 -> 2 -> 3 -> 1 (F3). */
+	private static void cyclePaneMode() {
+		SettingsConf.Int.PaneMode.set(getPaneMode() % 3 + 1);
+	}
+
+	/** Stores the widths of the panes of the current mode. */
+	private static void saveFolderSashWeights() {
+		if (folderSash.getMaximizedControl() != null || appliedPaneMode < 2)
+			return;
+		int[] weights = folderSash.getWeights(); // Tabs, first folder place, folder panel
+		if (appliedPaneMode == 3)
+			SettingsConf.IntArray.FolderSashWeights3.set(weights);
+		else
+			SettingsConf.IntArray.FolderSashWeights.set(new int[] { weights[0], weights[2] });
+	}
+
+	private static int appliedPaneMode = 0;
 	
 	/**
-	 * Shows the folder browser either as a tab or as a panel of its own,
-	 * according to the settings.
+	 * Arranges the panes for the pane mode (see {@link #getPaneMode()}). The
+	 * browser of the Folders tab moves between the tab and its own pane, so
+	 * it keeps its folder and its sync with the folder panel.
 	 */
-	private static void applyFolderPanelMode() {
-		// The 'Folders' tab always exists, after the inbox tabs
-		if (foldersTab == null) {
-			foldersTab = new TabItem(mainTabFolder, SWT.NONE, inboxTabs.size());
-			foldersTab.setText(Msg.folders_tab.get());
-			folderTabPanel = createFolderPanel(
-				mainTabFolder, SettingsConf.Str.LastBrowsedFolder);
-			foldersTab.setControl(folderTabPanel.getControl());
+	private static void applyPaneMode() {
+		saveFolderSashWeights(); // Of the mode that is left
+		int mode = getPaneMode();
+		appliedPaneMode = mode;
+		SettingsConf.Bool.ShowFolderPanel.set(mode >= 2);
+		if (folderTabPanel == null)
+			folderTabPanel = createFolderPanel(mainTabFolder, SettingsConf.Str.LastBrowsedFolder);
+		if (mode == 3) {
+			if (foldersTab != null) {
+				foldersTab.dispose(); // Doesn't dispose the browser
+				foldersTab = null;
+			}
+			moveFolderTabPanel(firstFolderHolder);
+			// The tab folder hides the controls of the tabs that aren't in front
+			folderTabPanel.getControl().setVisible(true);
+			folderTabPanel.setShowLabel(true);
 		}
-		
-		/*
-		 * The second browser next to the tabs is shown on demand. Both
-		 * browsers work the same way and are independent of each other, so
-		 * that documents can be dragged from one folder to another.
-		 */
-		boolean showPanel = SettingsConf.Bool.ShowFolderPanel.get();
+		else {
+			// The 'Folders' tab comes after the inbox tabs
+			if (foldersTab != null && mainTabFolder.indexOf(foldersTab) != inboxTabs.size()) {
+				foldersTab.dispose();
+				foldersTab = null;
+			}
+			if (foldersTab == null) {
+				moveFolderTabPanel(mainTabFolder);
+				foldersTab = new TabItem(mainTabFolder, SWT.NONE, inboxTabs.size());
+				foldersTab.setText(withKey(Msg.folders_tab.get(), SettingsConf.IntArray.FoldersKey));
+				foldersTab.setControl(folderTabPanel.getControl());
+			}
+			folderTabPanel.setShowLabel(false);
+		}
+		applyFolderPanelMode(mode >= 2);
+		firstFolderHolder.setVisible(mode == 3);
+		folderSash.setMaximizedControl(mode == 1 ? mainTabFolder : null);
+		if (mode == 3) {
+			folderSash.setWeights(SettingsConf.IntArray.FolderSashWeights3.get());
+		}
+		else if (mode == 2) {
+			int[] w = SettingsConf.IntArray.FolderSashWeights.get();
+			folderSash.setWeights(new int[] { w[0], 1, w[1] });
+		}
+		firstFolderHolder.layout();
+		folderSash.layout(true, true);
+		DocToolBar.selectPaneMode(docToolBar, mode);
+	}
+
+	/**
+	 * Puts the browser of the Folders tab into the given parent. Where
+	 * controls can't be moved, it is created anew there, with a new sync.
+	 */
+	private static void moveFolderTabPanel(@NotNull Composite parent) {
+		Control control = folderTabPanel.getControl();
+		if (control.getParent() == parent)
+			return;
+		if (control.isReparentable()) {
+			control.setParent(parent);
+			return;
+		}
+		File folder = folderTabPanel.getFolder();
+		if (folderSync != null)
+			folderSync.dispose();
+		control.dispose();
+		folderTabPanel = createFolderPanel(parent, SettingsConf.Str.LastBrowsedFolder);
+		folderTabPanel.setFolder(folder);
+		if (folderPanel != null)
+			folderSync = new FolderSync(folderTabPanel, folderPanel);
+	}
+
+	/**
+	 * Shows or hides the folder browser next to the tabs. Both browsers work
+	 * the same way, so that documents can be dragged from one folder to
+	 * another; the sync couples them.
+	 */
+	private static void applyFolderPanelMode(boolean showPanel) {
 		if (showPanel && folderPanel == null) {
 			folderPanel = createFolderPanel(
 				folderPanelHolder, SettingsConf.Str.LastBrowsedFolderPanel);
 			folderPanel.setShowLabel(true);
 			folderPanelHolder.layout();
+			// The 'Folders' tab shows the parent of this browser (toolbar toggle)
+			folderSync = new FolderSync(folderTabPanel, folderPanel);
 		}
 		else if (!showPanel && folderPanel != null) {
+			if (folderSync != null)
+				folderSync.dispose();
+			folderSync = null;
 			folderPanel.getControl().dispose();
 			folderPanel = null;
 		}
-		folderSash.setMaximizedControl(showPanel ? null : mainTabFolder);
 	}
 	
-	/** Shows or hides the folder browser next to the tabs. */
-	private static void toggleFolderPanel() {
-		SettingsConf.Bool.ShowFolderPanel.set(!SettingsConf.Bool.ShowFolderPanel.get());
-		applyFolderPanelMode();
+	/**
+	 * Files dropped on the tab of an inbox are moved into its folder, e.g.
+	 * from the folder browser, without bringing the tab to the front first.
+	 */
+	private static void initInboxTabDrop() {
+		DropTarget dropTarget = new DropTarget(mainTabFolder, DND.DROP_MOVE | DND.DROP_COPY | DND.DROP_DEFAULT);
+		dropTarget.setTransfer(new Transfer[] { FileTransfer.getInstance() });
+		dropTarget.addDropListener(new DropTargetAdapter() {
+			public void dragEnter(DropTargetEvent event) {
+				updateFeedback(event);
+			}
+			public void dragOver(DropTargetEvent event) {
+				updateFeedback(event);
+			}
+			public void dragOperationChanged(DropTargetEvent event) {
+				updateFeedback(event);
+			}
+			public void drop(DropTargetEvent event) {
+				InboxTab inboxTab = getInboxTabAt(event);
+				if (inboxTab == null || !(event.data instanceof String[]))
+					return;
+				List<File> files = new ArrayList<File>();
+				for (String path : (String[]) event.data)
+					files.add(new File(path));
+				inboxTab.panel.getResultPanel().dropFiles(files, inboxTab.entry.getFolder(),
+					event.detail == DND.DROP_COPY);
+				inboxTab.panel.refresh();
+			}
+			private void updateFeedback(DropTargetEvent event) {
+				if (getInboxTabAt(event) == null)
+					event.detail = DND.DROP_NONE;
+				else if (event.detail == DND.DROP_NONE || event.detail == DND.DROP_DEFAULT)
+					event.detail = DND.DROP_MOVE;
+			}
+		});
 	}
-	
+
+	/** The inbox tab under the cursor of a drag, or null. */
+	@Nullable
+	private static InboxTab getInboxTabAt(@NotNull DropTargetEvent event) {
+		TabItem item = mainTabFolder.getItem(mainTabFolder.toControl(event.x, event.y));
+		for (InboxTab inboxTab : inboxTabs)
+			if (inboxTab.tab == item)
+				return inboxTab;
+		return null;
+	}
+
+
 	/** Shows or hides the preview pane, which has no toggle of its own. */
 	private static void togglePreviewPanel() {
 		if (twoPanelForm == null)
@@ -1516,7 +1726,7 @@ public final class Application {
 		
 		// The folders tab belongs after the inbox tabs
 		if (foldersTab != null && mainTabFolder.indexOf(foldersTab) != inboxTabs.size())
-			applyFolderPanelMode();
+			applyPaneMode();
 	}
 
 	@NotNull
@@ -1524,7 +1734,7 @@ public final class Application {
 											int index) {
 		InboxPanel inboxPanel = new InboxPanel(mainTabFolder, indexRegistry);
 		TabItem tab = new TabItem(mainTabFolder, SWT.NONE, index);
-		tab.setText(entry.getTabName());
+		tab.setText(withKey(entry.getTabName(), SettingsConf.IntArray.InboxKey));
 		tab.setControl(inboxPanel.getControl());
 
 		final ResultPanel inboxResults = inboxPanel.getResultPanel();
@@ -1627,6 +1837,104 @@ public final class Application {
 		panel.showFile(file);
 	}
 	
+	/**
+	 * With the sync button on, shows the document selected in the search
+	 * results in the rightmost folder browser: the folder panel, whose left
+	 * neighbour follows through the sync; with one pane the Folders tab, in
+	 * the background (the tab in front stays). Not for the inboxes: they are
+	 * the source for filing documents, and the browsers keep the target.
+	 */
+	private static void followInFolderPanel(@NotNull List<ResultDocument> selection) {
+		if (!SettingsConf.Bool.SyncFolderPanels.get() || selection.size() != 1)
+			return;
+		ResultDocument doc = selection.get(0);
+		if (!doc.isPlainFileOnDisk())
+			return;
+		FolderPanel rightmost = folderPanel != null ? folderPanel : folderTabPanel;
+		if (rightmost != null)
+			rightmost.showFile(doc.getPath().getCanonicalFile());
+	}
+
+	/** The result table of the tab in front becomes the toolbar's; the Search tab focuses its field. */
+	private static void onTabSelected() {
+		InboxTab selected = getSelectedInboxTab();
+		if (selected != null) {
+			selected.panel.refresh();
+			selected.panel.getResultPanel().activate();
+		}
+		else if (folderTabPanel != null
+				&& mainTabFolder.getSelection().length > 0
+				&& mainTabFolder.getSelection()[0] == foldersTab) {
+			folderTabPanel.refresh();
+			folderTabPanel.getResultPanel().activate();
+		}
+		else {
+			resultPanel.activate();
+			// Ready for typing a query
+			if (mainTabFolder.getSelection().length > 0 && mainTabFolder.getSelection()[0] == searchTab)
+				searchBar.setFocus();
+		}
+	}
+
+	/** Returns the tab title with the key of the setting, e.g. "Search (F7)". */
+	static String withKey(@NotNull String title, @NotNull SettingsConf.IntArray key) {
+		int[] k = key.get();
+		if (k.length != 2 || k[1] == 0)
+			return title;
+		return title + " (" + UtilGui.toString(k) + ")";
+	}
+
+	/** Shows the keys of the preferences in the tab titles. */
+	private static void updateTabTitles() {
+		searchTab.setText(withKey(Msg.search_tab.get(), SettingsConf.IntArray.SearchKey));
+		if (foldersTab != null && !foldersTab.isDisposed())
+			foldersTab.setText(withKey(Msg.folders_tab.get(), SettingsConf.IntArray.FoldersKey));
+		for (InboxTab inboxTab : inboxTabs)
+			inboxTab.tab.setText(withKey(inboxTab.entry.getTabName(), SettingsConf.IntArray.InboxKey));
+	}
+
+	/** Returns true if the key event matches the key combination of the setting. */
+	static boolean isKey(@NotNull SettingsConf.IntArray setting, int stateMask, int keyCode) {
+		int[] key = setting.get();
+		if (key.length != 2 || key[1] == 0)
+			return false;
+		int modifiers = stateMask & (SWT.CTRL | SWT.ALT | SWT.SHIFT | SWT.COMMAND);
+		return modifiers == key[0] && (keyCode == key[1] || Character.toUpperCase(keyCode) == key[1]);
+	}
+
+	/** Shows the first inbox tab, or the next one if an inbox tab is in front. */
+	private static void goToInbox() {
+		if (inboxTabs.isEmpty())
+			return;
+		InboxTab selected = getSelectedInboxTab();
+		int next = selected == null ? 0 : (inboxTabs.indexOf(selected) + 1) % inboxTabs.size();
+		InboxTab tab = inboxTabs.get(next);
+		mainTabFolder.setSelection(tab.tab);
+		onTabSelected();
+		tab.panel.getResultPanel().getControl().setFocus();
+	}
+
+	/** Shows the Search tab with the cursor in the search field. */
+	private static void goToSearch() {
+		mainTabFolder.setSelection(searchTab);
+		onTabSelected();
+		searchBar.setFocus();
+	}
+
+	/** Focuses the folder browser: the Folders tab, or the middle pane with three panes. */
+	private static void goToFolders() {
+		if (folderTabPanel == null)
+			return;
+		if (foldersTab != null && !foldersTab.isDisposed()) {
+			mainTabFolder.setSelection(foldersTab);
+			onTabSelected();
+		}
+		else {
+			folderTabPanel.getResultPanel().activate();
+		}
+		folderTabPanel.getResultPanel().getControl().setFocus();
+	}
+
 	/** Creates the 'Folders' tab, which browses the indexed folders. */
 	@NotNull
 	private static FolderPanel createFolderPanel(	@NotNull Composite parent,
@@ -1650,7 +1958,9 @@ public final class Application {
 		});
 		panel.evtFolderChanged.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
-				previewPanel.clear();
+				// The synced folder view may change folders before the preview exists
+				if (previewPanel != null)
+					previewPanel.clear();
 				showSelectedPath(Collections.<ResultDocument> emptyList());
 			}
 		});
@@ -1683,16 +1993,16 @@ public final class Application {
 				searchSettingsDialog.open();
 			}
 		});
+		searchBar.evtOpenSearchHelp.add(new Event.Listener<Void>() {
+			public void update(Void eventData) {
+				showSearchHelp();
+			}
+		});
 
 		// Optionally let the folder view follow the selected result
 		resultPanel.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
 			public void update(List<ResultDocument> eventData) {
-				if (!SettingsConf.Bool.SyncFolderView.get() || eventData.size() != 1)
-					return;
-				ResultDocument doc = eventData.get(0);
-				// Only the panel follows along; the tab would steal the view
-				if (doc.isPlainFileOnDisk() && folderPanel != null)
-					folderPanel.showFile(doc.getPath().getCanonicalFile());
+				followInFolderPanel(eventData);
 			}
 		});
 		resultPanel.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
@@ -1814,6 +2124,11 @@ public final class Application {
 				openPrefDialog(false);
 			}
 		});
+		createMenuItem(fileMenu, Msg.print_separator_sheet.get(), Img.TB_SPLIT.get(), new Runnable() {
+			public void run() {
+				DocumentPrinter.printSeparatorSheet(shell);
+			}
+		});
 		createMenuItem(fileMenu, Msg.menu_indexes.get(), Img.FOLDER.get(), new Runnable() {
 			public void run() {
 				openPrefDialog(true);
@@ -1838,21 +2153,28 @@ public final class Application {
 		});
 
 		Menu viewMenu = createMenu(menuBar, Msg.menu_view.get());
-		final MenuItem folderPanelItem = new MenuItem(viewMenu, SWT.CHECK);
-		folderPanelItem.setText(Msg.menu_folder_panel.get());
-		folderPanelItem.setSelection(SettingsConf.Bool.ShowFolderPanel.get());
-		folderPanelItem.addSelectionListener(new SelectionAdapter() {
-			public void widgetSelected(SelectionEvent e) {
-				toggleFolderPanel();
-				folderPanelItem.setSelection(SettingsConf.Bool.ShowFolderPanel.get());
+		final Msg[] paneLabels = { Msg.menu_one_pane, Msg.menu_two_panes, Msg.menu_three_panes };
+		final MenuItem[] paneItems = new MenuItem[3];
+		for (int i = 0; i < 3; i++) {
+			final int mode = i + 1;
+			paneItems[i] = new MenuItem(viewMenu, SWT.RADIO);
+			paneItems[i].setText(paneLabels[i].get());
+			paneItems[i].setSelection(getPaneMode() == mode);
+			paneItems[i].addSelectionListener(new SelectionAdapter() {
+				public void widgetSelected(SelectionEvent e) {
+					if (((MenuItem) e.widget).getSelection())
+						SettingsConf.Int.PaneMode.set(mode);
+				}
+			});
+		}
+		SettingsConf.Int.PaneMode.evtChanged.add(new Event.Listener<Integer>() {
+			public void update(Integer eventData) {
+				for (int i = 0; i < 3; i++)
+					if (!paneItems[i].isDisposed())
+						paneItems[i].setSelection(eventData == i + 1);
 			}
 		});
-		SettingsConf.Bool.ShowFolderPanel.evtChanged.add(new Event.Listener<Boolean>() {
-			public void update(Boolean eventData) {
-				if (!folderPanelItem.isDisposed())
-					folderPanelItem.setSelection(eventData);
-			}
-		});
+		new MenuItem(viewMenu, SWT.SEPARATOR);
 		
 		final MenuItem previewPanelItem = new MenuItem(viewMenu, SWT.CHECK);
 		previewPanelItem.setText(Msg.menu_preview_panel.get());
@@ -1869,6 +2191,8 @@ public final class Application {
 					previewPanelItem.setSelection(eventData);
 			}
 		});
+		
+		initIconSizeMenu(viewMenu);
 		
 		Menu helpMenu = createMenu(menuBar, Msg.menu_help.get());
 		createMenuItem(helpMenu, Msg.menu_manual.get(), Img.HELP.get(), new Runnable() {
@@ -1894,6 +2218,46 @@ public final class Application {
 	}
 
 	@NotNull
+	/** The choices of 'View > Icon size', the same as in the preferences. */
+	private static final int[] ICON_SIZES = { 0, 100, 125, 150, 200 };
+	
+	/**
+	 * Adds the 'Icon size' submenu. The icons are scaled when the program
+	 * starts, so a new size takes effect after a restart, which is said.
+	 */
+	private static void initIconSizeMenu(@NotNull Menu viewMenu) {
+		MenuItem iconSizeItem = new MenuItem(viewMenu, SWT.CASCADE);
+		iconSizeItem.setText(Msg.menu_icon_size.get());
+		Menu iconSizeMenu = new Menu(viewMenu);
+		iconSizeItem.setMenu(iconSizeMenu);
+		final MenuItem[] items = new MenuItem[ICON_SIZES.length];
+		for (int i = 0; i < ICON_SIZES.length; i++) {
+			final int size = ICON_SIZES[i];
+			items[i] = new MenuItem(iconSizeMenu, SWT.RADIO);
+			items[i].setText(size == 0 ? Msg.pref_icon_size_auto.get() : size + " %");
+			items[i].setSelection(SettingsConf.Int.IconScalePercent.get() == size);
+			items[i].addSelectionListener(new SelectionAdapter() {
+				public void widgetSelected(SelectionEvent e) {
+					// Radio items also report being deselected
+					if (!((MenuItem) e.widget).getSelection()
+							|| SettingsConf.Int.IconScalePercent.get() == size)
+						return;
+					SettingsConf.Int.IconScalePercent.set(size);
+					AppUtil.showInfo(Msg.pref_icon_size_hint.format(
+						ProgramConf.Str.AppName.get()));
+				}
+			});
+		}
+		// The preferences change the same setting
+		SettingsConf.Int.IconScalePercent.evtChanged.add(new Event.Listener<Integer>() {
+			public void update(Integer eventData) {
+				for (int i = 0; i < items.length; i++)
+					if (!items[i].isDisposed())
+						items[i].setSelection(ICON_SIZES[i] == eventData);
+			}
+		});
+	}
+	
 	private static MenuItem createMenuItem(	@NotNull Menu menu,
 											@NotNull String label,
 											@Nullable Image image,
@@ -2264,8 +2628,40 @@ public final class Application {
 		return dialog.open();
 	}
 
+	/**
+	 * Starts, restarts or stops the MCP server according to the settings;
+	 * shows an error if the port is in use.
+	 */
+	private static void updateMcpServer() {
+		if (!SettingsConf.Bool.McpServerEnabled.get()) {
+			if (mcpServer != null)
+				mcpServer.stop();
+			return;
+		}
+		int port = SettingsConf.Int.McpServerPort.get();
+		try {
+			if (mcpServer == null)
+				mcpServer = new McpServer(indexRegistry);
+			mcpServer.start(port);
+		}
+		catch (Throwable e) {
+			// Port in use, or e.g. a Java runtime without the HTTP server module
+			Util.printErr(e);
+			AppUtil.showError(Msg.mcp_server_failed.format(port, e.toString()), true, true);
+		}
+	}
+
 	private static void showManual() {
-		File file = ManualLocator.getManualFile();
+		showHelpPage(ManualLocator.getStartPage());
+	}
+
+	/** Shows the search help (query syntax) next to the results. */
+	private static void showSearchHelp() {
+		File file = ManualLocator.getManualSubpageFile("Query_Syntax.html");
+		showHelpPage(file != null && file.isFile() ? file : ManualLocator.getStartPage());
+	}
+
+	private static void showHelpPage(@Nullable File file) {
 		if (file != null) {
 			if (previewPanel.setHtmlFile(file))
 				twoPanelForm.setSecondSubControlVisible(true);

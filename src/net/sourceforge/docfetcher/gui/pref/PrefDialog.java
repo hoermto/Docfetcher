@@ -66,6 +66,9 @@ public final class PrefDialog {
 	private final IndexPanel indexPanel;
 	private final File defaultIndexDir;
 	private final DropdownOption analyzerOption;
+	private final DropdownOption removeOriginalsOption;
+	private final CheckOption askRebuildOption;
+	private boolean resetHints = false;
 	private final int oldAnalyzer;
 	@NotNull private TabFolder tabFolder;
 	@NotNull private IndexManagementPanel indexManagementPanel;
@@ -101,6 +104,10 @@ public final class PrefDialog {
 			new CheckOption(
 				Msg.pref_use_or_operator.get(),
 				SettingsConf.Bool.UseOrOperator),
+
+			new CheckOption(
+				Msg.pref_tolerant_search.get(),
+				SettingsConf.Bool.TolerantSearch),
 
 			new CheckOption(
 				Msg.pref_scroll_to_first_match.get(),
@@ -140,11 +147,7 @@ public final class PrefDialog {
 				Msg.pref_show_path_column.get(),
 				SettingsConf.Bool.ShowPathColumn),
 
-			new CheckOption(
-				Msg.pref_sync_folder_view.get(),
-				SettingsConf.Bool.SyncFolderView),
-
-			new CheckOption(
+new CheckOption(
 				Msg.pref_ocr.get(),
 				SettingsConf.Bool.OcrEnabled),
 
@@ -158,7 +161,15 @@ public final class PrefDialog {
 
 			new CheckOption(
 				Msg.pref_keep_tiff.get(),
-				SettingsConf.Bool.KeepTiffAfterConversion)
+				SettingsConf.Bool.KeepTiffAfterConversion),
+
+			askRebuildOption = new CheckOption(
+				Msg.pref_ask_rebuild_outdated.get(),
+				SettingsConf.Bool.AskRebuildOutdatedIndexes),
+
+			new CheckOption(
+				Msg.pref_mcp_server.get(),
+				SettingsConf.Bool.McpServerEnabled)
 
 			// TODO post-release-1.1: Implement this; requires saving and restoring the tree expansion state
 			//	new CheckOption(
@@ -209,7 +220,15 @@ public final class PrefDialog {
 			};
 		}
 		
+		IntFieldOption mcpPortOption = new IntFieldOption(
+			Msg.pref_mcp_port.get(),
+			SettingsConf.Int.McpServerPort,
+			1024, 65535);
 		fieldOptions.addAll(Arrays.asList(
+			// Right below the MCP checkbox, the last of the check options
+			mcpPortOption,
+			new McpHelpOption(mcpPortOption),
+			
 			new DropdownOption(
 				Msg.pref_close_action.get(),
 				SettingsConf.Int.CloseAction,
@@ -220,6 +239,14 @@ public final class PrefDialog {
 				SettingsConf.Bool.ShowPreviewPanelAtBottom,
 				Msg.pref_preview_bottom.get(),
 				Msg.pref_preview_right.get()),
+			
+			removeOriginalsOption = new DropdownOption(
+				Msg.pref_remove_originals.get(),
+				SettingsConf.Int.RemoveOriginals,
+				new String[] { Msg.pref_originals_ask.get(),
+					Msg.pref_originals_remove.get(), Msg.pref_originals_keep.get() },
+				new int[] { SettingsConf.ORIGINALS_ASK, SettingsConf.ORIGINALS_REMOVE,
+					SettingsConf.ORIGINALS_KEEP }),
 			
 			new DropdownOption(
 				Msg.pref_folder_path_segments.get(),
@@ -259,6 +286,10 @@ public final class PrefDialog {
 		if (hotkeyEnabled) {
 			fieldOptions.add(new HotkeyOption(Msg.pref_hotkey.get()));
 		}
+		// Keys of the main window
+		fieldOptions.add(new HotkeyOption(Msg.pref_key_inbox.get(), SettingsConf.IntArray.InboxKey, true));
+		fieldOptions.add(new HotkeyOption(Msg.pref_key_search.get(), SettingsConf.IntArray.SearchKey, true));
+		fieldOptions.add(new HotkeyOption(Msg.pref_key_folders.get(), SettingsConf.IntArray.FoldersKey, true));
 
 		new ConfigComposite(shell, SWT.H_SCROLL | SWT.V_SCROLL) {
 			protected Control createContents(Composite parent) {
@@ -300,8 +331,12 @@ public final class PrefDialog {
 		for (PrefOption checkOption : checkOptions)
 			checkOption.createControls(comp);
 
-		// Explain why text recognition can't be used, e.g. missing runtime
-		String ocrProblem = OcrEngine.getInstance().getUnavailableReason();
+		/*
+		 * Explain why text recognition can't be used, e.g. missing runtime -
+		 * if that is known already: loading the engine here, or waiting for a
+		 * recognition running in the background, made the dialog slow.
+		 */
+		String ocrProblem = OcrEngine.getInstance().peekUnavailableReason();
 		if (ocrProblem != null) {
 			Label ocrLabel = new Label(comp, SWT.WRAP);
 			ocrLabel.setText(Msg.ocr_unavailable.format(ocrProblem));
@@ -318,6 +353,21 @@ public final class PrefDialog {
 
 		for (PrefOption fieldOption : fieldOptions)
 			fieldOption.createControls(comp);
+
+		/*
+		 * Answers remembered in dialogs ('Remember my choice', 'Don't ask
+		 * again') and hints shown only once: the button sets the options above
+		 * back to asking; the hints come back when the dialog is confirmed.
+		 */
+		Button resetAnswersBt = UtilGui.createPushButton(comp, Msg.pref_reset_answers.get(), new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				removeOriginalsOption.restoreDefault();
+				askRebuildOption.restoreDefault();
+				resetHints = true;
+			}
+		});
+		resetAnswersBt.setToolTipText(Msg.pref_reset_answers_hint.get());
+		resetAnswersBt.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false, 2, 1));
 
 		Label spacing2 = new Label(comp, SWT.NONE);
 		spacing2.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true, 2, 1));
@@ -392,8 +442,11 @@ public final class PrefDialog {
 					tabFolder.setSelection(2);
 					return;
 				}
+				boolean mcpWasEnabled = SettingsConf.Bool.McpServerEnabled.get();
 				for (PrefOption checkOption : checkOptions)
 					checkOption.save();
+				if (resetHints)
+					SettingsConf.Bool.ShowRelativePathsMessage.set(true);
 				for (PrefOption fieldOption : fieldOptions) {
 					fieldOption.save();
 					
@@ -407,7 +460,11 @@ public final class PrefDialog {
 				}
 				indexManagementPanel.saveFolder();
 				evtOKClicked.fire(null);
+				Shell parentShell = (Shell) shell.getParent();
 				shell.close();
+				// Just switched on: show how to connect an assistant
+				if (!mcpWasEnabled && SettingsConf.Bool.McpServerEnabled.get())
+					McpHelpOption.openHelp(parentShell, String.valueOf(SettingsConf.Int.McpServerPort.get()));
 			}
 		});
 

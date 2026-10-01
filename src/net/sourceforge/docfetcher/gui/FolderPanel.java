@@ -26,6 +26,7 @@ import org.eclipse.swt.widgets.ToolItem;
 import net.sourceforge.docfetcher.enums.Img;
 import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.enums.SettingsConf;
+import net.sourceforge.docfetcher.gui.ResultPanel.DocAction;
 import net.sourceforge.docfetcher.gui.ResultPanel.HeaderMode;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.LuceneIndex;
@@ -40,6 +41,7 @@ import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 import net.sourceforge.docfetcher.util.collect.AlphanumComparator;
+import net.sourceforge.docfetcher.util.gui.MenuAction;
 import net.sourceforge.docfetcher.util.gui.ToolItemFactory;
 
 /**
@@ -84,36 +86,49 @@ public final class FolderPanel {
 
 		ToolBar toolBar = new ToolBar(header, SWT.FLAT);
 		toolBar.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-		ToolItemFactory tif = new ToolItemFactory(toolBar);
-		rootBt = tif.image(Img.FOLDER.get()).toolTip(Msg.folder_roots_bt.get())
-				.listener(new SelectionAdapter() {
-					public void widgetSelected(SelectionEvent e) {
-						setFolder(null); // Back to the list of root folders
-					}
-				}).create();
-		upBt = tif.image(Img.ARROW_UP.get()).toolTip(Msg.folder_up.get())
-				.listener(new SelectionAdapter() {
-					public void widgetSelected(SelectionEvent e) {
-						goUp();
-					}
-				}).create();
-		tif.enabled(true).image(Img.REFRESH.get()).toolTip(Msg.refresh.get())
-				.listener(new SelectionAdapter() {
-					public void widgetSelected(SelectionEvent e) {
-						refresh();
-					}
-				}).create();
-		newFolderBt = tif.image(Img.ADD.get()).toolTip(Msg.new_folder.get())
-				.listener(new SelectionAdapter() {
-					public void widgetSelected(SelectionEvent e) {
-						createFolder();
-					}
-				}).create();
-
 		pathLabel = new Label(header, SWT.NONE);
 		pathLabel.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
 		resultPanel = new ResultPanel(comp, indexRegistry, true);
+		
+		/*
+		 * The navigation actions are offered by the buttons above the listing
+		 * and by the main toolbar, which works on the active browser.
+		 */
+		MenuAction rootsAction = resultPanel.addDocAction(DocAction.FOLDER_ROOTS, new MenuAction(Msg.folder_roots_bt.get()) {
+			public boolean isEnabled() {
+				return folder != null;
+			}
+			public void run() {
+				setFolder(null); // Back to the list of root folders
+			}
+		});
+		MenuAction upAction = resultPanel.addDocAction(DocAction.FOLDER_UP, new MenuAction(Msg.folder_up.get()) {
+			public boolean isEnabled() {
+				return folder != null;
+			}
+			public void run() {
+				goUp();
+			}
+		});
+		MenuAction refreshAction = resultPanel.addDocAction(DocAction.FOLDER_REFRESH, new MenuAction(Msg.refresh.get()) {
+			public void run() {
+				refresh();
+			}
+		});
+		MenuAction newFolderAction = resultPanel.addDocAction(DocAction.NEW_FOLDER, new MenuAction(Msg.new_folder.get()) {
+			public boolean isEnabled() {
+				return folder != null; // Not in the root list
+			}
+			public void run() {
+				createFolder();
+			}
+		});
+		ToolItemFactory tif = new ToolItemFactory(toolBar);
+		rootBt = createButton(tif, Img.TB_ROOTS, rootsAction);
+		upBt = createButton(tif, Img.TB_UP, upAction);
+		createButton(tif, Img.TB_REFRESH, refreshAction);
+		newFolderBt = createButton(tif, Img.TB_NEW_FOLDER, newFolderAction);
 		resultPanel.getControl().setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 		// The path bar already says which folder the files are in
 		resultPanel.setPathColumnAllowed(false);
@@ -145,6 +160,18 @@ public final class FolderPanel {
 		});
 
 		setFolder(getStartFolder(lastFolderSetting));
+	}
+
+	@NotNull
+	private static ToolItem createButton(	@NotNull ToolItemFactory tif,
+											@NotNull Img image,
+											@NotNull final MenuAction action) {
+		return tif.image(image.get()).toolTip(action.getLabel())
+				.listener(new SelectionAdapter() {
+					public void widgetSelected(SelectionEvent e) {
+						action.run();
+					}
+				}).create();
 	}
 
 	/**
@@ -208,6 +235,7 @@ public final class FolderPanel {
 	 * null. Must be called from the GUI thread.
 	 */
 	public void setFolder(@Nullable File folder) {
+		showingNothing = false;
 		this.folder = folder;
 		lastFolderSetting.set(folder == null ? "" : Util.getSystemAbsPath(folder));
 		updatePathLabel();
@@ -215,6 +243,7 @@ public final class FolderPanel {
 		upBt.setEnabled(folder != null);
 		rootBt.setEnabled(folder != null);
 		newFolderBt.setEnabled(folder != null); // Not in the root list
+		resultPanel.fireStateChangedIfActive();
 		evtFolderChanged.fire(null);
 		refresh();
 	}
@@ -232,6 +261,42 @@ public final class FolderPanel {
 	}
 	
 	@Nullable private File fileToSelect;
+
+	/**
+	 * Shows the given folder (null: the root list) and selects the given
+	 * file or subfolder in it once the list is loaded.
+	 */
+	public void showFolder(@Nullable File folder, @Nullable File toSelect) {
+		fileToSelect = toSelect;
+		setFolder(folder);
+	}
+
+	private boolean showingNothing = false;
+
+	/**
+	 * Shows an empty list, e.g. in the synced folder view when the folder on
+	 * the left has no subfolder to show.
+	 */
+	public void showNothing() {
+		showingNothing = true;
+		folder = null;
+		fileToSelect = null;
+		resultPanel.setCurrentFolder(null);
+		upBt.setEnabled(false);
+		rootBt.setEnabled(true);
+		newFolderBt.setEnabled(false);
+		pathLabel.setText(Msg.folder_nothing_to_show.get());
+		pathLabel.getParent().layout();
+		refreshCount++; // Drops the result of a refresh that is still running
+		resultPanel.setResults(new ArrayList<ResultDocument>(), HeaderMode.FILES);
+		resultPanel.fireStateChangedIfActive();
+		evtFolderChanged.fire(null);
+	}
+
+	/** True while {@link #showNothing()} is in effect. */
+	public boolean isShowingNothing() {
+		return showingNothing;
+	}
 	
 	/** Asks for a name and creates a subfolder in the current folder. */
 	public void createFolder() {
@@ -272,7 +337,7 @@ public final class FolderPanel {
 
 	/** The folders listed at the root level: indexes and fixed move targets. */
 	@NotNull
-	private List<File> getRootFolders() {
+	List<File> getRootFolders() {
 		return getRootFolders(indexRegistry);
 	}
 	
@@ -312,6 +377,8 @@ public final class FolderPanel {
 	 * thread.
 	 */
 	public void refresh() {
+		if (showingNothing)
+			return;
 		final File folder = this.folder;
 		final int count = ++refreshCount;
 		Thread thread = new Thread(FolderPanel.class.getName() + " (refresh)") {
@@ -356,7 +423,7 @@ public final class FolderPanel {
 		if (searcher == null)
 			return docs;
 		for (File root : getRootFolders())
-			docs.add(searcher.createFolderRow(findIndexFor(root), root));
+			docs.add(searcher.createFolderRow(indexRegistry.findIndexFor(root), root));
 		return docs;
 	}
 
@@ -374,12 +441,12 @@ public final class FolderPanel {
 		if (up != null || isRootFolder(folder)) {
 			// Leads to the parent folder, or back to the list of root folders
 			ResultDocument parentRow = searcher.createFolderRow(
-				findIndexFor(up != null ? up : folder),
+				indexRegistry.findIndexFor(up != null ? up : folder),
 				up != null ? up : folder, PARENT_ROW_NAME);
 			parentRow.setParentRow(true);
 			entries.add(parentRow);
 		}
-		entries.addAll(searcher.listFolderEntries(findIndexFor(folder), folder));
+		entries.addAll(searcher.listFolderEntries(indexRegistry.findIndexFor(folder), folder));
 		return entries;
 	}
 	
@@ -404,15 +471,5 @@ public final class FolderPanel {
 		return folder.getParentFile();
 	}
 
-	/** Returns the index covering the given folder, or null. */
-	@Nullable
-	private LuceneIndex findIndexFor(@NotNull File folder) {
-		for (LuceneIndex index : indexRegistry.getIndexes()) {
-			File root = index.getCanonicalRootFile();
-			if (Util.isCanonicallyEqual(root, folder) || Util.contains(root, folder))
-				return index;
-		}
-		return null;
-	}
 
 }

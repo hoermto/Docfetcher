@@ -27,6 +27,8 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.locks.Lock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.enums.ProgramConf;
@@ -57,8 +59,6 @@ import net.sourceforge.docfetcher.util.annotations.VisibleForPackageGroup;
 import net.sourceforge.docfetcher.util.collect.AlphanumComparator;
 import net.sourceforge.docfetcher.util.collect.LazyList;
 
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.queries.mlt.MoreLikeThis;
@@ -135,6 +135,7 @@ public final class Searcher {
 	
 	@NotNull private IndexSearcher luceneSearcher; // guarded by read-write lock
 	@NotNull private List<LuceneIndex> indexes; // guarded by read-write lock
+	@NotNull private TolerantSearch tolerantSearch; // guarded by read-write lock
 	@Nullable private volatile IOException ioException;
 	
 	private final Lock readLock;
@@ -266,6 +267,7 @@ public final class Searcher {
             }
         }
         luceneSearcher = new IndexSearcher(new DecoratedMultiReader(readers.toArray(new IndexReader[readers.size()])));
+        tolerantSearch = new TolerantSearch(luceneSearcher.getIndexReader());
         return corrupted;
 	}
 
@@ -306,7 +308,8 @@ public final class Searcher {
 		readLock.lock();
 		try {
 			checkIndexesExist();
-			
+			query = tolerant(matchNames(query), queryWrapper.exactQueries);
+
 			// Perform search; might throw OutOfMemoryError
 			DelegatingCollector collector = new DelegatingCollector(){
 				@Override
@@ -796,6 +799,7 @@ public final class Searcher {
 		readLock.lock();
 		try {
 			checkIndexesExist();
+			query = tolerant(matchNames(query), queryWrapper.exactQueries);
 
 			// Perform search; might throw OutOfMemoryError
 			// Protect against integer overflow when calculating maxResults
@@ -856,27 +860,24 @@ public final class Searcher {
 			.replace('\u2018', '\'') // Left single quotation mark
 			.replace('\u2019', '\''); // Right single quotation mark
 
-		PhraseDetectingQueryParser queryParser = new PhraseDetectingQueryParser(
-			Fields.CONTENT.key(), IndexRegistry.getAnalyzer());
-		queryParser.setAllowLeadingWildcard(true);
-		RewriteMethod rewriteMethod = MultiTermQuery.SCORING_BOOLEAN_REWRITE;
-		queryParser.setMultiTermRewriteMethod(rewriteMethod);
-		if (!SettingsConf.Bool.UseOrOperator.get())
-			queryParser.setDefaultOperator(QueryParser.AND_OPERATOR);
-
 		try {
-			Query query = queryParser.parse(queryString);
-			boolean isPhraseQuery = queryParser.isPhraseQuery();
-			if (SettingsConf.Bool.MatchFilenames.get()) {
-				Query filenameQuery = createFilenameQuery(queryString);
-				if (filenameQuery != null) {
-					BooleanQuery.Builder builder = new BooleanQuery.Builder();
-					builder.add(query, BooleanClause.Occur.SHOULD);
-					builder.add(filenameQuery, BooleanClause.Occur.SHOULD);
-					query = builder.build();
-				}
+			PhraseDetectingQueryParser queryParser = createParser();
+			Query query;
+			try {
+				// Like Google, there are no regular expressions between slashes
+				query = queryParser.parse(escapeUnknownFields(queryString.replace("/", "\\/")));
 			}
-			return new QueryWrapper(query, isPhraseQuery);
+			catch (ParseException e) {
+				/*
+				 * Like Google, characters that are syntax for Lucene are taken
+				 * as part of the words if the query doesn't parse otherwise,
+				 * e.g. 'C++', 'Nr: 5', '(draft' or a single quote.
+				 */
+				queryParser = createParser();
+				query = queryParser.parse(asPlainWords(queryString));
+			}
+			boolean isPhraseQuery = queryParser.isPhraseQuery();
+			return new QueryWrapper(query, isPhraseQuery, queryParser.getExactQueries());
 		}
 		catch (TooComplexToDeterminizeException e) {
 			/*
@@ -900,6 +901,20 @@ public final class Searcher {
 			String msg = Msg.invalid_query.get() + "\n\n" + e.getMessage();
 			throw new SearchException(msg);
 		}
+	}
+	
+	/** Lets the words of the query also match file and folder names, if wanted (see NameMatch). */
+	@NotNull
+	@NotThreadSafe
+	private Query matchNames(@NotNull Query query) {
+		return SettingsConf.Bool.MatchFilenames.get() ? new NameMatch(indexes).expand(query) : query;
+	}
+
+	/** Expands the words of the query to their tolerant variants, if wanted (see TolerantSearch). */
+	@NotNull
+	@NotThreadSafe
+	private Query tolerant(@NotNull Query query, @NotNull Set<Query> exactQueries) throws IOException {
+		return SettingsConf.Bool.TolerantSearch.get() ? tolerantSearch.expand(query, exactQueries) : query;
 	}
 	
 	// Checks that all indexes still exist
@@ -973,60 +988,94 @@ public final class Searcher {
 	}
 	
 	/**
-	 * Builds a query that matches the search terms as case-insensitive
-	 * substrings of the file names, so that e.g. "invoice" also finds
-	 * "myinvoice_2024.pdf". The terms are taken from the query string by
-	 * running it through the analyzer, which drops the query syntax. Returns
-	 * null if the query string yields no terms.
+	 * The query parser for the search field: the words must all occur (unless
+	 * the user chose OR in the preferences), as in Google.
 	 */
-	@Nullable
-	private static Query createFilenameQuery(@NotNull String queryString) {
-		List<String> terms = new ArrayList<String>();
-		try {
-			TokenStream stream = IndexRegistry.getAnalyzer().tokenStream(
-				Fields.FILENAME.key(), new StringReader(queryString));
-			CharTermAttribute termAttr = stream.addAttribute(CharTermAttribute.class);
-			stream.reset();
-			while (stream.incrementToken()) {
-				String term = termAttr.toString().trim();
-				// Wildcard characters are query syntax, not part of the name
-				term = term.replace("*", "").replace("?", "");
-				if (!term.isEmpty() && !terms.contains(term))
-					terms.add(term);
-			}
-			stream.end();
-			stream.close();
-		}
-		catch (IOException e) {
-			return null;
-		}
-		if (terms.isEmpty())
-			return null;
-		
-		BooleanClause.Occur occur = SettingsConf.Bool.UseOrOperator.get()
-			? BooleanClause.Occur.SHOULD
-			: BooleanClause.Occur.MUST;
-		BooleanQuery.Builder builder = new BooleanQuery.Builder();
-		for (String term : terms) {
-			WildcardQuery wildcard = new WildcardQuery(
-				new Term(Fields.FILENAME.key(), "*" + term + "*"));
-			/*
-			 * Constant score rewriting avoids the boolean clause limit that
-			 * scoring rewrites can hit when a substring matches many names.
-			 */
-			wildcard.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
-			builder.add(wildcard, occur);
-		}
-		return builder.build();
+	@NotNull
+	private static PhraseDetectingQueryParser createParser() {
+		PhraseDetectingQueryParser queryParser = new PhraseDetectingQueryParser(
+			Fields.CONTENT.key(), IndexRegistry.getAnalyzer());
+		queryParser.setAllowLeadingWildcard(true);
+		RewriteMethod rewriteMethod = MultiTermQuery.SCORING_BOOLEAN_REWRITE;
+		queryParser.setMultiTermRewriteMethod(rewriteMethod);
+		if (!SettingsConf.Bool.UseOrOperator.get())
+			queryParser.setDefaultOperator(QueryParser.AND_OPERATOR);
+		return queryParser;
 	}
-	
+
+	private static final Pattern FIELD_PREFIX = Pattern.compile("(?<![\\\\\\w])(\\w+):");
+
+	/**
+	 * Keeps searches in a field like 'title:dog' (any case), but takes other
+	 * words before a colon as words, like Google: 'Nr: 5' searches for 'Nr'
+	 * and '5' instead of '5' in a field named 'Nr'.
+	 */
+	@NotNull
+	static String escapeUnknownFields(@NotNull String query) {
+		Matcher matcher = FIELD_PREFIX.matcher(query);
+		StringBuffer sb = new StringBuffer();
+		while (matcher.find()) {
+			String name = matcher.group(1);
+			String replacement = name + "\\:";
+			for (Fields field : Fields.values())
+				if (field.key().equalsIgnoreCase(name))
+					replacement = field.key() + ":";
+			matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
+		}
+		matcher.appendTail(sb);
+		return sb.toString();
+	}
+
+	/**
+	 * Returns the query with every character that is syntax for Lucene
+	 * escaped, except for the Google-style syntax: quotes (if they come in
+	 * pairs), '+' and '-' at the start of a word, and the wildcards '*' and
+	 * '?'. The words OR, AND and NOT stay operators.
+	 */
+	@NotNull
+	static String asPlainWords(@NotNull String query) {
+		int quotes = 0;
+		for (int i = 0; i < query.length(); i++)
+			if (query.charAt(i) == '"')
+				quotes++;
+		boolean keepQuotes = quotes % 2 == 0;
+		StringBuilder sb = new StringBuilder(query.length() * 2);
+		boolean wordStart = true;
+		for (int i = 0; i < query.length(); i++) {
+			char c = query.charAt(i);
+			char next = i + 1 < query.length() ? query.charAt(i + 1) : ' ';
+			if (Character.isWhitespace(c)) {
+				sb.append(c);
+				wordStart = true;
+			}
+			else if (c == '"') {
+				sb.append(keepQuotes ? c : ' ');
+				wordStart = true;
+			}
+			else if ((c == '+' || c == '-') && wordStart
+					&& (Character.isLetterOrDigit(next) || next == '"')) {
+				sb.append(c); // Must or must not contain the following word
+				wordStart = false;
+			}
+			else {
+				if (!Character.isLetterOrDigit(c) && c != '*' && c != '?')
+					sb.append('\\');
+				sb.append(c);
+				wordStart = false;
+			}
+		}
+		return sb.toString();
+	}
+
 	private static final class QueryWrapper {
 		public final Query query;
 		public final boolean isPhraseQuery;
-		
-		private QueryWrapper(@NotNull Query query, boolean isPhraseQuery) {
+		public final Set<Query> exactQueries;
+
+		private QueryWrapper(@NotNull Query query, boolean isPhraseQuery, @NotNull Set<Query> exactQueries) {
 			this.query = Util.checkNotNull(query);
 			this.isPhraseQuery = isPhraseQuery;
+			this.exactQueries = exactQueries;
 		}
 	}
 

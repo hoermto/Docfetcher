@@ -22,6 +22,7 @@ LOCALE_TO_DISPLAY_NAME = {
 }
 
 STEM_TO_PROPS_KEY = {
+	"Quick_Start": "quick_start",
 	"Query_Syntax": "query_syntax",
 	"Portable_Repositories": "portable_repos",
 	"Indexing_Options": "indexing_options",

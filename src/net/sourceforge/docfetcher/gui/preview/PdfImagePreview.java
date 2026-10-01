@@ -313,7 +313,7 @@ final class PdfImagePreview extends ToolBarForm {
 				try {
 					PDFRenderer renderer = new PDFRenderer(doc);
 					BufferedImage image = renderer.renderImage(index, renderScale, ImageType.RGB);
-					imageData = ImagePreview.toImageData(image);
+					imageData = UtilGui.toImageData(image);
 				}
 				catch (Throwable e) {
 					// Rendering errors for single pages are not fatal; leave

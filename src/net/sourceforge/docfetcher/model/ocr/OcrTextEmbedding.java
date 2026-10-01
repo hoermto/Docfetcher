@@ -14,11 +14,11 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.CRC32;
 
+import net.sourceforge.docfetcher.model.OwnFileChanges;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 
@@ -27,7 +27,7 @@ import net.sourceforge.docfetcher.util.annotations.Nullable;
  * with the file and recognition doesn't have to be repeated: PNG files get
  * an iTXt chunk, JPEG files one or more COM segments, both marked with the
  * keyword {@link #KEYWORD}. The image data itself is left untouched, and the
- * file's modification time is preserved.
+ * file's dates (created, modified, accessed) are preserved.
  */
 public final class OcrTextEmbedding {
 
@@ -65,10 +65,20 @@ public final class OcrTextEmbedding {
 
 	/**
 	 * Embeds the given text in the given PNG or JPEG file, replacing any
-	 * previously embedded text. The modification time of the file is kept.
+	 * previously embedded text. The dates of the file are kept.
 	 * Returns false if the file is neither a PNG nor a JPEG file.
 	 */
 	public static boolean write(@NotNull File file, @NotNull String text)
+			throws IOException {
+		// Before reading, which changes the access date
+		return write(file, text, FileDates.of(file));
+	}
+
+	/**
+	 * Like {@link #write(File, String)}, with the dates the file is to keep,
+	 * taken before the file was first read (the text recognition reads it).
+	 */
+	static boolean write(@NotNull File file, @NotNull String text, @Nullable FileDates dates)
 			throws IOException {
 		byte[] data = Files.readAllBytes(file.toPath());
 		byte[] out;
@@ -78,23 +88,26 @@ public final class OcrTextEmbedding {
 			out = writeJpeg(data, text);
 		else
 			return false;
-		replaceFile(file, out);
+		replaceFile(file, out, dates);
 		return true;
 	}
 
-	/** Writes the bytes to the file via a temporary file, keeping the mtime. */
-	static void replaceFile(@NotNull File file, @NotNull byte[] data) throws IOException {
-		long lastModified = file.lastModified();
-		File temp = new File(file.getParentFile(), file.getName() + ".docfetcher-tmp");
+	/** Writes the bytes to the file via a temporary file, then gives it the dates. */
+	static void replaceFile(@NotNull File file, @NotNull byte[] data, @Nullable FileDates dates)
+			throws IOException {
+		File temp = new File(file.getParentFile(), file.getName() + OwnFileChanges.TEMP_SUFFIX);
 		Files.write(temp.toPath(), data);
+		// Our own change: the folder watcher shouldn't start another update for it
+		OwnFileChanges.begin(file);
 		try {
 			Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+			if (dates != null)
+				dates.applyTo(file);
 		}
 		finally {
 			temp.delete();
+			OwnFileChanges.end(file);
 		}
-		if (lastModified > 0)
-			Files.setLastModifiedTime(file.toPath(), FileTime.fromMillis(lastModified));
 	}
 
 	private static boolean isPng(@NotNull byte[] data) {

@@ -13,7 +13,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.FileTime;
 import java.util.List;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -34,6 +33,7 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.util.Matrix;
 
 import net.sourceforge.docfetcher.model.Cancelable;
+import net.sourceforge.docfetcher.model.OwnFileChanges;
 import net.sourceforge.docfetcher.model.ocr.OcrEngine.Result;
 import net.sourceforge.docfetcher.model.ocr.OcrEngine.Word;
 import net.sourceforge.docfetcher.util.Util;
@@ -124,35 +124,57 @@ public final class SearchablePdf {
 	/**
 	 * Recognizes the text of all pages of the given PDF file and writes it
 	 * back into the file as an invisible text layer, keeping the file's
-	 * modification time. Returns false if the file was left unchanged (it
+	 * dates (created, modified, accessed). Returns false if the file was left unchanged (it
 	 * already has text, is encrypted, or recognition was cancelled).
 	 */
 	public static boolean ocr(	@NotNull File pdfFile,
 								@NotNull OcrEngine engine,
 								@NotNull Cancelable cancelable) throws IOException {
 		Util.checkNotNull(pdfFile, engine, cancelable);
-		PDDocument doc = PDDocument.load(pdfFile);
+		FileDates dates = FileDates.of(pdfFile); // All dates stay as they are
+		File temp = new File(pdfFile.getParentFile(), pdfFile.getName() + OwnFileChanges.TEMP_SUFFIX);
 		try {
-			if (!needsOcr(doc))
-				return false;
-			PDFRenderer renderer = new PDFRenderer(doc);
-			int pageCount = doc.getNumberOfPages();
-			for (int i = 0; i < pageCount; i++) {
-				if (cancelable.isCanceled())
+			PDDocument doc = PDDocument.load(pdfFile);
+			try {
+				if (!needsOcr(doc))
 					return false;
-				PDPage page = doc.getPage(i);
-				int dpi = renderDpi(page);
-				BufferedImage image = renderer.renderImageWithDPI(i, dpi, ImageType.GRAY);
-				Result result = engine.recognize(image, dpi);
-				addTextLayer(doc, page, result, image.getWidth(), image.getHeight());
+				PDFRenderer renderer = new PDFRenderer(doc);
+				int pageCount = doc.getNumberOfPages();
+				for (int i = 0; i < pageCount; i++) {
+					if (cancelable.isCanceled())
+						return false;
+					PDPage page = doc.getPage(i);
+					int dpi = renderDpi(page);
+					BufferedImage image = renderer.renderImageWithDPI(i, dpi, ImageType.GRAY);
+					Result result = engine.recognize(image, dpi);
+					addTextLayer(doc, page, result, image.getWidth(), image.getHeight());
+				}
+				markRecognized(doc);
+				doc.save(temp);
 			}
-			markRecognized(doc);
-			saveReplacing(doc, pdfFile);
-			return true;
+			finally {
+				/*
+				 * PDFBox keeps the file open while the document is loaded, and
+				 * Windows doesn't allow to replace an open file, so the file
+				 * is replaced only after closing the document.
+				 */
+				doc.close();
+			}
+			// Our own change: the folder watcher shouldn't start another update for it
+			OwnFileChanges.begin(pdfFile);
+			try {
+				Files.move(temp.toPath(), pdfFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+				if (dates != null)
+					dates.applyTo(pdfFile);
+			}
+			finally {
+				OwnFileChanges.end(pdfFile);
+			}
 		}
 		finally {
-			doc.close();
+			temp.delete();
 		}
+		return true;
 	}
 
 	/** Extension appended to a converted TIFF file that is kept. */
@@ -160,7 +182,7 @@ public final class SearchablePdf {
 	
 	/**
 	 * Converts the given TIFF file into a PDF with a text layer, next to the
-	 * TIFF file and with its modification time. Returns the PDF file, or null
+	 * TIFF file and with its dates. Returns the PDF file, or null
 	 * if the target file exists already or the conversion was cancelled.
 	 * After a successful conversion the TIFF file is deleted, or, with
 	 * {@code keepOriginal}, renamed by appending {@link #CONVERTED_SUFFIX}.
@@ -175,8 +197,8 @@ public final class SearchablePdf {
 			Util.splitFilename(tiffFile.getName())[0] + ".pdf");
 		if (pdfFile.exists())
 			return null;
-		long lastModified = tiffFile.lastModified();
-		File temp = new File(pdfFile.getParentFile(), pdfFile.getName() + ".docfetcher-tmp");
+		FileDates dates = FileDates.of(tiffFile); // The PDF gets the dates of the TIFF file
+		File temp = new File(pdfFile.getParentFile(), pdfFile.getName() + OwnFileChanges.TEMP_SUFFIX);
 		PDDocument doc = new PDDocument();
 		boolean success = false;
 		try {
@@ -212,19 +234,34 @@ public final class SearchablePdf {
 			if (!success)
 				temp.delete();
 		}
-		Files.move(temp.toPath(), pdfFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-		if (lastModified > 0)
-			Files.setLastModifiedTime(pdfFile.toPath(), FileTime.fromMillis(lastModified));
+		// Our own changes (the new PDF is indexed right away): no extra update for them
+		OwnFileChanges.begin(pdfFile);
+		try {
+			Files.move(temp.toPath(), pdfFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+			if (dates != null)
+				dates.applyTo(pdfFile);
+		}
+		finally {
+			OwnFileChanges.end(pdfFile);
+		}
 		if (keepOriginal) {
 			File renamed = new File(tiffFile.getParentFile(), tiffFile.getName() + CONVERTED_SUFFIX);
+			OwnFileChanges.begin(renamed);
 			try {
 				Files.move(tiffFile.toPath(), renamed.toPath(), StandardCopyOption.REPLACE_EXISTING);
+				OwnFileChanges.removed(tiffFile);
 			}
 			catch (IOException e) {
 				Util.printErr("Could not rename " + tiffFile + " after converting it to PDF: " + e);
 			}
+			finally {
+				OwnFileChanges.end(renamed);
+			}
 		}
-		else if (!tiffFile.delete()) {
+		else if (tiffFile.delete()) {
+			OwnFileChanges.removed(tiffFile);
+		}
+		else {
 			Util.printErr("Could not delete " + tiffFile + " after converting it to PDF.");
 		}
 		return pdfFile;
@@ -235,20 +272,6 @@ public final class SearchablePdf {
 			INFO_KEY, "Tesseract " + OcrEngine.LANGUAGES);
 	}
 
-	/** Saves the document over the given file, keeping the modification time. */
-	private static void saveReplacing(@NotNull PDDocument doc, @NotNull File file) throws IOException {
-		long lastModified = file.lastModified();
-		File temp = new File(file.getParentFile(), file.getName() + ".docfetcher-tmp");
-		try {
-			doc.save(temp);
-			Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
-		}
-		finally {
-			temp.delete();
-		}
-		if (lastModified > 0)
-			Files.setLastModifiedTime(file.toPath(), FileTime.fromMillis(lastModified));
-	}
 
 	/** Chooses a rendering resolution that keeps large pages within limits. */
 	private static int renderDpi(@NotNull PDPage page) {

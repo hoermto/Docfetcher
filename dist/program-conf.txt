@@ -114,12 +114,12 @@ SkipTarArchives = false
 # in circular folder structures.
 IgnoreJunctionsAndSymlinks = true
 
-# This setting determines whether the program indexes a formula in an MS Excel
-# file as is, or whether it indexes the formula's result instead. For example,
-# if a cell contains the formula "=2+2", the program will either literally
-# extract "=2+2" from the cell, or "4", depending on this setting's value.
-# Changes to this setting will immediately affect the preview pane, but not the
-# indexes, so you'll have to rebuild the latter after the change.
+# This setting determines whether the program indexes the formulas in MS Excel
+# files in addition to their results. For example, if a cell contains the
+# formula "=2+2", the program extracts "4 [=2+2]" if this setting is true, and
+# only "4" if it is false. The result is the value Excel stored when the file
+# was last saved. Changes to this setting will immediately affect the preview
+# pane, but not the indexes, so you'll have to rebuild the latter after the change.
 IndexExcelFormulas = true
 
 # Plain text files (e.g., files with extension ".txt") don't contain any

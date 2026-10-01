@@ -73,6 +73,57 @@ public final class SearchablePdfTest {
 		return file;
 	}
 
+	/**
+	 * Adds the text layer to a scanned PDF in place. The document is read
+	 * from the file it replaces, which Windows only allows after it was
+	 * closed.
+	 */
+	@Test
+	public void addsTheTextLayerToAScannedPdfInPlace() throws Exception {
+		Assume.assumeTrue(OcrEngine.getInstance().isAvailable());
+		File tiff = writeFaxTiff();
+		File pdf = SearchablePdf.convertTiff(
+			tiff, OcrEngine.getInstance(), Cancelable.nullCancelable, false);
+		assertNotNull(pdf);
+		pdf.deleteOnExit();
+		// Make it a scan without text layer again
+		File scan = File.createTempFile("docfetcher-scan", ".pdf");
+		scan.deleteOnExit();
+		PDDocument doc = PDDocument.load(pdf);
+		try {
+			PDDocument copy = new PDDocument();
+			try {
+				org.apache.pdfbox.pdmodel.PDPage page = new org.apache.pdfbox.pdmodel.PDPage(
+					doc.getPage(0).getMediaBox());
+				copy.addPage(page);
+				org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject image =
+					org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory.createFromImage(copy,
+						new org.apache.pdfbox.rendering.PDFRenderer(doc).renderImageWithDPI(0, 150));
+				org.apache.pdfbox.pdmodel.PDPageContentStream cs =
+					new org.apache.pdfbox.pdmodel.PDPageContentStream(copy, page);
+				cs.drawImage(image, 0, 0, page.getMediaBox().getWidth(), page.getMediaBox().getHeight());
+				cs.close();
+				copy.save(scan);
+			}
+			finally {
+				copy.close();
+			}
+		}
+		finally {
+			doc.close();
+		}
+		assertTrue(SearchablePdf.ocr(scan, OcrEngine.getInstance(), Cancelable.nullCancelable));
+		PDDocument result = PDDocument.load(scan);
+		try {
+			String text = new PDFTextStripper().getText(result);
+			assertTrue(text, text.contains("4711"));
+		}
+		finally {
+			result.close();
+		}
+		assertFalse("No temporary file left", new File(scan.getPath() + ".docfetcher-tmp").exists());
+	}
+
 	@Test
 	public void convertsFaxTiffIntoASearchablePdfOfSimilarSize() throws Exception {
 		Assume.assumeTrue(OcrEngine.getInstance().isAvailable());

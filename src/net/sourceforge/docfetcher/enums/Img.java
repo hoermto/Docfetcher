@@ -77,6 +77,23 @@ public enum Img implements FilenameProvider {
 	WARNING_BIG ("warning_big.gif"),
 	WARNING ("warning.gif"), // currently unused
 	WINDOW ("program.gif"),
+
+	// Flat icons of the main toolbar (see dev/icons/make_toolbar_icons.py)
+	TB_PRINT ("tb_print.png"),
+	TB_MAIL ("tb_mail.png"),
+	TB_RENAME ("tb_rename.png"),
+	TB_MOVE ("tb_move.png"),
+	TB_MERGE ("tb_merge.png"),
+	TB_SPLIT ("tb_split.png"),
+	TB_DELETE ("tb_delete.png"),
+	TB_ROOTS ("tb_roots.png"),
+	TB_UP ("tb_up.png"),
+	TB_REFRESH ("tb_refresh.png"),
+	TB_NEW_FOLDER ("tb_new_folder.png"),
+	TB_SYNC ("tb_sync.png"),
+	TB_PANES1 ("tb_panes1.png"),
+	TB_PANES2 ("tb_panes2.png"),
+	TB_PANES3 ("tb_panes3.png"),
 	;
 	
 	private static LazyImageCache lazyImageCache;

@@ -25,7 +25,7 @@ import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 
 import org.apache.poi.hssf.OldExcelFormatException;
-import org.apache.poi.hssf.extractor.ExcelExtractor;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.poifs.filesystem.POIFSFileSystem;
 
 import com.google.common.io.Closeables;
@@ -49,13 +49,12 @@ final class MSExcelParser extends MSOfficeParser {
 		InputStream in = null;
 		try {
 			in = new FileInputStream(file);
-			ExcelExtractor extractor = null;
+			HSSFWorkbook workbook = null;
 			try {
 				POIFSFileSystem fs = new POIFSFileSystem(in);
-				extractor = new ExcelExtractor(fs);
-				extractor.setFormulasNotResults(ProgramConf.Bool.IndexExcelFormulas.get());
-				extractor.setIncludeCellComments(true);
-				return extractor.getText();
+				workbook = new HSSFWorkbook(fs);
+				// Results of formula cells, and the formulas themselves if wanted
+				return ExcelText.extract(workbook, ProgramConf.Bool.IndexExcelFormulas.get());
 			}
 			catch (OldExcelFormatException e) {
 				/*
@@ -78,7 +77,7 @@ final class MSExcelParser extends MSOfficeParser {
 				return extractWithJexcelAPI(file);
 			}
 			finally {
-				Closeables.closeQuietly(extractor);
+				Closeables.closeQuietly(workbook);
 			}
 		}
 		catch (IOException e) {

@@ -110,6 +110,7 @@ public final class InboxPanel {
 	public void setFolder(@NotNull File folder) {
 		Util.checkNotNull(folder);
 		this.folder = folder;
+		resultPanel.setCurrentFolder(folder); // Files dropped on the list are moved here
 		folderLabel.setText(Msg.inbox_folder_label.format(Util.getSystemAbsPath(folder)));
 		folderLabel.getParent().layout();
 		refresh();
@@ -120,18 +121,6 @@ public final class InboxPanel {
 		return folder;
 	}
 
-	/**
-	 * Returns the index covering the given folder, or null.
-	 */
-	@Nullable
-	private LuceneIndex findIndexFor(@NotNull File folder) {
-		for (LuceneIndex index : indexRegistry.getIndexes()) {
-			File root = index.getCanonicalRootFile();
-			if (Util.isCanonicallyEqual(root, folder) || Util.contains(root, folder))
-				return index;
-		}
-		return null;
-	}
 
 	/**
 	 * Reloads the file list from the index in the background. Safe to call
@@ -150,7 +139,7 @@ public final class InboxPanel {
 					message = Msg.inbox_folder_missing.format(Util.getSystemAbsPath(folder));
 				}
 				else {
-					LuceneIndex index = findIndexFor(folder);
+					LuceneIndex index = indexRegistry.findIndexFor(folder);
 					if (index == null)
 						message = Msg.inbox_not_indexed.get();
 					try {

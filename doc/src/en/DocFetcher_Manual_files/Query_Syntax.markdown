@@ -1,10 +1,33 @@
 Query Syntax
 ============
-This page gives an overview of the available query syntax, going from "basic" to "advanced". The query syntax is provided by Apache Lucene, DocFetcher's underlying search engine, and it's described in a more technical manner on Lucene's [query syntax page](http://lucene.apache.org/java/3_4_0/queryparsersyntax.html).
+DocFetcher's search field works like Google: type a few words, and DocFetcher finds the documents that contain all of them. This page starts with the Google-style basics and then goes on to the advanced syntax of Apache Lucene, DocFetcher's underlying search engine.
+
+Quick Reference
+---------------
+Query                   | Resulting documents contain...
+------------------------|---------------------------------------------
+`dog cat`               | both `dog` and `cat`, anywhere in the document
+`dog OR cat`            | `dog`, or `cat`, or both
+`dog -cat`              | `dog`, but not `cat`
+`+dog cat`              | `dog` and `cat` (`+` marks a word that must occur)
+`"black dog"`           | exactly the phrase `black dog`
+`"Müller"`              | exactly `Müller`, not `Muller` (quotes switch off the tolerant search)
+`Muller`                | `Muller`, `Müller`, `MULLER`, ... (tolerant search, see below)
+`luc*` / `luc?`         | words starting with `luc` / `luc` plus one character
+`title:dog`             | `dog` in the title (fields: see below)
+
+Tips:
+
+* Upper and lower case don't matter. Only the operators `OR`, `AND` and `NOT` must be written in upper case.
+* Characters like `+`, `:`, `/` or parentheses inside words are no problem: `C++`, `Nr: 4711` and `01/2025` are searched as words.
+* Tolerant search (on by default, see the [preferences](Preferences.html)): words are also found without umlauts and accents (`Muller` finds `Müller`, `strasse` finds `Straße`) and despite typical recognition errors in scanned documents (`Bonn` finds `B0nn`). Put a word in quotes to find exactly that spelling.
+* If there are too many results, add a word; if there are none, remove one or use `OR`.
+* By default the words also match file and folder names: `invoice` finds `myinvoice_2024.pdf`, and `Rosenweg rent` finds a contract in the folder `Tenants/Rosenweg 12` even if its text doesn't mention `Rosenweg` (search settings: `Also match file and folder names`).
+
 
 Boolean Operators
 -----------------
-DocFetcher supports the boolean operators `OR`, `AND` and `NOT`. If words are concatenated *without* boolean operators, DocFetcher will by default treat them as if they were concatenated with `OR`. If you don't like that, you can go to the [preferences](Preferences.html) and set `AND` as the default.
+DocFetcher supports the boolean operators `OR`, `AND` and `NOT`. If words are concatenated *without* boolean operators, DocFetcher treats them as if they were concatenated with `AND`, like Google. If you prefer `OR` as the default, you can change this in the [preferences](Preferences.html).
 
 Instead of `OR`, `AND` and `NOT`, you can also use `||`, `&&` and `'-'` (minus symbol), respectively. You can use *parentheses* to group certain expressions. Here are some examples:
 
@@ -12,7 +35,7 @@ Query                    | Resulting documents contain...
 -------------------------|---------------------------------------------
 `dog OR cat`             | either `dog`, or `cat`, or both
 `dog AND cat`            | both `dog` and `cat`
-`dog cat`                | (by default equivalent to the query `dog OR cat`)
+`dog cat`                | (by default equivalent to the query `dog AND cat`)
 `dog NOT cat`            | `dog`, but not `cat`
 `-dog cat`               | `cat`, but not `dog`
 `(dog OR cat) AND mouse` | `mouse`, and either `dog` or `cat`, or both
@@ -25,12 +48,12 @@ DocFetcher does not distinguish between lowercase and uppercase characters, so i
 
 Phrase Searches and Required Terms
 ----------------------------------
-To search for a phrase (i.e. a sequence of words), put the phrase in double quotes. To indicate that the documents to search for must contain a particular word, put a `'+'` in front of the word. Of course you can combine these constructs with boolean operators and parentheses. Again, some examples:
+To search for a phrase (i.e. a sequence of words), put the phrase in double quotes; words in quotes are searched with exactly that spelling. To indicate that the documents to search for must contain a particular word, put a `'+'` in front of the word - with the default `AND` all words are required anyway, so this matters if you chose `OR` as the default. Of course you can combine these constructs with boolean operators and parentheses. Again, some examples:
 
 Query                 | Resulting documents contain...
 ----------------------|-------------------------------------
 `"dog cat mouse"`     | the words `dog`, `cat` and `mouse`, in that particular order
-`+dog cat`            | definitely `dog`, and maybe also `cat`
+`+dog cat`            | definitely `dog`, and also `cat` (with `OR` as the default: maybe also `cat`)
 `"dog cat" AND mouse` | the phrase `dog cat`, and the word `mouse`
 `+dog +cat`           | (equivalent to the query `dog AND cat`)
 

@@ -351,6 +351,36 @@ public final class IndexRegistry {
 		}
 	}
 
+	/** Returns the index whose root folder is or contains the given file, or null. */
+	@Nullable
+	@ThreadSafe
+	public LuceneIndex findIndexFor(@NotNull File file) {
+		return findIndexFor(getIndexes(), file);
+	}
+
+	/** Returns the index of the list whose root folder is or contains the given file, or null. */
+	@Nullable
+	public static LuceneIndex findIndexFor(@NotNull List<LuceneIndex> indexes, @NotNull File file) {
+		for (LuceneIndex index : indexes) {
+			File root = index.getCanonicalRootFile();
+			if (Util.isCanonicallyEqual(root, file) || Util.contains(root, file))
+				return index;
+		}
+		// Relative paths ('C:/DocFetcher/../Documents'): compare normalized paths
+		File normalizedFile = normalize(file);
+		for (LuceneIndex index : indexes) {
+			File root = normalize(index.getCanonicalRootFile());
+			if (root.equals(normalizedFile) || Util.contains(root, normalizedFile))
+				return index;
+		}
+		return null;
+	}
+
+	@NotNull
+	private static File normalize(@NotNull File file) {
+		return file.getAbsoluteFile().toPath().normalize().toFile();
+	}
+
 	@CallOnce
 	@ThreadSafe
 	public IndexLoadingProblems load(@NotNull Cancelable cancelable) throws IOException {

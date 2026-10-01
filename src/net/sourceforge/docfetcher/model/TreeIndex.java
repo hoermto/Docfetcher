@@ -18,6 +18,8 @@ import java.util.List;
 import net.sourceforge.docfetcher.model.index.IndexingConfig;
 import net.sourceforge.docfetcher.model.index.IndexingReporter;
 import net.sourceforge.docfetcher.util.AppUtil;
+import net.sourceforge.docfetcher.model.parse.ExcelText;
+import net.sourceforge.docfetcher.model.parse.PdfForms;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.annotations.ImmutableCopy;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
@@ -51,8 +53,10 @@ public abstract class TreeIndex <
 	/**
 	 * Format version of indexes created or rebuilt by this program version.
 	 * Version 1 (DocFetcher 2.0) added page counts, version 2 (2.4) the text
-	 * recognized in images and scanned PDFs. Deserialized indexes from older
-	 * versions have version 0.
+	 * recognized in images and scanned PDFs. Version 3 (2.7) added the tolerant
+	 * forms of the words; they aren't needed anymore since the tolerant search
+	 * works at search time, so indexes of version 2 and 3 are both current.
+	 * Deserialized indexes from older versions have version 0.
 	 */
 	public static final int CURRENT_FORMAT_VERSION = 2;
 	
@@ -60,7 +64,21 @@ public abstract class TreeIndex <
 	private final F rootFolder;
 	private final long created;
 	private int formatVersion = CURRENT_FORMAT_VERSION;
-	/** Time of the last successful update or creation, 0 if unknown (older indexes). */
+
+	/**
+	 * Version of the Excel text in the index (see ExcelText.VERSION).
+	 * Deserialized indexes from older versions have version 0; their Excel
+	 * files are parsed again on the next update, and only those.
+	 */
+	private int excelTextVersion = ExcelText.VERSION;
+
+	/**
+	 * Version of the PDF form text in the index (see PdfForms.VERSION); 0 in
+	 * older indexes, whose PDF files with filled form fields are then parsed
+	 * again on the next update, and only those.
+	 */
+	private int pdfFormsVersion = PdfForms.VERSION;
+/** Time of the last successful update or creation, 0 if unknown (older indexes). */
 	private long lastUpdated = 0;
 	@Nullable private final Path fileIndexDirPath;
 	@Nullable private transient RAMDirectory ramIndexDir;
@@ -115,7 +133,27 @@ public abstract class TreeIndex <
 	public final int getFormatVersion() {
 		return formatVersion;
 	}
-	
+
+	/** Returns true if the Excel files must be parsed again (older text format). */
+	public final boolean isExcelTextOutdated() {
+		return excelTextVersion < ExcelText.VERSION;
+	}
+
+	/** To be called after all Excel files were parsed with the current text format. */
+	public final void setExcelTextCurrent() {
+		excelTextVersion = ExcelText.VERSION;
+	}
+
+	/** Returns true if the PDF files with form fields must be parsed again. */
+	public final boolean isPdfFormsOutdated() {
+		return pdfFormsVersion < PdfForms.VERSION;
+	}
+
+	/** To be called after all PDF files with form fields were parsed again. */
+	public final void setPdfFormsCurrent() {
+		pdfFormsVersion = PdfForms.VERSION;
+	}
+
 	@NotNull
 	public final File getCanonicalRootFile() {
 		return rootFolder.getPath().getCanonicalFile();
@@ -227,8 +265,11 @@ public abstract class TreeIndex <
 	
 	private void clear(boolean removeTopLevel) {
 		// A rebuild re-parses everything, so the index gets the current format
-		if (!removeTopLevel)
+		if (!removeTopLevel) {
 			formatVersion = CURRENT_FORMAT_VERSION;
+			excelTextVersion = ExcelText.VERSION;
+			pdfFormsVersion = PdfForms.VERSION;
+		}
 		if (fileIndexDirPath != null) {
 			File fileIndexDir = getIndexDirPath().getCanonicalFile();
 			if (fileIndexDir.exists()) {

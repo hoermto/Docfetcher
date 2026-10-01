@@ -72,11 +72,18 @@ public final class SettingsConf {
 	public static final int CLOSE_ACTION_EXIT = 0;
 	public static final int CLOSE_ACTION_MINIMIZE = 1;
 	public static final int CLOSE_ACTION_TRAY = 2;
+	
+	// Values of Int.RemoveOriginals
+	public static final int ORIGINALS_ASK = 0;
+	public static final int ORIGINALS_REMOVE = 1;
+	public static final int ORIGINALS_KEEP = 2;
+
 
 	@Description("# Boolean entries. Allowed values: true, false")
 	public enum Bool implements Storable {
 		ShowManualOnStartup (true),
-		UseOrOperator (true),
+		UseOrOperator (false), // Like Google, all words must occur by default
+		AndOperatorApplied (false), // Version 2.8 switched existing settings to AND once
 		HideOnOpen (false), // Default must be 'false' since system tray not supported on Ubuntu Unity
 		ClearSearchHistoryOnExit (false),
 		UseTypeAheadSearch (false),
@@ -91,9 +98,12 @@ public final class SettingsConf {
 		KeepTiffAfterConversion (true), // Keep the TIFF renamed to .ocr instead of deleting it
 		DailyIndexUpdate (true), // Update all indexes once a day while running
 		ShowPathColumn (true), // Show the folder column in the result tables
+		SplitAutoRename (true), // Name the parts of a split by date and keywords
+		SyncFolderPanels (true), // The folders tab shows the parent of the folder panel
+		TolerantSearch (true), // Umlauts and OCR errors: 'Muller' finds 'Müller', 'Bonn' finds 'B0nn'
+		McpServerEnabled (false), // MCP server for AI assistants on localhost (read-only access to the indexes)
 		ShowFolderPanel (true), // Show a second folder browser next to the tabs
-		SyncFolderView (true), // Folder view follows the selected search result
-		FolderSortAscending (false), // Sort order of the folder view
+FolderSortAscending (false), // Sort order of the folder view
 
 		ShowPreviewPanel (true),
 		ShowPreviewPanelAtBottom (false),
@@ -145,7 +155,7 @@ public final class SettingsConf {
 		/* Column the folder view is sorted by; -1 means by date, newest first. */
 		FolderSortColumn (-1),
 		/* Size of the icons in percent; 0 = automatically from the screen. */
-		IconScalePercent (0),
+		IconScalePercent (200),
 		LuceneAnalyzer (getDefaultAnalyzer()),
 		
 		/*
@@ -157,6 +167,21 @@ public final class SettingsConf {
 		
 		// Number of trailing path segments shown for suggested folders
 		FolderPathSegments (2),
+		
+		/*
+		 * What happens to the original PDF files after a merge or split: ask,
+		 * move them to the recycle bin or keep them (ORIGINALS_* constants).
+		 */
+		RemoveOriginals (ORIGINALS_ASK),
+
+		/*
+		 * Panes next to the document view: 1, 2 or 3 (see
+		 * Application.getPaneMode); 0 = not set yet, taken from ShowFolderPanel.
+		 */
+		PaneMode (0),
+
+		// Port of the MCP server on localhost (see Bool.McpServerEnabled)
+		McpServerPort (28835),
 		;
 
 		public final Event<Integer> evtChanged = new Event<Integer> ();
@@ -248,8 +273,14 @@ public final class SettingsConf {
 	@Description("# Comma-separated lists of integers.")
 	public enum IntArray implements Storable {
 		FolderSashWeights (3, 2), // Tabs and folder panel
+		FolderSashWeights3 (3, 2, 2), // Three-pane mode: tabs, Folders tab's browser, folder panel
 		PreviewHighlighting (255, 255, 0),
 		Hotkey (SWT.CTRL, SWT.F8),
+
+		// Keys of the main window (state mask, key code), set in the preferences
+		SearchKey (SWT.NONE, SWT.F7), // The search field on the Search tab
+		InboxKey (SWT.NONE, SWT.F8), // The inbox tabs; pressed again: the next inbox
+		FoldersKey (SWT.NONE, SWT.F5), // The folder browser (Folders tab or middle pane)
 
 		FilterSash (1, 1),
 		RightSashHorizontal (1, 1),

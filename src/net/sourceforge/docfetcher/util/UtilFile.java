@@ -21,12 +21,21 @@ import net.sourceforge.docfetcher.util.annotations.Nullable;
 public final class UtilFile {
 
 	private UtilFile() {}
+	
+	private static volatile boolean trashDisabled = false;
+	
+	/** Lets tests delete for good, so that they don't fill the recycle bin. */
+	public static void setTrashDisabled(boolean trashDisabled) {
+		UtilFile.trashDisabled = trashDisabled;
+	}
 
 	/**
 	 * Returns true if deleted files can be moved to the recycle bin (or to
 	 * the desktop trash on Linux) instead of being deleted for good.
 	 */
 	public static boolean isTrashSupported() {
+		if (trashDisabled)
+			return false;
 		try {
 			return Desktop.isDesktopSupported()
 				&& Desktop.getDesktop().isSupported(Desktop.Action.MOVE_TO_TRASH);
@@ -54,6 +63,24 @@ public final class UtilFile {
 			}
 		}
 		return deletePermanently(file);
+	}
+
+	/**
+	 * Returns the given file if it doesn't exist, otherwise the first free
+	 * file with a number added to the name: {@code name-2.pdf},
+	 * {@code name-3.pdf}, ...
+	 */
+	@NotNull
+	public static File getFreeFile(@NotNull File file) {
+		if (!file.exists())
+			return file;
+		String[] parts = Util.splitFilename(file.getName());
+		String ext = parts[1].isEmpty() ? "" : "." + parts[1];
+		for (int i = 2; ; i++) {
+			File candidate = new File(file.getParentFile(), parts[0] + "-" + i + ext);
+			if (!candidate.exists())
+				return candidate;
+		}
 	}
 
 	/**
