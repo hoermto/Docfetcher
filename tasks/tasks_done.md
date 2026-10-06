@@ -302,3 +302,15 @@
   - Inbox documents no longer call followInFolderPanel: the inbox is the source for filing, the browsers keep the target folder (with sync, the right pane jumped back to the inbox folder).
   - Keys renamed to SearchKey/InboxKey/FoldersKey, so settings files that saved the old defaults F5/F6/F7 get the new ones. Tab titles 'Search (F7)', 'Inbox (F8)', 'Folders (F5)' via Application.withKey, updated when a key changes in the preferences.
     Tests: KeysTest (new defaults, tab titles with key / without key); GUI: inbox click keeps the right browser, search result syncs it, F8 cycles the inboxes, F5 Folders tab, F7 search, key changed to F9 renames the tab at once.
+- change (v2.9): MCP protocol versions for clients of the last year (Claude Desktop without version warnings)
+  - Found: the server spoke 2025-03-26..2025-11-25 (initialize) but answered unknown versions with 2025-06-18; the current
+    SDK (client 2.x, in mcp-remote@latest) already knows the stateless revision 2026-07-28. resources/list and prompts/list
+    gave 'Method not found'. Claude Desktop had no DocFetcher entry yet, so no logged warning to compare.
+  - McpServer is dual-era: _meta version or a modern MCP-Protocol-Version header -> 2026-07-28 (server/discover,
+    resultType, serverInfo in _meta, ttlMs/cacheScope, header checks -32020, unsupported version -32022 with the list,
+    missing _meta fields -32602, HTTP 400/404); otherwise initialize (unknown -> 2025-11-25), batches, unknown version
+    header -> 400. Empty resources/prompts lists. Claude Desktop config with 'npx -y'.
+    Tests: McpServerTest.modernRevision (discover, lists, call, Base64 Mcp-Name, header mismatches, future version,
+    missing _meta, removed methods, legacy headers), initializeAndListTools, httpTransport (modern over HTTP: 200/404);
+    real clients: SDK 2.3.1 legacy -> 2025-11-25, auto and pin -> 2026-07-28, SDK 1.32.1 -> 2025-11-25,
+    mcp-remote with the help's configuration - all without warnings.
