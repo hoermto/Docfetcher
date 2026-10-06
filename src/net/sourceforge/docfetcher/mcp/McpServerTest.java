@@ -20,14 +20,17 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.AfterClass;
+
+import com.sun.net.httpserver.Headers;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import net.sourceforge.docfetcher.model.search.SearchTestSupport;
 
 /**
- * Tests the MCP server: the protocol (initialize, tools/list, tools/call,
- * errors), the tools with questions like 'which letters about tax arrived
+ * Tests the MCP server: the protocol of both eras (initialize, tools/list,
+ * tools/call, errors; revision 2026-07-28 with server/discover, _meta and
+ * headers), the tools with questions like 'which letters about tax arrived
  * latest?' and 'what rent does the tenant in Rosenweg pay?', the access
  * limits and the HTTP transport.
  */
@@ -115,7 +118,14 @@ public final class McpServerTest {
 		assertTrue(((Map<String, Object>) init.get("capabilities")).containsKey("tools"));
 		// Unknown versions get the latest one
 		Map<String, Object> other = result("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"1999-01-01\"}}");
-		assertEquals(McpServer.LATEST_PROTOCOL, other.get("protocolVersion"));
+		assertEquals(McpServer.LATEST_LEGACY_PROTOCOL, other.get("protocolVersion"));
+
+		// Newer versions too: the client decides whether it can work with the newest earlier one
+		Map<String, Object> modern = result("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2026-07-28\"}}");
+		assertEquals("2025-11-25", modern.get("protocolVersion"));
+		// Clients that ask without the capability get empty lists instead of an error
+		assertEquals(0, ((List<Object>) result("{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"resources/list\"}").get("resources")).size());
+		assertEquals(0, ((List<Object>) result("{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"prompts/list\"}").get("prompts")).size());
 
 		assertNull("Notifications get no answer", server.handle("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}"));
 		assertEquals(0, result("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"ping\"}").size());
@@ -127,11 +137,102 @@ public final class McpServerTest {
 		assertEquals("list_folder", ((Map<String, Object>) tools.get(2)).get("name"));
 	}
 
+	/** A request of revision 2026-07-28: _meta in the body, the same values in the headers. */
+	private static McpServer.Reply modern(String method, String params, String nameHeader, String version) {
+		Headers headers = new Headers();
+		headers.add("MCP-Protocol-Version", version);
+		headers.add("Mcp-Method", method);
+		if (nameHeader != null)
+			headers.add("Mcp-Name", nameHeader);
+		String meta = "\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"" + version + "\","
+			+ "\"io.modelcontextprotocol/clientInfo\":{\"name\":\"test\",\"version\":\"1\"},"
+			+ "\"io.modelcontextprotocol/clientCapabilities\":{}}";
+		return server.handle("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"" + method + "\",\"params\":{"
+			+ (params.isEmpty() ? meta : params + "," + meta) + "}}", headers);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static Map<String, Object> modernResult(McpServer.Reply reply) {
+		assertEquals(reply.body, 200, reply.status);
+		Map<String, Object> result = (Map<String, Object>) ((Map<String, Object>) Json.parse(reply.body)).get("result");
+		assertEquals("complete", result.get("resultType"));
+		Map<String, Object> meta = (Map<String, Object>) result.get("_meta");
+		assertEquals("DocFetcher", ((Map<String, Object>) meta.get("io.modelcontextprotocol/serverInfo")).get("name"));
+		return result;
+	}
+
+	@SuppressWarnings("unchecked")
+	private static long errorCode(McpServer.Reply reply, int status) {
+		assertEquals(reply.body, status, reply.status);
+		return (Long) ((Map<String, Object>) ((Map<String, Object>) Json.parse(reply.body)).get("error")).get("code");
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void modernRevision() {
+		String v = McpServer.MODERN_PROTOCOL;
+		Map<String, Object> discover = modernResult(modern("server/discover", "", null, v));
+		List<Object> versions = (List<Object>) discover.get("supportedVersions");
+		assertTrue(versions.contains("2026-07-28"));
+		assertTrue("Earlier clients of the last year", versions.containsAll(java.util.Arrays.asList("2025-11-25", "2025-06-18", "2025-03-26")));
+		assertTrue(((Map<String, Object>) discover.get("capabilities")).containsKey("tools"));
+		assertTrue(((String) discover.get("instructions")).contains("search"));
+		assertEquals("private", discover.get("cacheScope"));
+
+		Map<String, Object> list = modernResult(modern("tools/list", "", null, v));
+		assertEquals(3, ((List<Object>) list.get("tools")).size());
+		assertTrue(((Number) list.get("ttlMs")).longValue() > 0);
+
+		String search = "\"name\":\"search\",\"arguments\":{\"query\":\"Rosenweg\"}";
+		Map<String, Object> call = modernResult(modern("tools/call", search, "search", v));
+		assertEquals(Boolean.FALSE, call.get("isError"));
+		assertTrue(Json.write(call.get("content")).contains("mietvertrag-rosenweg.txt"));
+		assertNull("Tool results aren't cached", call.get("ttlMs"));
+		// Names may come Base64-encoded
+		modernResult(modern("tools/call", search, "=?base64?c2VhcmNo?=", v));
+
+		// Headers must match the body
+		assertEquals(-32020L, errorCode(modern("tools/call", search, "read_document", v), 400));
+		assertEquals(-32020L, errorCode(modern("tools/call", search, null, v), 400));
+		Headers wrongMethod = new Headers();
+		wrongMethod.add("MCP-Protocol-Version", v);
+		wrongMethod.add("Mcp-Method", "tools/call");
+		assertEquals(-32020L, errorCode(server.handle("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{\"_meta\":"
+			+ "{\"io.modelcontextprotocol/protocolVersion\":\"" + v + "\",\"io.modelcontextprotocol/clientCapabilities\":{}}}}", wrongMethod), 400));
+
+		// A version from the future: the error lists the supported ones
+		McpServer.Reply future = modern("tools/list", "", null, "2099-01-01");
+		assertEquals(-32022L, errorCode(future, 400));
+		assertTrue(future.body.contains("\"supported\":[\"2026-07-28\""));
+		assertTrue(future.body.contains("\"requested\":\"2099-01-01\""));
+
+		// The modern header without _meta, or _meta without capabilities: invalid params
+		Headers onlyHeader = new Headers();
+		onlyHeader.add("MCP-Protocol-Version", v);
+		onlyHeader.add("Mcp-Method", "tools/list");
+		assertEquals(-32602L, errorCode(server.handle("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}", onlyHeader), 400));
+		assertEquals(-32602L, errorCode(server.handle("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{\"_meta\":"
+			+ "{\"io.modelcontextprotocol/protocolVersion\":\"" + v + "\"}}}", onlyHeader), 400));
+
+		// Methods of the earlier era are gone; unknown methods give 404
+		assertEquals(-32601L, errorCode(modern("ping", "", null, v), 404));
+		assertEquals(-32601L, errorCode(modern("initialize", "", null, v), 404));
+		modernResult(modern("resources/list", "", null, v));
+
+		// An earlier-era request with an unknown version header
+		Headers oldHeader = new Headers();
+		oldHeader.add("MCP-Protocol-Version", "1999-01-01");
+		assertEquals(-32022L, errorCode(server.handle("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}", oldHeader), 400));
+		Headers knownHeader = new Headers();
+		knownHeader.add("MCP-Protocol-Version", "2025-06-18");
+		assertEquals(200, server.handle("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}", knownHeader).status);
+	}
+
 	@Test
 	@SuppressWarnings("unchecked")
 	public void protocolErrors() {
 		assertEquals(-32700L, ((Map<String, Object>) rpc("{nope").get("error")).get("code"));
-		assertEquals(-32601L, ((Map<String, Object>) rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"resources/list\"}").get("error")).get("code"));
+		assertEquals(-32601L, ((Map<String, Object>) rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"resources/read\"}").get("error")).get("code"));
 		List<Object> content = call("delete_everything", "{}", true);
 		assertTrue(text(content, 0).contains("Unknown tool"));
 		assertTrue(text(call("search", "{}", true), 0).contains("query"));
@@ -406,6 +507,18 @@ public final class McpServerTest {
 			assertTrue(post.body().contains("read_document"));
 
 			assertEquals(202, send(url, "POST", null, "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}").statusCode());
+
+			// Revision 2026-07-28: headers mirror the body; unknown methods give 404
+			String meta = "{\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"2026-07-28\","
+				+ "\"io.modelcontextprotocol/clientCapabilities\":{}}}";
+			java.net.http.HttpResponse<String> discover = send(url, "POST", null,
+				"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"server/discover\",\"params\":" + meta + "}",
+				"MCP-Protocol-Version", "2026-07-28", "Mcp-Method", "server/discover");
+			assertEquals(200, discover.statusCode());
+			assertTrue(discover.body().contains("\"resultType\":\"complete\""));
+			assertEquals(404, send(url, "POST", null,
+				"{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\",\"params\":" + meta + "}",
+				"MCP-Protocol-Version", "2026-07-28", "Mcp-Method", "ping").statusCode());
 			assertEquals(405, send(url, "GET", null, null).statusCode());
 			assertEquals(404, send("http://127.0.0.1:" + port + "/other", "POST", null, body).statusCode());
 			assertEquals("Web pages may not connect", 403,
@@ -448,8 +561,8 @@ public final class McpServerTest {
 	}
 
 	/** Sends a request; returns the status code and the body. HttpURLConnection would drop the Origin header. */
-	private static java.net.http.HttpResponse<String> send(String url, String method, String origin, String body)
-			throws Exception {
+	private static java.net.http.HttpResponse<String> send(String url, String method, String origin, String body,
+			String... headers) throws Exception {
 		java.net.http.HttpRequest.Builder request = java.net.http.HttpRequest.newBuilder(new java.net.URI(url))
 			.header("Accept", "application/json, text/event-stream")
 			.method(method, body == null ? java.net.http.HttpRequest.BodyPublishers.noBody()
@@ -458,6 +571,8 @@ public final class McpServerTest {
 			request.header("Origin", origin);
 		if (body != null)
 			request.header("Content-Type", "application/json");
+		for (int i = 0; i < headers.length; i += 2)
+			request.header(headers[i], headers[i + 1]);
 		return java.net.http.HttpClient.newHttpClient().send(request.build(),
 			java.net.http.HttpResponse.BodyHandlers.ofString());
 	}

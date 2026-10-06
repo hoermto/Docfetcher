@@ -98,6 +98,13 @@
 - In the app: enable `MCP server for AI assistants` in the preferences (or `McpServerEnabled = true` in bin/settings-conf.txt, on its own line), then
   `curl -s -X POST http://localhost:28835/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":{"query":"Rechnung","sort":"newest"}}}'`.
 - Never register it in the user's own Claude configuration for tests.
+- Protocol eras: 2026-07-28 (stateless: _meta with protocolVersion + clientCapabilities, headers MCP-Protocol-Version,
+  Mcp-Method, Mcp-Name; server/discover) and 2025-03-26..2025-11-25 (initialize). Spec: modelcontextprotocol.io/specification/<rev>.
+- Real clients (Node in C:/Program Files/nodejs, not on the Git Bash PATH - prepend it): in a scratch folder
+  `npm install @modelcontextprotocol/client@latest @modelcontextprotocol/sdk@latest`; the v2 client connects with
+  `versionNegotiation: { mode: 'legacy' | 'auto' | { pin: '2026-07-28' } }`, v1 (sdk) only with initialize.
+  Claude Desktop's bridge: pipe JSON-RPC lines into `npx -y mcp-remote http://localhost:28835/mcp` (stdio).
+  Claude Desktop logs: %LOCALAPPDATA%/Claude/logs (mcp.log, main.log).
 - The package's Java runtime is made with jlink: every JDK module the code uses must be in the list above (jdk.httpserver for
   the MCP server - missing, enabling MCP crashed with NoClassDefFoundError; the dev build runs on the full JDK and can't show
   this). So the package test always includes enabling MCP in the preferences and a curl request.

@@ -46,11 +46,14 @@ final class McpHelpOption extends PrefOption {
 		return "claude mcp add --transport http docfetcher http://localhost:" + port + "/mcp";
 	}
 
-	/** The entry for claude_desktop_config.json; Claude Desktop starts local servers, hence the bridge. */
+	/**
+	 * The entry for claude_desktop_config.json; Claude Desktop starts local
+	 * servers, hence the bridge. With -y, npx installs it without asking.
+	 */
 	@NotNull
 	static String claudeDesktopConfig(@NotNull String port) {
 		return "{\n  \"mcpServers\": {\n    \"docfetcher\": {\n      \"command\": \"npx\",\n"
-			+ "      \"args\": [\"mcp-remote\", \"http://localhost:" + port + "/mcp\"]\n    }\n  }\n}";
+			+ "      \"args\": [\"-y\", \"mcp-remote\", \"http://localhost:" + port + "/mcp\"]\n    }\n  }\n}";
 	}
 
 	@Override
