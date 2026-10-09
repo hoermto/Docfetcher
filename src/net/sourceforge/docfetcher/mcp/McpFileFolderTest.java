@@ -112,6 +112,8 @@ public final class McpFileFolderTest {
 		assertTrue(description, description.contains(folder) && description.contains("never change, overwrite, rename, move or delete"));
 		assertEquals(Boolean.TRUE, ((Map<String, Object>) tool.get("annotations")).get("readOnlyHint"));
 		assertTrue(instructions().contains(folder));
+		// Without permission the assistant asks the user for this folder
+		assertTrue(description, description.contains("ask the user to give you access") && description.contains("/add-dir " + folder));
 		Map<String, Object> result = call();
 		assertEquals(Boolean.FALSE, result.get("isError"));
 		String text = (String) ((Map<String, Object>) ((List<Object>) result.get("content")).get(0)).get("text");

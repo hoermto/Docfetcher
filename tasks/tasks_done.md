@@ -445,3 +445,7 @@
     can't deliver Excel/Word files any more; Claude Code can.
     Tests: McpFileFolderTest (none, chosen, no longer an inbox); app: dev preferences - dropdown, greying, OK saves;
     tools/list with get_file_folder and the rule, add_to_inbox gone.
+- change (v2.10): get_file_folder should make the LLM ask for permission to the folder
+  - The assistant can't grant itself access; the rule now tells it to ask the user for access to exactly this folder
+    (Claude Code: permission prompt or /add-dir <folder>; Claude Desktop: allowed folders of the Filesystem
+    extension) and never to save elsewhere instead. Test: McpFileFolderTest.

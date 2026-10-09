@@ -57,7 +57,11 @@ final class McpFileFolder {
 			+ "new files for the user - e.g. a letter, a table or a picture you created - into the folder "
 			+ path(folder) + ". DocFetcher indexes them there, and the user files them. Only add new files "
 			+ "to this folder: never change, overwrite, rename, move or delete a file in it, and never "
-			+ "write into the user's other folders. Use a new name if a file with the name exists.";
+			+ "write into the user's other folders. Use a new name if a file with the name exists. "
+			+ "If you can't write into this folder (no permission yet), ask the user to give you access "
+			+ "to exactly this folder - e.g. in Claude Code by confirming the permission prompt or with "
+			+ "'/add-dir " + path(folder) + "', in Claude Desktop by adding it to the allowed folders of "
+			+ "the Filesystem extension (Settings > Extensions) - and never save the file elsewhere instead.";
 	}
 
 	/** The tool, only while a folder is chosen. */
