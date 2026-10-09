@@ -1,6 +1,7 @@
 ==== 2026-10-09 - DocFetcher 2.10 ====
 
 === Bugfixes ===
+  * After a package was replaced, DocFetcher could ask whether to delete 'incompatible index files' such as an empty folder 'inbox_<number>': a leftover of a deleted index whose folder Windows couldn't remove at once, taken for an index of DocFetcher 1.0.3. Empty leftovers are now removed quietly, and a folder created while DocFetcher runs (an index being built) is never reported.
 
 === Features ===
   * MCP add_to_inbox can download a public file into the inbox (option 'AI assistants may also download files from the internet into the inbox', off by default). DocFetcher asks the user first (file, folder, address) and only then contacts the address. Only https on the standard port and public addresses (not this computer or the home network, also not after redirects), at most 20 MB in 30 seconds; programs and scripts are refused by their content, other contents must match the file type; the file gets the Windows mark of downloaded files (Zone.Identifier). Nothing is opened or run.

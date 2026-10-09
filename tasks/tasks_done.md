@@ -415,3 +415,12 @@
     Tests: McpDownloadTest (addresses, contents), McpInboxTest.downloadsOnlyWithTheUsersConsent (off, no approver,
     declined, private/blocked before asking, tool text); app (dev, port 28836): w3.org test PDF approved -> stored,
     %PDF, Zone.Identifier; declined -> nothing; web page as .pdf -> refused; 192.168.178.1 -> refused, no dialog.
+- bug (v2.10): fresh package reported an inbox index folder as 'incompatible with this program version - delete?'
+  - Cause (first guess 'index being built' was wrong): the folder inbox_1791542179954 was an empty leftover of the
+    previous build's index - build.py emptied build/, Windows deleted the files but not yet the folder (an open
+    handle). IndexRegistry.load takes a folder without tree-index.ser and with a name ending in a number for an
+    index of DocFetcher 1.0.3.
+  - Fix in IndexRegistry.load: folders created during this run (index being built) are skipped; empty folders are
+    removed quietly; only folders with content are reported as before.
+    Tests: ObsoleteIndexFilesTest (old index reported, empty leftover removed, new empty folder kept); app: dev build
+    with an empty old inbox_<number> folder -> no question, folder gone.

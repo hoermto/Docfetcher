@@ -17,7 +17,6 @@
 
 ## bugs
 
-[] On the first start of a fresh portable copy with existing settings (inbox folder set), DocFetcher reports the inbox index it is just creating ('inbox_<id>') as 'incompatible with this program version - delete?' (seen 2026-10-09 in the package test after a rebuild). Probably the obsolete-index check runs while the inbox index is being built; 'Remove' would delete it.
 
 ## changes
 
