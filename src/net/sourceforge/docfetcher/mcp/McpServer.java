@@ -35,6 +35,7 @@ import com.sun.net.httpserver.HttpServer;
 import net.sourceforge.docfetcher.enums.SystemConf;
 import net.sourceforge.docfetcher.mcp.McpTools.ToolException;
 import net.sourceforge.docfetcher.model.IndexRegistry;
+import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
@@ -90,7 +91,8 @@ public final class McpServer {
 		+ "'Rechnung' - the stars also find compound words like 'Einkommensteuer'), then "
 		+ "'read_document' on the best results to read their content. "
 		+ "Use sort=newest for the latest documents and modified_after/modified_before for "
-		+ "periods. When the user asks for a document itself, answer with its path; "
+		+ "periods. When the user asks for a document itself, answer with its path, and "
+		+ "'show_document' shows it to the user in DocFetcher's window; "
 		+ "'get_original_document' returns the file itself when its original form is needed, "
 		+ "e.g. as a template for a new document.";
 
@@ -101,6 +103,17 @@ public final class McpServer {
 
 	public McpServer(@NotNull IndexRegistry registry) {
 		tools = new McpTools(registry);
+	}
+
+	/** Shows documents in DocFetcher's window, for the tool show_document. */
+	public interface DocumentViewer {
+		/** Called on the server's thread; the documents are found and accessible. */
+		void show(@NotNull List<ResultDocument> docs);
+	}
+
+	/** Sets the window that show_document shows the documents in; null: none. */
+	public void setViewer(@Nullable DocumentViewer viewer) {
+		tools.viewer = viewer;
 	}
 
 	/**

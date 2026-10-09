@@ -1845,9 +1845,12 @@ private static SashForm folderSash;
 	 * the source for filing documents, and the browsers keep the target.
 	 */
 	private static void followInFolderPanel(@NotNull List<ResultDocument> selection) {
-		if (!SettingsConf.Bool.SyncFolderPanels.get() || selection.size() != 1)
-			return;
-		ResultDocument doc = selection.get(0);
+		if (SettingsConf.Bool.SyncFolderPanels.get() && selection.size() == 1)
+			showInRightmostFolderPanel(selection.get(0));
+	}
+
+	/** The sync of the sync button, for one document. */
+	private static void showInRightmostFolderPanel(@NotNull ResultDocument doc) {
 		if (!doc.isPlainFileOnDisk())
 			return;
 		FolderPanel rightmost = folderPanel != null ? folderPanel : folderTabPanel;
@@ -2640,8 +2643,18 @@ private static SashForm folderSash;
 		}
 		int port = SettingsConf.Int.McpServerPort.get();
 		try {
-			if (mcpServer == null)
+			if (mcpServer == null) {
 				mcpServer = new McpServer(indexRegistry);
+				mcpServer.setViewer(new McpServer.DocumentViewer() {
+					public void show(final List<ResultDocument> docs) {
+						UtilGui.runAsyncExec(shell, new Runnable() {
+							public void run() {
+								showDocuments(docs);
+							}
+						});
+					}
+				});
+			}
 			mcpServer.start(port);
 		}
 		catch (Throwable e) {
@@ -2649,6 +2662,22 @@ private static SashForm folderSash;
 			Util.printErr(e);
 			AppUtil.showError(Msg.mcp_server_failed.format(port, e.toString()), true, true);
 		}
+	}
+
+	/**
+	 * Shows documents for an AI assistant (MCP show_document): the window
+	 * comes to the front, the Search tab lists them, the first one is
+	 * previewed and the folder browsers sync to it, even with the sync button
+	 * off - the user asked for this document.
+	 */
+	private static void showDocuments(@NotNull List<ResultDocument> docs) {
+		activateMainWindow();
+		mainTabFolder.setSelection(searchTab);
+		onTabSelected();
+		resultPanel.showResults(docs);
+		// Sync first: a folder browser changing its folder clears the preview
+		showInRightmostFolderPanel(docs.get(0));
+		previewPanel.setPreview(docs.get(0));
 	}
 
 	private static void showManual() {

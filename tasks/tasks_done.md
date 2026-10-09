@@ -359,3 +359,13 @@
     The config entry is exactly what Codex CLI 0.162 writes with 'codex mcp add --url' (checked with a scratch
     CODEX_HOME); not tested in the ChatGPT app itself (not installed here, needs an OpenAI login).
     Tests: McpHelpOptionTest (configurations, English and German help with all parts); app: help dialog in the dev build.
+- change (v2.10): MCP: add task to show a particular document in DocFetcher, including folder sync
+  - Answers: Search tab + sync, window to the front, several documents at once.
+  - Tool show_document (paths: list, or a single path): same access check as read_document; indexed documents only
+    (others reported as not_found; none found -> error), at most 100. McpServer.DocumentViewer, set by Application;
+    showDocuments on the GUI thread: activateMainWindow (minimized/tray), Search tab, ResultPanel.showResults (first
+    selected), then the folder sync (showInRightmostFolderPanel, also with the sync button off), then the preview -
+    in this order, as a folder browser changing folders clears the preview (found in the app test: blank preview).
+    Tests: McpServerTest.showDocuments (no window, several in order, single path, not found, empty, outside);
+    app: dev build minimized, sync button off -> curl show_document: window in front, Search tab with both documents,
+    text preview of the first, folder browser on the inbox with the document selected.

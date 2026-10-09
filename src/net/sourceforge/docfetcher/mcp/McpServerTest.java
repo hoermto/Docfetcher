@@ -25,6 +25,7 @@ import com.sun.net.httpserver.Headers;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.model.search.SearchTestSupport;
 
 /**
@@ -131,11 +132,60 @@ public final class McpServerTest {
 		assertEquals(0, result("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"ping\"}").size());
 
 		List<Object> tools = (List<Object>) result("{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/list\"}").get("tools");
-		assertEquals(4, tools.size());
+		assertEquals(5, tools.size());
 		assertEquals("search", ((Map<String, Object>) tools.get(0)).get("name"));
 		assertEquals("read_document", ((Map<String, Object>) tools.get(1)).get("name"));
 		assertEquals("get_original_document", ((Map<String, Object>) tools.get(2)).get("name"));
 		assertEquals("list_folder", ((Map<String, Object>) tools.get(3)).get("name"));
+		assertEquals("show_document", ((Map<String, Object>) tools.get(4)).get("name"));
+	}
+
+	@Test
+	public void showDocuments() throws Exception {
+		File contract = new File(support.root, "Mieter/mietvertrag-rosenweg.txt");
+		File letter = new File(support.root, "Posteingang/stadtwerke.txt");
+		assertTrue(text(call("show_document", "{\"paths\":[" + Json.write(contract.getPath()) + "]}", true), 0)
+			.contains("not available"));
+
+		final List<String> shown = new java.util.ArrayList<String>();
+		server.setViewer(new McpServer.DocumentViewer() {
+			public void show(List<ResultDocument> docs) {
+				for (ResultDocument doc : docs)
+					shown.add(doc.getFilename());
+			}
+		});
+		try {
+			// Several documents, the order kept; a missing one is reported
+			File missing = new File(support.root, "Mieter/gibt-es-nicht.txt");
+			Map<String, Object> result = json(call("show_document", "{\"paths\":[" + Json.write(letter.getPath()) + ","
+				+ Json.write(contract.getPath()) + "," + Json.write(missing.getPath()) + "]}", false), 0);
+			assertEquals(java.util.Arrays.asList("stadtwerke.txt", "mietvertrag-rosenweg.txt"), shown);
+			assertEquals(2, ((List<?>) result.get("shown")).size());
+			assertTrue(result.get("not_found").toString().contains("gibt-es-nicht.txt"));
+
+			// A single path instead of a list
+			shown.clear();
+			call("show_document", "{\"paths\":" + Json.write(contract.getPath()) + "}", false);
+			assertEquals(java.util.Arrays.asList("mietvertrag-rosenweg.txt"), shown);
+
+			// Nothing found, nothing given, not accessible: errors, nothing shown
+			shown.clear();
+			assertTrue(text(call("show_document", "{\"paths\":[" + Json.write(missing.getPath()) + "]}", true), 0)
+				.startsWith("Not found"));
+			assertTrue(text(call("show_document", "{\"paths\":[]}", true), 0).contains("missing"));
+			File outside = File.createTempFile("docfetcher-secret", ".txt");
+			try {
+				assertTrue(text(call("show_document", "{\"paths\":[" + Json.write(outside.getPath()) + "]}", true), 0)
+					.startsWith("Access denied"));
+			}
+			finally {
+				outside.delete();
+			}
+			assertTrue(shown.isEmpty());
+		}
+		finally {
+			server.setViewer(null);
+		}
 	}
 
 	@Test
@@ -251,7 +301,7 @@ public final class McpServerTest {
 		assertEquals("private", discover.get("cacheScope"));
 
 		Map<String, Object> list = modernResult(modern("tools/list", "", null, v));
-		assertEquals(4, ((List<Object>) list.get("tools")).size());
+		assertEquals(5, ((List<Object>) list.get("tools")).size());
 		assertTrue(((Number) list.get("ttlMs")).longValue() > 0);
 
 		String search = "\"name\":\"search\",\"arguments\":{\"query\":\"Rosenweg\"}";

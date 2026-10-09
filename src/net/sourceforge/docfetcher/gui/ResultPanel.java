@@ -2114,6 +2114,23 @@ public final class ResultPanel {
 		fireStateChangedIfActive();
 	}
 	
+	/**
+	 * Shows the given documents as the results, the first one selected. No
+	 * selection event is fired; the caller shows the preview.
+	 */
+	public void showResults(@NotNull List<ResultDocument> docs) {
+		boolean filesFound = false;
+		boolean emailsFound = false;
+		for (ResultDocument doc : docs) {
+			filesFound |= !doc.isEmail();
+			emailsFound |= doc.isEmail();
+		}
+		setResults(docs, HeaderMode.getInstance(filesFound, emailsFound));
+		if (!docs.isEmpty())
+			viewer.setSelection(Collections.singletonList(docs.get(0)));
+		fireStateChangedIfActive();
+	}
+
 	public int getItemCount() {
 		return viewer.getControl().getItemCount();
 	}

@@ -78,6 +78,8 @@ final class McpTools {
 	}
 
 	private final IndexRegistry registry;
+	/** DocFetcher's window for show_document; null without one (tests). */
+	@Nullable volatile McpServer.DocumentViewer viewer;
 
 	McpTools(@NotNull IndexRegistry registry) {
 		this.registry = registry;
@@ -138,6 +140,16 @@ final class McpTools {
 			+ "path, lists the indexed folders (e.g. the inbox and the archive folders).",
 			props("path", prop("string", "Absolute path of a folder; omit for the indexed folders")),
 			null));
+		Map<String, Object> paths = prop("array", "Absolute paths of the documents, as returned by search or "
+			+ "list_folder; the first one is selected");
+		paths.put("items", props("type", "string"));
+		tools.add(tool("show_document",
+			"Shows documents to the user in DocFetcher's window, e.g. when the user wants to see, open "
+			+ "or find a document ('show me the rental contract'): DocFetcher comes to the front and "
+			+ "lists them on its Search tab, the first one selected with its preview, and the folder "
+			+ "browser shows its folder. Changes nothing but the view.",
+			props("paths", paths),
+			"paths"));
 		if (McpInbox.isEnabled())
 			tools.add(addToInboxTool());
 		return tools;
@@ -222,6 +234,8 @@ final class McpTools {
 			return originalDocument(args);
 		if (name.equals("list_folder"))
 			return listFolder(args);
+		if (name.equals("show_document"))
+			return showDocuments(args);
 		if (name.equals("add_to_inbox"))
 			return McpInbox.add(args);
 		throw new ToolException("Unknown tool: " + name);
@@ -681,6 +695,58 @@ final class McpTools {
 	static String mimeType(@NotNull String filename) {
 		String type = MIME_TYPES.get(Util.getExtension(filename).toLowerCase(java.util.Locale.ROOT));
 		return type == null ? "application/octet-stream" : type;
+	}
+
+	private static final int MAX_SHOWN = 100;
+
+	/**
+	 * Shows the found documents in DocFetcher's window; paths that aren't
+	 * indexed documents are reported, an inaccessible one is refused.
+	 */
+	@NotNull
+	private Map<String, Object> showDocuments(@NotNull Map<String, Object> args) throws ToolException {
+		List<String> paths = new ArrayList<String>();
+		Object value = args.get("paths");
+		if (value instanceof List) {
+			for (Object path : (List<?>) value)
+				if (path != null && !path.toString().trim().isEmpty())
+					paths.add(path.toString());
+		}
+		else if (value != null && !value.toString().trim().isEmpty()) {
+			paths.add(value.toString()); // A single path instead of a list
+		}
+		if (paths.isEmpty())
+			throw new ToolException("The argument 'paths' is missing.");
+		if (paths.size() > MAX_SHOWN)
+			throw new ToolException("At most " + MAX_SHOWN + " documents can be shown at once.");
+		McpServer.DocumentViewer viewer = this.viewer;
+		if (viewer == null)
+			throw new ToolException("DocFetcher's window is not available.");
+
+		List<ResultDocument> docs = new ArrayList<ResultDocument>();
+		List<String> shown = new ArrayList<String>();
+		List<String> notFound = new ArrayList<String>();
+		for (String path : paths) {
+			File file = resolve(path);
+			checkAllowed(file);
+			try {
+				ResultDocument doc = findDocument(file);
+				docs.add(doc);
+				shown.add(display(file));
+			}
+			catch (ToolException e) {
+				notFound.add(display(file));
+			}
+		}
+		if (docs.isEmpty())
+			throw new ToolException("Not found among the indexed documents: " + notFound);
+		viewer.show(docs);
+
+		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		result.put("shown", shown);
+		if (!notFound.isEmpty())
+			result.put("not_found", notFound);
+		return result;
 	}
 
 	/** The document of a file, with its index data if it is indexed. */

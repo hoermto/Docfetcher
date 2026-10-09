@@ -20,7 +20,6 @@
 
 ## changes
 
-[] MCP: add task to show a particular document in DocFetcher, including folder sync
 
 [] add support for encrypted containers like cryptomator (follow you 1a) 1b) suggestions)
 
