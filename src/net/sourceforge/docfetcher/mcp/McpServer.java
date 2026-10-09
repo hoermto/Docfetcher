@@ -45,7 +45,8 @@ import net.sourceforge.docfetcher.util.annotations.Nullable;
  * POST JSON-RPC messages to {@code http://localhost:<port>/mcp} and get the
  * answer as JSON. The server only listens on the loopback interface, so only
  * programs on this computer can connect, and it rejects requests from web
- * pages (Origin header of another host). See {@link McpTools} for the tools.
+ * pages (Origin header of another host). See {@link McpTools} for the tools;
+ * the only one that writes, {@link McpInbox}, must be allowed by the user.
  * <p>
  * It serves both protocol eras: the stateless revision 2026-07-28 (version,
  * client capabilities and HTTP headers on every request, {@code
@@ -72,9 +73,13 @@ public final class McpServer {
 	private static final String META_SERVER_INFO = "io.modelcontextprotocol/serverInfo";
 	private static final int HEADER_MISMATCH = -32020;
 	private static final int UNSUPPORTED_VERSION = -32022;
-	/** How long modern clients may cache the tool list and discovery (it never changes). */
-	private static final long CACHE_TTL_MS = 60 * 60 * 1000;
-	private static final int MAX_REQUEST_BYTES = 1024 * 1024;
+	/**
+	 * How long modern clients may cache the tool list and discovery: short,
+	 * as add_to_inbox comes and goes with the preferences.
+	 */
+	private static final long CACHE_TTL_MS = 60 * 1000;
+	/** Enough for a file of McpInbox.MAX_MB as base64 (a third larger). */
+	private static final int MAX_REQUEST_BYTES = (McpInbox.MAX_MB * 4 / 3 + 2) * 1024 * 1024;
 	/** The image types AI assistants can look at; other images come as files. */
 	private static final List<String> IMAGE_TYPES = Arrays.asList("image/png", "image/jpeg", "image/gif", "image/webp");
 

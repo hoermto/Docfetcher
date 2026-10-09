@@ -102,6 +102,7 @@ public final class SettingsConf {
 		SyncFolderPanels (true), // The folders tab shows the parent of the folder panel
 		TolerantSearch (true), // Umlauts and OCR errors: 'Muller' finds 'Müller', 'Bonn' finds 'B0nn'
 		McpServerEnabled (false), // MCP server for AI assistants on localhost (read-only access to the indexes)
+		McpInboxWrite (false), // The MCP server's add_to_inbox: new files only, in an inbox folder
 		ShowFolderPanel (true), // Show a second folder browser next to the tabs
 FolderSortAscending (false), // Sort order of the folder view
 

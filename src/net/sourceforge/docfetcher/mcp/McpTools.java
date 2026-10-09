@@ -138,7 +138,34 @@ final class McpTools {
 			+ "path, lists the indexed folders (e.g. the inbox and the archive folders).",
 			props("path", prop("string", "Absolute path of a folder; omit for the indexed folders")),
 			null));
+		if (McpInbox.isEnabled())
+			tools.add(addToInboxTool());
 		return tools;
+	}
+
+	/** Only listed when the user allows it in the preferences. */
+	@NotNull
+	private static Map<String, Object> addToInboxTool() {
+		Map<String, Object> tool = tool("add_to_inbox",
+			"Places a new file in the user's DocFetcher inbox folder, e.g. a letter, offer or table "
+			+ "you created for the user; DocFetcher indexes it, and the user files it from there. "
+			+ "Only creates new files: existing files are never changed or replaced (a taken name "
+			+ "gets a number, 'Offer (2).docx'). Give the content as text (saved as UTF-8) or as "
+			+ "base64 for other files (.docx, .xlsx, .pdf, images). At most " + McpInbox.MAX_MB
+			+ " MB; programs, scripts, shortcuts and Office files with macros are refused.",
+			props(
+				"name", prop("string", "File name with extension, without a folder, e.g. 'Angebot Rosenweg 2026-10.docx'"),
+				"text", prop("string", "The content as text, for .txt, .md, .csv, .html and similar files"),
+				"content_base64", prop("string", "The content, base64-encoded, for all other files"),
+				"inbox", prop("string", "Name or path of the inbox if there are several (default: the first)")),
+			"name");
+		Map<String, Object> annotations = new LinkedHashMap<String, Object>();
+		annotations.put("readOnlyHint", Boolean.FALSE);
+		annotations.put("destructiveHint", Boolean.FALSE);
+		annotations.put("idempotentHint", Boolean.FALSE);
+		annotations.put("openWorldHint", Boolean.FALSE);
+		tool.put("annotations", annotations);
+		return tool;
 	}
 
 	@NotNull
@@ -195,6 +222,8 @@ final class McpTools {
 			return originalDocument(args);
 		if (name.equals("list_folder"))
 			return listFolder(args);
+		if (name.equals("add_to_inbox"))
+			return McpInbox.add(args);
 		throw new ToolException("Unknown tool: " + name);
 	}
 
@@ -748,7 +777,7 @@ final class McpTools {
 	 * leave the indexed folders ('C:/Docs/../secret.txt').
 	 */
 	@NotNull
-	private static File resolve(@NotNull String path) {
+	static File resolve(@NotNull String path) {
 		return new File(path.trim()).toPath().toAbsolutePath().normalize().toFile();
 	}
 
@@ -778,7 +807,7 @@ final class McpTools {
 	}
 
 	@Nullable
-	private static String string(@NotNull Map<String, Object> args, @NotNull String name) {
+	static String string(@NotNull Map<String, Object> args, @NotNull String name) {
 		Object value = args.get(name);
 		return value == null ? null : value.toString();
 	}

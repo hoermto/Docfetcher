@@ -1402,6 +1402,8 @@ public enum Msg {
 		"Tooltip of the button that resets remembered answers."),
 	pref_mcp_server ("MCP server for AI assistants (read-only access to the indexes, this computer only)",
 		"Option on the preferences window: starts a server with which AI assistants like Claude can search the indexed documents and read their text. MCP = Model Context Protocol, don't translate."),
+	pref_mcp_inbox_write ("AI assistants may add new files to the inbox (never change or delete files)",
+		"Option on the preferences window, below the MCP server option: allows AI assistants to place new files in the inbox folder."),
 	pref_mcp_port ("MCP server port (http://localhost:<port>/mcp):",
 		"Label of the port field of the MCP server on the preferences window."),
 	mcp_server_failed ("The MCP server could not be started on port {0}: {1}\nPerhaps another program uses this port; choose another one in the preferences.",

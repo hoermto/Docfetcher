@@ -110,6 +110,10 @@
   Run the bridge like Claude Desktop with the SDK's StdioClientTransport (command node, args/env from the manifest).
   The app's save dialog ignores `win.py save` paths and saves to Downloads: move the file away and close only the
   Explorer window that has it selected (Shell.Application Windows(), Document.SelectedItems()).
+- get_original_document / add_to_inbox: MCP SDK clients read at most 10 MiB per stdio message (bridge turns larger answers
+  into an error); over HTTP no such limit. add_to_inbox needs `McpInboxWrite = true` (preferences checkbox below MCP);
+  test scripts in the scratchpad's sdktest folder (stdio.mjs, original.mjs, inbox.mjs, http-original.mjs) - recreate
+  them from the task log if the scratchpad was cleaned.
 - The package's Java runtime is made with jlink: every JDK module the code uses must be in the list above (jdk.httpserver for
   the MCP server - missing, enabling MCP crashed with NoClassDefFoundError; the dev build runs on the full JDK and can't show
   this). So the package test always includes enabling MCP in the preferences and a curl request.

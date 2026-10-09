@@ -169,7 +169,11 @@ new CheckOption(
 
 			new CheckOption(
 				Msg.pref_mcp_server.get(),
-				SettingsConf.Bool.McpServerEnabled)
+				SettingsConf.Bool.McpServerEnabled),
+
+			new CheckOption(
+				Msg.pref_mcp_inbox_write.get(),
+				SettingsConf.Bool.McpInboxWrite)
 
 			// TODO post-release-1.1: Implement this; requires saving and restoring the tree expansion state
 			//	new CheckOption(

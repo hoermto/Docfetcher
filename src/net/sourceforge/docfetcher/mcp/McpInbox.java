@@ -1,0 +1,167 @@
+/*******************************************************************************
+ * Copyright (c) 2026 DocFetcher contributors.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *******************************************************************************/
+
+package net.sourceforge.docfetcher.mcp;
+
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+import net.sourceforge.docfetcher.enums.SettingsConf;
+import net.sourceforge.docfetcher.gui.InboxFolders;
+import net.sourceforge.docfetcher.mcp.McpTools.ToolException;
+import net.sourceforge.docfetcher.util.Util;
+import net.sourceforge.docfetcher.util.annotations.NotNull;
+
+/**
+ * The tool {@code add_to_inbox}: AI assistants may place new files in an inbox
+ * folder, if the user allows it in the preferences. Only new files are
+ * created: an existing file is never changed, replaced or deleted (a taken
+ * name gets a number, 'Offer (2).docx'), and only directly in the inbox
+ * folder. Program files and Office files with macros are refused.
+ */
+final class McpInbox {
+
+	static final int MAX_MB = 20;
+
+	/** Files that run code when opened. */
+	private static final Set<String> BLOCKED_EXTENSIONS = new HashSet<String>(Arrays.asList(
+		"exe", "com", "bat", "cmd", "msi", "msp", "msix", "appx", "ps1", "psm1", "psd1", "vbs", "vbe", "js",
+		"jse", "mjs", "wsf", "wsh", "ws", "scr", "pif", "cpl", "lnk", "url", "scf", "reg", "hta", "jar", "dll",
+		"sys", "drv", "inf", "application", "appref-ms", "gadget", "msc", "sh", "bash", "py", "pyw", "pl",
+		"rb", "iso", "img", "vhd", "vhdx", "library-ms", "settingcontent-ms", "chm", "xll",
+		// Office files with macros
+		"docm", "dotm", "xlsm", "xltm", "xlam", "pptm", "potm", "ppsm", "ppam", "sldm"));
+
+	private static final Set<String> RESERVED_NAMES = new HashSet<String>(Arrays.asList(
+		"con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+		"lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9"));
+
+	private McpInbox() {
+	}
+
+	static boolean isEnabled() {
+		return SettingsConf.Bool.McpInboxWrite.get();
+	}
+
+	/** Writes the file and returns its description. */
+	@NotNull
+	static Map<String, Object> add(@NotNull Map<String, Object> args) throws ToolException {
+		if (!isEnabled())
+			throw new ToolException("Adding files to the inbox is switched off in DocFetcher's preferences.");
+		String name = checkName(McpTools.string(args, "name"));
+		String text = McpTools.string(args, "text");
+		String base64 = McpTools.string(args, "content_base64");
+		if ((text == null) == (base64 == null))
+			throw new ToolException("Give the content either as 'text' or as 'content_base64'.");
+		byte[] data;
+		if (text != null) {
+			data = text.getBytes(StandardCharsets.UTF_8);
+		}
+		else {
+			try {
+				data = Base64.getDecoder().decode(base64.replaceAll("\\s", "")); // Line breaks are fine
+			}
+			catch (IllegalArgumentException e) {
+				throw new ToolException("'content_base64' is not valid base64: " + e.getMessage());
+			}
+		}
+		if (data.length > MAX_MB * 1024L * 1024L)
+			throw new ToolException("The file is too large (at most " + MAX_MB + " MB).");
+
+		InboxFolders.Entry inbox = findInbox(McpTools.string(args, "inbox"));
+		File folder = inbox.getFolder();
+		if (!folder.isDirectory())
+			throw new ToolException("The inbox folder doesn't exist: " + folder.getPath());
+		File file = writeNew(folder, name, data);
+
+		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		result.put("path", file.getPath().replace(File.separatorChar, '/'));
+		result.put("name", file.getName());
+		result.put("renamed", !file.getName().equals(name));
+		result.put("size_bytes", data.length);
+		result.put("inbox", inbox.getTabName());
+		return result;
+	}
+
+	/** The first inbox, or the one whose tab name or path is given. */
+	@NotNull
+	private static InboxFolders.Entry findInbox(String wanted) throws ToolException {
+		List<InboxFolders.Entry> inboxes = InboxFolders.load();
+		if (inboxes.isEmpty())
+			throw new ToolException("No inbox folder is set up in DocFetcher.");
+		if (wanted == null || wanted.trim().isEmpty())
+			return inboxes.get(0);
+		StringBuilder names = new StringBuilder();
+		for (InboxFolders.Entry inbox : inboxes) {
+			if (inbox.getTabName().equalsIgnoreCase(wanted.trim()) || inbox.getFolder().equals(McpTools.resolve(wanted)))
+				return inbox;
+			names.append(names.length() == 0 ? "" : ", ").append(inbox.getTabName());
+		}
+		throw new ToolException("Unknown inbox '" + wanted + "'. The inboxes are: " + names);
+	}
+
+	/** A plain file name: no folders, nothing Windows refuses or runs. */
+	@NotNull
+	static String checkName(String name) throws ToolException {
+		if (name == null || name.trim().isEmpty())
+			throw new ToolException("The argument 'name' is missing.");
+		name = name.trim();
+		if (name.length() > 200)
+			throw new ToolException("The name is too long (at most 200 characters).");
+		for (char c : name.toCharArray())
+			if (c < 32 || "/\\:*?\"<>|".indexOf(c) >= 0)
+				throw new ToolException("The name may not contain folders or any of / \\ : * ? \" < > | - only a file name.");
+		if (name.startsWith(".") || name.endsWith("."))
+			throw new ToolException("The name may not start or end with a dot.");
+		String lower = name.toLowerCase(Locale.ROOT);
+		String extension = Util.getExtension(lower);
+		String base = lower.contains(".") ? lower.substring(0, lower.indexOf('.')) : lower;
+		if (RESERVED_NAMES.contains(base.trim()))
+			throw new ToolException("'" + name + "' is a reserved name on Windows.");
+		if (BLOCKED_EXTENSIONS.contains(extension))
+			throw new ToolException("Files of type ." + extension + " (programs, scripts, shortcuts, Office "
+				+ "files with macros) may not be placed in the inbox.");
+		return name;
+	}
+
+	/**
+	 * Creates the file under the given name, or under 'name (2).ext' and so
+	 * on if it is taken; never replaces a file.
+	 */
+	@NotNull
+	static File writeNew(@NotNull File folder, @NotNull String name, @NotNull byte[] data) throws ToolException {
+		String[] parts = Util.splitFilename(name);
+		String suffix = parts[1].isEmpty() ? "" : "." + parts[1];
+		for (int i = 1; i <= 1000; i++) {
+			File file = new File(folder, i == 1 ? name : parts[0] + " (" + i + ")" + suffix);
+			try {
+				Files.write(file.toPath(), data, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+				return file;
+			}
+			catch (FileAlreadyExistsException e) {
+				continue; // Taken: the next number
+			}
+			catch (Exception e) {
+				throw new ToolException("The file could not be written: " + e.getMessage());
+			}
+		}
+		throw new ToolException("Too many files named '" + name + "' in the inbox.");
+	}
+
+}

@@ -20,7 +20,6 @@
 
 ## changes
 
-[] MCP: add endpoint to place a file in ScanBox folder for LLM. It is only allowed to place new files in there, no deletion, no modifications.
 
 [] add support for encrypted containers like cryptomator (follow you 1a) 1b) suggestions)
 

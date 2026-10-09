@@ -339,3 +339,15 @@
     MIME types), McpExtensionTest.bridge (9 MB file: error in both eras, next request answered); app: SDK 2.3.1 over
     stdio through the extension (PDF and PNG byte-identical, 30 MB file -> error, connection stays) and over HTTP
     (30 MB byte-identical in < 1 s), legacy and 2026-07-28.
+- change (v2.10): MCP: add endpoint to place a file in ScanBox folder for LLM (new files only, no deletion, no modifications)
+  - 'ScanBox' = DocFetcher's inbox (Postbox) folders. Opt-in 'AI assistants may add new files to the inbox' below the
+    MCP option (SettingsConf McpInboxWrite, off). Tool add_to_inbox (McpInbox), only listed while allowed; name + text
+    (UTF-8) or content_base64 (strict, line breaks allowed), optional inbox (tab name or path, default the first).
+    Files are created with CREATE_NEW directly in the inbox folder: a taken name (also in another case) gets
+    'name (2).ext'; nothing is ever replaced or deleted. Refused: folders and invalid characters, leading/trailing dot,
+    Windows device names, programs/scripts/shortcuts/Office macro files, more than 20 MB. Request limit raised from
+    1 MB to 28 MB for this; tool list cache (ttlMs) 1 min instead of 1 h.
+    Tests: McpInboxTest (listing and annotations, switched off, new files and numbering, case, base64 with line breaks,
+    second inbox by name, unknown inbox, refused names/contents, no inbox, size limit, 5 MB over HTTP); app: option in
+    the preferences -> tool listed; SDK 2.3.1 through the Claude Desktop extension in both eras: text, same name
+    (numbered), PDF as base64, .exe refused; the inbox tab shows the files, search finds the new offer.
