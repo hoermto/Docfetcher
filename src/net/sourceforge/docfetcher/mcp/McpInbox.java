@@ -69,11 +69,28 @@ final class McpInbox {
 		String name = checkName(McpTools.string(args, "name"));
 		String text = McpTools.string(args, "text");
 		String base64 = McpTools.string(args, "content_base64");
-		if ((text == null) == (base64 == null))
-			throw new ToolException("Give the content either as 'text' or as 'content_base64'.");
+		Object sheets = args.get("sheets");
+		int given = (text != null ? 1 : 0) + (base64 != null ? 1 : 0) + (sheets != null ? 1 : 0);
+		if (given != 1)
+			throw new ToolException("Give the content as one of 'sheets' (.xlsx), 'text' (.docx, .pdf, "
+				+ "text files) or 'content_base64' (other files).");
+		String extension = Util.getExtension(name).toLowerCase(Locale.ROOT);
 		byte[] data;
-		if (text != null) {
-			data = text.getBytes(StandardCharsets.UTF_8);
+		if (sheets != null) {
+			if (!extension.equals("xlsx"))
+				throw new ToolException("'sheets' is for .xlsx files only.");
+			data = McpDocuments.xlsx(sheets);
+		}
+		else if (text != null) {
+			// DocFetcher creates Word and PDF files from the text
+			if (extension.equals("docx"))
+				data = McpDocuments.docx(text);
+			else if (extension.equals("pdf"))
+				data = McpDocuments.pdf(text);
+			else if (extension.equals("xlsx") || extension.equals("xls"))
+				throw new ToolException("For .xlsx files give 'sheets' (the rows of each sheet), not 'text'.");
+			else
+				data = text.getBytes(StandardCharsets.UTF_8);
 		}
 		else {
 			try {

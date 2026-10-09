@@ -164,13 +164,20 @@ final class McpTools {
 			+ "there. This is the way to give the user a file: don't write into the user's folders "
 			+ "yourself - DocFetcher stores the file, and you don't need its location. "
 			+ "Only creates new files: existing files are never changed or replaced (a taken name "
-			+ "gets a number, 'Offer (2).docx'). Give the content as text (saved as UTF-8) or as "
-			+ "base64 for other files (.docx, .xlsx, .pdf, images). At most " + McpInbox.MAX_MB
+			+ "gets a number, 'Offer (2).docx'). DocFetcher creates Office and PDF files itself, so "
+			+ "don't build them yourself and don't send them as base64: for .xlsx give 'sheets' (the "
+			+ "rows of each sheet; numbers stay numbers, '=SUM(B2:B300)' becomes a formula, "
+			+ "'2026-10-01' a date, the first row is a bold header); for .docx and .pdf give 'text' "
+			+ "('# ' headings, '- ' bullet points, empty lines between paragraphs); for .txt, .csv, "
+			+ ".md and other text files give 'text' (saved as UTF-8). Use 'content_base64' only for "
+			+ "files you already have as bytes, e.g. an image. At most " + McpInbox.MAX_MB
 			+ " MB; programs, scripts, shortcuts and Office files with macros are refused.",
 			props(
 				"name", prop("string", "File name with extension, without a folder, e.g. 'Angebot Rosenweg 2026-10.docx'"),
-				"text", prop("string", "The content as text, for .txt, .md, .csv, .html and similar files"),
-				"content_base64", prop("string", "The content, base64-encoded, for all other files"),
+				"sheets", sheetsProp(),
+				"text", prop("string", "The content as text: for .docx and .pdf with '# ' headings and '- ' "
+					+ "bullet points, for text files as it is"),
+				"content_base64", prop("string", "The content, base64-encoded, only for files you already have as bytes"),
 				"inbox", prop("string", "Name of the inbox if there are several (default: the first). The inboxes: "
 					+ McpInbox.inboxNames())),
 			"name");
@@ -181,6 +188,29 @@ final class McpTools {
 		annotations.put("openWorldHint", Boolean.FALSE);
 		tool.put("annotations", annotations);
 		return tool;
+	}
+
+	/** The schema of add_to_inbox's sheets: name, rows, column formats, header. */
+	@NotNull
+	private static Map<String, Object> sheetsProp() {
+		Map<String, Object> row = props("type", "array", "items", props());
+		Map<String, Object> rows = prop("array", "The rows, each a list of values: strings, numbers, "
+			+ "booleans, null for an empty cell, '=...' for a formula, 'yyyy-mm-dd' for a date");
+		rows.put("items", row);
+		Map<String, Object> formats = prop("object", "Optional number formats by column letter, "
+			+ "e.g. {\"B\": \"#,##0.00 €\", \"A\": \"dd.mm.yyyy\"}");
+		formats.put("additionalProperties", props("type", "string"));
+		Map<String, Object> sheet = props("type", "object", "properties", props(
+			"name", prop("string", "Name of the sheet"),
+			"rows", rows,
+			"column_formats", formats,
+			"header", prop("boolean", "Whether the first row is a bold header that stays visible (default true)")),
+			"required", Arrays.asList("rows"));
+		Map<String, Object> sheets = prop("array", "For .xlsx: the sheets of the workbook, e.g. "
+			+ "[{\"name\": \"Buchungen\", \"rows\": [[\"Datum\", \"Betrag\"], [\"2026-10-01\", 850.5], "
+			+ "[\"Summe\", \"=SUM(B2:B2)\"]], \"column_formats\": {\"B\": \"#,##0.00 €\"}}]");
+		sheets.put("items", sheet);
+		return sheets;
 	}
 
 	@NotNull

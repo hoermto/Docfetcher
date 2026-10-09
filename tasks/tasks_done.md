@@ -377,3 +377,18 @@
     add_to_inbox, never write into the user's folders yourself.
     Tests: McpInboxTest (no path in result/definition, inbox by path refused, missing folder error without path);
     app: SDK through the Claude Desktop extension - results without paths, description with the inbox names.
+- change (v2.10): add_to_inbox for Office files (Claude: 'base64 at 69 KB is error-prone', cut 300 rows to 60)
+  - Answers: DocFetcher creates xlsx, docx and pdf; no templates; base64 stays.
+  - McpDocuments: xlsx (POI) from sheets [{name, rows, column_formats, header}] - numbers/booleans typed, '=...'
+    formulas (results stored with XSSFFormulaEvaluator, recalculated by Excel on opening), ISO dates as dd.mm.yyyy
+    dates, unique safe sheet names, bold frozen header, fitted columns; docx (POI) and pdf (PDFBox, A4, Helvetica,
+    wrapping, page breaks, '?' for missing glyphs) from text with '#'/'##'/'###' headings and '- '/'* ' bullets.
+    add_to_inbox takes exactly one of sheets / text / content_base64, chosen by the extension; the tool description
+    steers assistants away from base64 for Office files.
+    Tests: McpDocumentsTest (300-row workbook read back: types, formats, header, stored formula result, sheet
+    names, errors; docx paragraphs/headings/bullets; pdf text, page breaks, '?'), McpInboxTest.officeFilesFromContent;
+    app: SDK through the extension (dev build on port 28836) in both eras: 300-row xlsx (10 KB request), docx, pdf;
+    read_document shows dates, amounts and the sum.
+  - Test mishap: a sed edit left the extension on port 28835 (the user's running DocFetcher), four 139-byte test
+    files landed in the user's inbox '00 Eingang'; moved to the recycle bin right away. skill.md: test on 28836 and
+    check the target first.

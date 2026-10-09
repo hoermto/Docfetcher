@@ -166,13 +166,34 @@ public final class McpInboxTest {
 	}
 
 	@Test
+	public void officeFilesFromContent() throws Exception {
+		Map<String, Object> xlsx = call("{\"name\":\"Buchungen.xlsx\",\"sheets\":[{\"rows\":[[\"Betrag\"],[850],[\"=SUM(A2:A2)\"]]}]}", false);
+		assertEquals("Buchungen.xlsx", xlsx.get("name"));
+		org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
+			new java.io.FileInputStream(new File(inbox, "Buchungen.xlsx")));
+		assertEquals("SUM(A2:A2)", workbook.getSheetAt(0).getRow(2).getCell(0).getCellFormula());
+		workbook.close();
+
+		call("{\"name\":\"Brief.docx\",\"text\":\"# Brief\\nText\"}", false);
+		byte[] docx = Files.readAllBytes(new File(inbox, "Brief.docx").toPath());
+		assertTrue("A zip file, not the text", docx[0] == 'P' && docx[1] == 'K');
+		call("{\"name\":\"Brief.pdf\",\"text\":\"# Brief\\nText\"}", false);
+		assertTrue(new String(Files.readAllBytes(new File(inbox, "Brief.pdf").toPath()), StandardCharsets.ISO_8859_1).startsWith("%PDF"));
+
+		assertTrue(error("{\"name\":\"a.xlsx\",\"text\":\"a;b\"}").contains("'sheets'"));
+		assertTrue(error("{\"name\":\"a.txt\",\"sheets\":[{\"rows\":[]}]}").contains(".xlsx files only"));
+		assertTrue(error("{\"name\":\"a.xlsx\",\"text\":\"x\",\"sheets\":[]}").contains("one of"));
+		assertTrue(error("{\"name\":\"a.xlsx\",\"sheets\":[{\"rows\":[[\"=SUM(\"]]}]}").contains("Invalid formula"));
+	}
+
+	@Test
 	public void refusedNamesAndContents() {
 		for (String name : new String[] {"../x.txt", "sub/x.txt", "sub\\x.txt", "C:x.txt", "x.txt:stream",
 				"CON.txt", "nul", ".hidden", "name.", "", "tool.exe", "Run.BAT", "macro.docm", "link.lnk",
 				"script.ps1", "page.hta"})
 			assertTrue(name, call("{\"name\":" + Json.write(name) + ",\"text\":\"x\"}", true).get("error") != null);
-		assertTrue(error("{\"name\":\"a.txt\"}").contains("either"));
-		assertTrue(error("{\"name\":\"a.txt\",\"text\":\"x\",\"content_base64\":\"eA==\"}").contains("either"));
+		assertTrue(error("{\"name\":\"a.txt\"}").contains("one of"));
+		assertTrue(error("{\"name\":\"a.txt\",\"text\":\"x\",\"content_base64\":\"eA==\"}").contains("one of"));
 		assertTrue(error("{\"name\":\"a.pdf\",\"content_base64\":\"%%%\"}").contains("base64"));
 		assertEquals("Nothing was written", 0, inbox.listFiles().length + second.listFiles().length);
 

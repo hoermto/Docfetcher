@@ -112,6 +112,10 @@
   Run the bridge like Claude Desktop with the SDK's StdioClientTransport (command node, args/env from the manifest).
   The app's save dialog ignores `win.py save` paths and saves to Downloads: move the file away and close only the
   Explorer window that has it selected (Shell.Application Windows(), Document.SelectedItems()).
+- The user's own DocFetcher often runs with MCP on port 28835 (and its real inbox): test the dev build on another
+  port (McpServerPort = 28836) and check the target before any writing test (initialize -> serverInfo version, or
+  the listening process). Change the port in a manifest with a JSON tool, not sed: the URL also appears in the
+  description (2026-10-09 a sed edit sent four test files into the user's inbox; removed to the recycle bin).
 - get_original_document / add_to_inbox: MCP SDK clients read at most 10 MiB per stdio message (bridge turns larger answers
   into an error); over HTTP no such limit. add_to_inbox needs `McpInboxWrite = true` (preferences checkbox below MCP);
   test scripts in the scratchpad's sdktest folder (stdio.mjs, original.mjs, inbox.mjs, http-original.mjs) - recreate
