@@ -75,6 +75,8 @@ public final class McpServer {
 	/** How long modern clients may cache the tool list and discovery (it never changes). */
 	private static final long CACHE_TTL_MS = 60 * 60 * 1000;
 	private static final int MAX_REQUEST_BYTES = 1024 * 1024;
+	/** The image types AI assistants can look at; other images come as files. */
+	private static final List<String> IMAGE_TYPES = Arrays.asList("image/png", "image/jpeg", "image/gif", "image/webp");
 
 	private static final String INSTRUCTIONS =
 		"DocFetcher indexes the user's documents (letters, invoices, contracts, scanned mail, "
@@ -83,7 +85,9 @@ public final class McpServer {
 		+ "'Rechnung' - the stars also find compound words like 'Einkommensteuer'), then "
 		+ "'read_document' on the best results to read their content. "
 		+ "Use sort=newest for the latest documents and modified_after/modified_before for "
-		+ "periods. When the user asks for a document itself, answer with its path.";
+		+ "periods. When the user asks for a document itself, answer with its path; "
+		+ "'get_original_document' returns the file itself when its original form is needed, "
+		+ "e.g. as a template for a new document.";
 
 	private final McpTools tools;
 	@Nullable private HttpServer server;
@@ -497,7 +501,13 @@ public final class McpServer {
 		boolean isError = false;
 		try {
 			Object value = tools.call((String) name, args);
-			if (value instanceof List) {
+			if (value instanceof McpTools.FileContent) {
+				// get_original_document: the description, then the file
+				McpTools.FileContent file = (McpTools.FileContent) value;
+				content.add(text(Json.write(file.meta)));
+				content.add(fileContent(file));
+			}
+			else if (value instanceof List) {
 				// read_document: metadata, then the text itself
 				for (Object part : (List<?>) value)
 					content.add(text(part instanceof String ? (String) part : Json.write(part)));
@@ -526,6 +536,26 @@ public final class McpServer {
 		Map<String, Object> map = new LinkedHashMap<String, Object>();
 		map.put("type", "text");
 		map.put("text", text);
+		return map;
+	}
+
+	/** Images the assistant can look at as an image, all other files as an embedded resource. */
+	@NotNull
+	static Map<String, Object> fileContent(@NotNull McpTools.FileContent file) {
+		String data = Base64.getEncoder().encodeToString(file.data);
+		Map<String, Object> map = new LinkedHashMap<String, Object>();
+		if (IMAGE_TYPES.contains(file.mimeType())) {
+			map.put("type", "image");
+			map.put("data", data);
+			map.put("mimeType", file.mimeType());
+			return map;
+		}
+		Map<String, Object> resource = new LinkedHashMap<String, Object>();
+		resource.put("uri", file.uri());
+		resource.put("mimeType", file.mimeType());
+		resource.put("blob", data);
+		map.put("type", "resource");
+		map.put("resource", resource);
 		return map;
 	}
 

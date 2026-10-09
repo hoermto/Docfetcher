@@ -92,6 +92,7 @@ public final class ProgramConf {
 		UnpackCacheCapacity (20, 1),
 		InitialSorting (0),
 		PythonApiPort (28834),
+		McpMaxOriginalMB (50, 1),
 		;
 
 		private int value;

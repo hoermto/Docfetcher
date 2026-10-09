@@ -327,3 +327,15 @@
     stopped); mcpb validate (schema OK, unsigned); app: help dialog button -> save -> Explorer with the file selected,
     SDK 2.3.1 over stdio through the saved extension: legacy 2025-11-25 and auto 2026-07-28 with search results.
     Not installed in the user's Claude Desktop (no test entries in the user's Claude configuration).
+- change (v2.10): MCP: add endpoint for returning the original document (not only the full text)
+  - Answer to 'base64 - no native file access to source ever. 10MB limit why? can be 50?': 50 MB default
+    (program-conf.txt McpMaxOriginalMB). The 10 MB came from the clients: the MCP SDK (1.x and 2.x) reads at most
+    10 MiB per stdio message and closes the connection on a larger one - that is Claude Desktop's connection.
+  - Tool get_original_document (read-only, same access check as read_document): a text part with path, name,
+    MIME type, size, date, then the file - PNG/JPEG/GIF/WebP as 'image', all others as an embedded 'resource' with
+    a base64 blob and the identifier docfetcher:/<path> (no file: link). The Claude Desktop bridge turns answers
+    over 10 MiB into an error message (with resultType for 2026-07-28) and keeps the connection.
+    Tests: McpServerTest.originalDocuments (text file, PNG as image, TIFF as resource, too large, missing, outside,
+    MIME types), McpExtensionTest.bridge (9 MB file: error in both eras, next request answered); app: SDK 2.3.1 over
+    stdio through the extension (PDF and PNG byte-identical, 30 MB file -> error, connection stays) and over HTTP
+    (30 MB byte-identical in < 1 s), legacy and 2026-07-28.

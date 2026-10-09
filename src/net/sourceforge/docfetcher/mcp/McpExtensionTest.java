@@ -143,6 +143,29 @@ public final class McpExtensionTest {
 			// Revision 2026-07-28: the headers made by the bridge match the body
 			assertTrue(all, find(lines, 3).contains("\"resultType\":\"complete\""));
 			assertTrue(all, find(lines, 3).contains("mietvertrag-rosenweg.txt"));
+
+			// An original document beyond the 10 MiB of the clients: an error, and the connection stays open
+			File large = new File(support.root, "Mieter/plan.pdf");
+			Files.write(large.toPath(), new byte[9 * 1024 * 1024]);
+			try {
+				lines = runBridge(node, script, port,
+					"{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"get_original_document\",\"arguments\":{\"path\":"
+						+ Json.write(large.getPath()) + "}}}",
+					"{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/list\"}",
+					"{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"get_original_document\",\"arguments\":{\"path\":"
+						+ Json.write(large.getPath()) + "}," + meta + "}}");
+			}
+			finally {
+				large.delete();
+			}
+			assertEquals(3, lines.size());
+			String error = find(lines, 4);
+			assertTrue(error, error.length() < 1000 && error.contains("\"isError\":true") && error.contains("too large for this connection"));
+			assertTrue(error, !error.contains("resultType"));
+			assertTrue(find(lines, 5).contains("get_original_document"));
+			// Revision 2026-07-28 requires the result type
+			String modernError = find(lines, 6);
+			assertTrue(modernError, modernError.contains("too large") && modernError.contains("\"resultType\":\"complete\""));
 		}
 		finally {
 			server.stop();

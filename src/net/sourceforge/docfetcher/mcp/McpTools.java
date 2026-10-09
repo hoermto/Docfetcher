@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.gui.FolderPanel;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.parse.PdfVisualText;
@@ -33,9 +34,11 @@ import net.sourceforge.docfetcher.util.collect.AlphanumComparator;
  * The tools of the MCP server: read-only access to the indexed documents.
  * {@code search} finds documents like the search field, {@code read_document}
  * returns the text of a document (in pages of at most
- * {@link #MAX_CHARS_LIMIT} characters), {@code list_folder} lists the indexed
- * folders and their contents. Only files inside the indexed folders (and the
- * fixed move targets) can be read or listed.
+ * {@link #MAX_CHARS_LIMIT} characters), {@code get_original_document} a copy
+ * of the file itself (base64, up to {@code McpMaxOriginalMB}),
+ * {@code list_folder} lists the indexed folders and their contents. Only files
+ * inside the indexed folders (and the fixed move targets) can be read or
+ * listed.
  */
 final class McpTools {
 
@@ -110,7 +113,8 @@ final class McpTools {
 		tools.add(tool("read_document",
 			"Returns the text of a document found with search or list_folder, to answer questions "
 			+ "about its content. Long documents are returned in parts: continue with the returned "
-			+ "next_offset. If the user asks for the document itself, give them its path instead.",
+			+ "next_offset. If the user asks for the document itself, give them its path instead "
+			+ "(get_original_document returns the file, if you need its original form).",
 			props(
 				"path", prop("string", "Absolute path of the document, as returned by search or list_folder"),
 				"offset", prop("integer", "Character offset to start at (default 0)"),
@@ -120,6 +124,14 @@ final class McpTools {
 					+ "appears on the page, which keeps labels and values of forms and tables together "
 					+ "('Grundmiete 620,00 Euro'); 'stream' gives the order in which the text was drawn - "
 					+ "use it if columns of a multi-column page appear mixed", "visual", "stream")),
+			"path"));
+		tools.add(tool("get_original_document",
+			"Returns the original file of a document found with search or list_folder (base64, with "
+			+ "its MIME type; images that can be shown come as an image), e.g. to create a new "
+			+ "document in the style of a Word, Excel or PDF file, or to look at a scan. Files of at "
+			+ "most " + maxOriginalMB() + " MB. For questions about the content, read_document is "
+			+ "faster.",
+			props("path", prop("string", "Absolute path of the document, as returned by search or list_folder")),
 			"path"));
 		tools.add(tool("list_folder",
 			"Lists a folder: subfolders first, then the files, newest first, with dates. Without a "
@@ -179,6 +191,8 @@ final class McpTools {
 			return search(args);
 		if (name.equals("read_document"))
 			return readDocument(args);
+		if (name.equals("get_original_document"))
+			return originalDocument(args);
 		if (name.equals("list_folder"))
 			return listFolder(args);
 		throw new ToolException("Unknown tool: " + name);
@@ -541,6 +555,103 @@ final class McpTools {
 		if (end < text.length())
 			meta.put("next_offset", end);
 		return Arrays.<Object> asList(meta, text.substring(start, end));
+	}
+
+	/**
+	 * The original file: a copy of its bytes for the client, which never gets
+	 * access to the file itself.
+	 */
+	@NotNull
+	private FileContent originalDocument(@NotNull Map<String, Object> args) throws ToolException {
+		String path = string(args, "path");
+		if (path == null || path.trim().isEmpty())
+			throw new ToolException("The argument 'path' is missing.");
+		File file = resolve(path);
+		checkAllowed(file);
+		if (!file.isFile())
+			throw new ToolException("Not a file (or not found): " + file.getPath()
+				+ ". Documents inside archives and emails have no original file of their own.");
+		long maxBytes = maxOriginalMB() * 1024L * 1024L;
+		if (file.length() > maxBytes)
+			throw new ToolException("The file is too large (" + (file.length() / (1024 * 1024)) + " MB, at most "
+				+ maxOriginalMB() + " MB). Use read_document for its text.");
+		byte[] data;
+		try {
+			data = java.nio.file.Files.readAllBytes(file.toPath());
+		}
+		catch (Exception e) {
+			throw new ToolException("The file could not be read: " + e.getMessage());
+		}
+		Map<String, Object> meta = new LinkedHashMap<String, Object>();
+		meta.put("path", display(file));
+		meta.put("name", file.getName());
+		meta.put("mime_type", mimeType(file.getName()));
+		meta.put("size_bytes", data.length);
+		meta.put("modified", format(new Date(file.lastModified())));
+		return new FileContent(meta, data);
+	}
+
+	/** The original file of a document: its description and its bytes. */
+	static final class FileContent {
+		@NotNull final Map<String, Object> meta;
+		@NotNull final byte[] data;
+
+		FileContent(@NotNull Map<String, Object> meta, @NotNull byte[] data) {
+			this.meta = meta;
+			this.data = data;
+		}
+
+		@NotNull
+		String mimeType() {
+			return (String) meta.get("mime_type");
+		}
+
+		/** An identifier, not a link: the client gets the bytes, not the file. */
+		@NotNull
+		String uri() {
+			try {
+				return new java.net.URI("docfetcher", null, "/" + meta.get("path"), null).toASCIIString();
+			}
+			catch (java.net.URISyntaxException e) {
+				return "docfetcher:/" + meta.get("name");
+			}
+		}
+	}
+
+	private static int maxOriginalMB() {
+		return ProgramConf.Int.McpMaxOriginalMB.get();
+	}
+
+	private static final Map<String, String> MIME_TYPES = new java.util.HashMap<String, String>();
+	static {
+		String[] types = {
+			"pdf", "application/pdf",
+			"doc", "application/msword",
+			"docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+			"dotx", "application/vnd.openxmlformats-officedocument.wordprocessingml.template",
+			"xls", "application/vnd.ms-excel",
+			"xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+			"ppt", "application/vnd.ms-powerpoint",
+			"pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+			"odt", "application/vnd.oasis.opendocument.text",
+			"ods", "application/vnd.oasis.opendocument.spreadsheet",
+			"odp", "application/vnd.oasis.opendocument.presentation",
+			"rtf", "application/rtf",
+			"txt", "text/plain", "csv", "text/csv", "md", "text/markdown",
+			"html", "text/html", "htm", "text/html", "xml", "application/xml", "json", "application/json",
+			"eml", "message/rfc822", "msg", "application/vnd.ms-outlook",
+			"png", "image/png", "jpg", "image/jpeg", "jpeg", "image/jpeg", "gif", "image/gif",
+			"webp", "image/webp", "bmp", "image/bmp", "tif", "image/tiff", "tiff", "image/tiff",
+			"zip", "application/zip"};
+		for (int i = 0; i < types.length; i += 2)
+			MIME_TYPES.put(types[i], types[i + 1]);
+	}
+
+	/** The MIME type from the file extension; unknown ones are 'application/octet-stream'. */
+	@NotNull
+	static String mimeType(@NotNull String filename) {
+		String type = MIME_TYPES.get(Util.getExtension(filename).toLowerCase(java.util.Locale.ROOT));
+		return type == null ? "application/octet-stream" : type;
 	}
 
 	/** The document of a file, with its index data if it is indexed. */

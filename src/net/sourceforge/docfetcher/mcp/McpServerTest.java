@@ -131,10 +131,81 @@ public final class McpServerTest {
 		assertEquals(0, result("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"ping\"}").size());
 
 		List<Object> tools = (List<Object>) result("{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/list\"}").get("tools");
-		assertEquals(3, tools.size());
+		assertEquals(4, tools.size());
 		assertEquals("search", ((Map<String, Object>) tools.get(0)).get("name"));
 		assertEquals("read_document", ((Map<String, Object>) tools.get(1)).get("name"));
-		assertEquals("list_folder", ((Map<String, Object>) tools.get(2)).get("name"));
+		assertEquals("get_original_document", ((Map<String, Object>) tools.get(2)).get("name"));
+		assertEquals("list_folder", ((Map<String, Object>) tools.get(3)).get("name"));
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void originalDocuments() throws Exception {
+		// A text file: its description, then the bytes as an embedded resource
+		File contract = new File(support.root, "Mieter/mietvertrag-rosenweg.txt");
+		List<Object> content = call("get_original_document", "{\"path\":" + Json.write(contract.getPath()) + "}", false);
+		assertEquals(2, content.size());
+		Map<String, Object> meta = json(content, 0);
+		assertEquals("mietvertrag-rosenweg.txt", meta.get("name"));
+		assertEquals("text/plain", meta.get("mime_type"));
+		assertEquals(contract.length(), ((Number) meta.get("size_bytes")).longValue());
+		Map<String, Object> part = (Map<String, Object>) content.get(1);
+		assertEquals("resource", part.get("type"));
+		Map<String, Object> resource = (Map<String, Object>) part.get("resource");
+		assertEquals("text/plain", resource.get("mimeType"));
+		assertTrue(resource.get("uri").toString(), resource.get("uri").toString().startsWith("docfetcher:/"));
+		assertTrue("Not a link to the file", !resource.get("uri").toString().startsWith("file:"));
+		assertTrue(java.util.Arrays.equals(java.nio.file.Files.readAllBytes(contract.toPath()),
+			java.util.Base64.getDecoder().decode((String) resource.get("blob"))));
+
+		// An image the assistant can look at; a TIFF comes as a file
+		File png = new File(support.root, "Posteingang/scan.png");
+		File tiff = new File(support.root, "Posteingang/scan.tif");
+		byte[] bytes = {(byte) 0x89, 'P', 'N', 'G', 13, 10, 26, 10};
+		java.nio.file.Files.write(png.toPath(), bytes);
+		java.nio.file.Files.write(tiff.toPath(), bytes);
+		try {
+			Map<String, Object> image = (Map<String, Object>) call("get_original_document",
+				"{\"path\":" + Json.write(png.getPath()) + "}", false).get(1);
+			assertEquals("image", image.get("type"));
+			assertEquals("image/png", image.get("mimeType"));
+			assertTrue(java.util.Arrays.equals(bytes, java.util.Base64.getDecoder().decode((String) image.get("data"))));
+			Map<String, Object> file = (Map<String, Object>) call("get_original_document",
+				"{\"path\":" + Json.write(tiff.getPath()) + "}", false).get(1);
+			assertEquals("resource", file.get("type"));
+			assertEquals("image/tiff", ((Map<String, Object>) file.get("resource")).get("mimeType"));
+		}
+		finally {
+			png.delete();
+			tiff.delete();
+		}
+
+		// Too large (limit lowered to 1 MB), missing, outside the indexed folders
+		File large = new File(support.root, "Posteingang/large.pdf");
+		java.nio.file.Files.write(large.toPath(), new byte[1024 * 1024 + 1]);
+		net.sourceforge.docfetcher.enums.ProgramConf.Int.McpMaxOriginalMB.load("1");
+		try {
+			String error = text(call("get_original_document", "{\"path\":" + Json.write(large.getPath()) + "}", true), 0);
+			assertTrue(error, error.contains("too large") && error.contains("read_document"));
+		}
+		finally {
+			net.sourceforge.docfetcher.enums.ProgramConf.Int.McpMaxOriginalMB.load("50");
+			large.delete();
+		}
+		assertTrue(text(call("get_original_document", "{\"path\":" + Json.write(large.getPath()) + "}", true), 0)
+			.startsWith("Not a file"));
+		File outside = File.createTempFile("docfetcher-secret", ".pdf");
+		try {
+			assertTrue(text(call("get_original_document", "{\"path\":" + Json.write(outside.getPath()) + "}", true), 0)
+				.startsWith("Access denied"));
+		}
+		finally {
+			outside.delete();
+		}
+
+		assertEquals("application/vnd.openxmlformats-officedocument.wordprocessingml.document", McpTools.mimeType("Brief.DOCX"));
+		assertEquals("application/octet-stream", McpTools.mimeType("notes.xyz"));
+		assertEquals("application/octet-stream", McpTools.mimeType("README"));
 	}
 
 	/** A request of revision 2026-07-28: _meta in the body, the same values in the headers. */
@@ -180,7 +251,7 @@ public final class McpServerTest {
 		assertEquals("private", discover.get("cacheScope"));
 
 		Map<String, Object> list = modernResult(modern("tools/list", "", null, v));
-		assertEquals(3, ((List<Object>) list.get("tools")).size());
+		assertEquals(4, ((List<Object>) list.get("tools")).size());
 		assertTrue(((Number) list.get("ttlMs")).longValue() > 0);
 
 		String search = "\"name\":\"search\",\"arguments\":{\"query\":\"Rosenweg\"}";

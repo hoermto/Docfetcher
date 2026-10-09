@@ -44,6 +44,9 @@ public final class McpExtension {
 		const readline = require('readline');
 		const url = new URL(process.env.DOCFETCHER_MCP_URL || 'http://localhost:28835/mcp');
 		const VERSION = 'io.modelcontextprotocol/protocolVersion';
+		// Clients built on the MCP SDK read at most 10 MiB per message and close the connection
+		// on a larger one, e.g. a large original document; such answers become an error instead.
+		const MAX_ANSWER_BYTES = 10 * 1024 * 1024 - 64 * 1024;
 
 		// Revision 2026-07-28 repeats the version, method and tool name of the body in headers.
 		function headersOf(message, length) {
@@ -64,6 +67,20 @@ public final class McpExtension {
 		  process.stdout.write(JSON.stringify(message) + '\\n');
 		}
 
+		function tooLarge(message, bytes) {
+		  const text = 'The answer (' + Math.round(bytes / 1048576) + ' MB) is too large for this connection: '
+		    + 'Claude Desktop reads at most 10 MB per message, which allows original documents of about 7 MB. '
+		    + 'Use read_document for the text, or Claude Code, which connects over HTTP.';
+		  if (message && message.method === 'tools/call') {
+		    const result = { content: [{ type: 'text', text }], isError: true };
+		    if (message.params._meta && message.params._meta[VERSION])
+		      result.resultType = 'complete'; // Required since revision 2026-07-28
+		    answer({ jsonrpc: '2.0', id: message.id, result });
+		  }
+		  else
+		    fail(message, text);
+		}
+
 		function fail(message, text) {
 		  if (message && message.id !== undefined)
 		    answer({ jsonrpc: '2.0', id: message.id, error: { code: -32603, message: text } });
@@ -80,8 +97,13 @@ public final class McpExtension {
 		    response.on('end', () => {
 		      const text = Buffer.concat(chunks).toString('utf8').trim();
 		      if (!text) return; // Notifications get no answer
-		      try { answer(JSON.parse(text)); }
-		      catch (e) { fail(message, 'DocFetcher answered with HTTP ' + response.statusCode + ': ' + text.slice(0, 200)); }
+		      let reply;
+		      try { reply = JSON.parse(text); }
+		      catch (e) { return fail(message, 'DocFetcher answered with HTTP ' + response.statusCode + ': ' + text.slice(0, 200)); }
+		      const line = JSON.stringify(reply); // One line, whatever the server's formatting
+		      const bytes = Buffer.byteLength(line);
+		      if (bytes > MAX_ANSWER_BYTES) tooLarge(message, bytes);
+		      else process.stdout.write(line + '\\n');
 		    });
 		  });
 		  request.on('error', () => fail(message, 'DocFetcher is not reachable at ' + url + '. Start DocFetcher '

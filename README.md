@@ -38,7 +38,7 @@ Everything is undoable (`Ctrl+Z`), removed files go to the recycle bin, and docu
 - Inbox folders, name and folder suggestions, rename, move, copy (`Ctrl` + drag), delete to recycle bin.
 - PDF split and merge, OCR with Tesseract, print, email.
 - MCP server (Model Context Protocol revisions 2026-07-28 and 2025-03-26 to 2025-11-25, Streamable HTTP on `http://localhost:28835/mcp`) with the read-only tools
-  `search`, `read_document` and `list_folder`; e.g. `claude mcp add --transport http docfetcher http://localhost:28835/mcp`
+  `search`, `read_document`, `get_original_document` (a base64 copy of the file, e.g. as a template) and `list_folder`; e.g. `claude mcp add --transport http docfetcher http://localhost:28835/mcp`
   (the preferences show how to connect Claude; for Claude Desktop they create a one-click extension, `docfetcher.mcpb`). Large result sets come newest first with an overview (time range,
   counts per year/month, top folders, characteristic words of the texts and names with their share of documents)
   that helps the assistant to narrow the search by adding or excluding words.
