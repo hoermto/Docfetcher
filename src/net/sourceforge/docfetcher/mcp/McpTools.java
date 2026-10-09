@@ -80,6 +80,8 @@ final class McpTools {
 	private final IndexRegistry registry;
 	/** DocFetcher's window for show_document; null without one (tests). */
 	@Nullable volatile McpServer.DocumentViewer viewer;
+	/** Asks the user before a download into the inbox; null: refused. */
+	@Nullable volatile McpServer.DownloadApprover approver;
 
 	McpTools(@NotNull IndexRegistry registry) {
 		this.registry = registry;
@@ -169,7 +171,10 @@ final class McpTools {
 			+ "'2026-10-01' a date, the first row is a bold header); for .docx and .pdf give 'text' "
 			+ "('# ' headings, '- ' bullet points, empty lines between paragraphs); for .txt, .csv, "
 			+ ".md and other text files give 'text' (saved as UTF-8). Use 'content_base64' only for "
-			+ "files you already have as bytes, e.g. an image. At most " + McpInbox.MAX_MB
+			+ "files you already have as bytes, e.g. a small image"
+			+ (McpInbox.isDownloadEnabled() ? "; for a file on the internet give its https 'url' - "
+				+ "DocFetcher asks the user, then downloads and stores it" : "")
+			+ ". At most " + McpInbox.MAX_MB
 			+ " MB; programs, scripts, shortcuts and Office files with macros are refused.",
 			props(
 				"name", prop("string", "File name with extension, without a folder, e.g. 'Angebot Rosenweg 2026-10.docx'"),
@@ -177,6 +182,8 @@ final class McpTools {
 				"text", prop("string", "The content as text: for .docx and .pdf with '# ' headings and '- ' "
 					+ "bullet points, for text files as it is"),
 				"content_base64", prop("string", "The content, base64-encoded, only for files you already have as bytes"),
+				"url", prop("string", "Only if the user allows downloads: the https address of a public file to "
+					+ "download into the inbox, e.g. a form; the user is asked first"),
 				"inbox", prop("string", "Name of the inbox if there are several (default: the first). The inboxes: "
 					+ McpInbox.inboxNames())),
 			"name");
@@ -269,7 +276,7 @@ final class McpTools {
 		if (name.equals("show_document"))
 			return showDocuments(args);
 		if (name.equals("add_to_inbox"))
-			return McpInbox.add(args);
+			return McpInbox.add(args, approver);
 		throw new ToolException("Unknown tool: " + name);
 	}
 

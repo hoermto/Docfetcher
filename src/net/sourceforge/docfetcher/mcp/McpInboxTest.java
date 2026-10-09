@@ -42,6 +42,7 @@ public final class McpInboxTest {
 	private static List<String> savedInboxes;
 	private static boolean savedWrite;
 	private static boolean savedPathVisible;
+	private static boolean savedDownload;
 	private File inbox;
 	private File second;
 
@@ -52,6 +53,7 @@ public final class McpInboxTest {
 		savedInboxes = SettingsConf.StrList.InboxFolders.get();
 		savedWrite = SettingsConf.Bool.McpInboxWrite.get();
 		savedPathVisible = SettingsConf.Bool.McpInboxPathVisible.get();
+		savedDownload = SettingsConf.Bool.McpInboxDownload.get();
 	}
 
 	@AfterClass
@@ -59,6 +61,7 @@ public final class McpInboxTest {
 		SettingsConf.StrList.InboxFolders.set(savedInboxes);
 		SettingsConf.Bool.McpInboxWrite.set(savedWrite);
 		SettingsConf.Bool.McpInboxPathVisible.set(savedPathVisible);
+		SettingsConf.Bool.McpInboxDownload.set(savedDownload);
 		server.stop();
 		support.dispose();
 	}
@@ -70,6 +73,7 @@ public final class McpInboxTest {
 		SettingsConf.StrList.InboxFolders.set(Arrays.asList(inbox.getPath() + "|Scans", second.getPath() + "|Belege"));
 		SettingsConf.Bool.McpInboxWrite.set(true);
 		SettingsConf.Bool.McpInboxPathVisible.set(false);
+		SettingsConf.Bool.McpInboxDownload.set(false);
 	}
 
 	@After
@@ -216,6 +220,44 @@ public final class McpInboxTest {
 		assertTrue(error("{\"name\":\"a.txt\",\"sheets\":[{\"rows\":[]}]}").contains(".xlsx files only"));
 		assertTrue(error("{\"name\":\"a.xlsx\",\"text\":\"x\",\"sheets\":[]}").contains("one of"));
 		assertTrue(error("{\"name\":\"a.xlsx\",\"sheets\":[{\"rows\":[[\"=SUM(\"]]}]}").contains("Invalid formula"));
+	}
+
+	@Test
+	public void downloadsOnlyWithTheUsersConsent() {
+		String args = "{\"name\":\"Formular.pdf\",\"url\":\"https://93.184.216.34/formular.pdf\"}";
+		// Switched off: no download, no question
+		assertTrue(error(args).contains("switched off"));
+		SettingsConf.Bool.McpInboxDownload.set(true);
+		try {
+			// No one to ask: refused
+			assertTrue(error(args).contains("did not allow"));
+
+			// The user says no: nothing is downloaded or stored
+			final List<String> asked = new java.util.ArrayList<String>();
+			server.setDownloadApprover(new McpServer.DownloadApprover() {
+				public boolean approve(String fileName, File folder, String url) {
+					asked.add(fileName + "|" + folder.getName() + "|" + url);
+					return false;
+				}
+			});
+			assertTrue(error(args).contains("did not allow"));
+			assertEquals(Arrays.asList("Formular.pdf|" + inbox.getName() + "|https://93.184.216.34/formular.pdf"), asked);
+
+			// Addresses of this computer or the home network are refused before asking
+			asked.clear();
+			assertTrue(error("{\"name\":\"x.pdf\",\"url\":\"https://192.168.178.1/x.pdf\"}").contains("Only public"));
+			assertTrue(error("{\"name\":\"x.exe\",\"url\":\"https://93.184.216.34/x.exe\"}").contains(".exe"));
+			assertTrue(asked.isEmpty());
+			assertEquals(0, inbox.listFiles().length);
+
+			// The tool tells about 'url' only when downloads are allowed
+			assertTrue(Json.write(listedTool()).contains("give its https 'url'"));
+		}
+		finally {
+			server.setDownloadApprover(null);
+			SettingsConf.Bool.McpInboxDownload.set(false);
+		}
+		assertFalse(Json.write(listedTool()).contains("give its https 'url'"));
 	}
 
 	@Test

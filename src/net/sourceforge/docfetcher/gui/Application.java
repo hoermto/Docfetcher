@@ -2654,6 +2654,17 @@ private static SashForm folderSash;
 						});
 					}
 				});
+				mcpServer.setDownloadApprover(new McpServer.DownloadApprover() {
+					public boolean approve(final String fileName, final File folder, final String url) {
+						final boolean[] approved = {false};
+						UtilGui.runSyncExec(shell, new Runnable() {
+							public void run() {
+								approved[0] = askDownload(fileName, folder, url);
+							}
+						});
+						return approved[0];
+					}
+				});
 			}
 			mcpServer.start(port);
 		}
@@ -2678,6 +2689,20 @@ private static SashForm folderSash;
 		// Sync first: a folder browser changing its folder clears the preview
 		showInRightmostFolderPanel(docs.get(0));
 		previewPanel.setPreview(docs.get(0));
+	}
+
+	/**
+	 * Asks the user whether an AI assistant may have a file from the internet
+	 * stored in the inbox (MCP add_to_inbox with a URL); the window comes to
+	 * the front first, as the question may come while it is in the tray.
+	 */
+	private static boolean askDownload(@NotNull String fileName, @NotNull File folder, @NotNull String url) {
+		activateMainWindow();
+		org.eclipse.swt.widgets.MessageBox box = new org.eclipse.swt.widgets.MessageBox(
+			shell, SWT.ICON_QUESTION | SWT.YES | SWT.NO);
+		box.setText(Msg.mcp_download_title.get());
+		box.setMessage(Msg.mcp_download_question.format(fileName, folder.getPath(), url));
+		return box.open() == SWT.YES;
 	}
 
 	private static void showManual() {

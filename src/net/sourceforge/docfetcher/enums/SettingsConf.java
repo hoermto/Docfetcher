@@ -103,6 +103,7 @@ public final class SettingsConf {
 		TolerantSearch (true), // Umlauts and OCR errors: 'Muller' finds 'Müller', 'Bonn' finds 'B0nn'
 		McpServerEnabled (false), // MCP server for AI assistants on localhost (read-only access to the indexes)
 		McpInboxWrite (false), // The MCP server's add_to_inbox: new files only, in an inbox folder
+		McpInboxDownload (false), // With McpInboxWrite: add_to_inbox may download a public https file, after asking the user
 		McpInboxPathVisible (false), // With McpInboxWrite: assistants may also save new files directly in the inbox folders
 		ShowFolderPanel (true), // Show a second folder browser next to the tabs
 FolderSortAscending (false), // Sort order of the folder view

@@ -122,6 +122,17 @@ public final class McpServer {
 		tools.viewer = viewer;
 	}
 
+	/** Asks the user before add_to_inbox downloads a file from the internet. */
+	public interface DownloadApprover {
+		/** Called on the server's thread; returns whether the user agreed. */
+		boolean approve(@NotNull String fileName, @NotNull java.io.File folder, @NotNull String url);
+	}
+
+	/** Sets who approves downloads; null: downloads are refused. */
+	public void setDownloadApprover(@Nullable DownloadApprover approver) {
+		tools.approver = approver;
+	}
+
 	/**
 	 * Starts the server on the given port of the loopback interface, or
 	 * restarts it if it runs on another port. Throws an IOException if the

@@ -402,3 +402,16 @@
     overwrite, rename, move or delete'; add_to_inbox then returns the path again.
     Tests: McpInboxTest.inboxPathOnlyWhenAllowed (default, allowed, only with adding files); app: dev build on port
     28836, checkbox in the preferences -> instructions and result with the path.
+- change (v2.10): base64 effectively useless? -> download via URL into the inbox, with the user's consent
+  - base64 only for small files. URLs of files an LLM made in its sandbox are not public (Claude: needs the browser
+    session, ChatGPT: sandbox:/...), so the download helps for public files (forms, notices). No charts for now.
+  - Answers: restricted, modal 'store file <> in folder <>', in no way allow execution.
+  - McpDownload: https, port 443, all resolved addresses public (no loopback/private/link-local/CGNAT/ULA/mapped),
+    redirects followed by hand and checked (max 5), 20 MB, 30 s; content: program magic (MZ, ELF, Mach-O, #!, .lnk)
+    refused, known types must match their magic (web page as .pdf refused); Zone.Identifier ZoneId=3 + HostUrl.
+    add_to_inbox 'url' only with SettingsConf McpInboxDownload (off, checkbox below the inbox option); address
+    checked before asking; McpServer.DownloadApprover -> Application.askDownload (window to the front, question
+    with file, folder, address; the request waits).
+    Tests: McpDownloadTest (addresses, contents), McpInboxTest.downloadsOnlyWithTheUsersConsent (off, no approver,
+    declined, private/blocked before asking, tool text); app (dev, port 28836): w3.org test PDF approved -> stored,
+    %PDF, Zone.Identifier; declined -> nothing; web page as .pdf -> refused; 192.168.178.1 -> refused, no dialog.

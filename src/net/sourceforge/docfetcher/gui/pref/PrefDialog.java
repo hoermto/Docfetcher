@@ -176,6 +176,10 @@ new CheckOption(
 				SettingsConf.Bool.McpInboxWrite),
 
 			new CheckOption(
+				Msg.pref_mcp_inbox_download.get(),
+				SettingsConf.Bool.McpInboxDownload),
+
+			new CheckOption(
 				Msg.pref_mcp_inbox_path.get(),
 				SettingsConf.Bool.McpInboxPathVisible)
 

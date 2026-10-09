@@ -27,6 +27,7 @@ import net.sourceforge.docfetcher.gui.InboxFolders;
 import net.sourceforge.docfetcher.mcp.McpTools.ToolException;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
+import net.sourceforge.docfetcher.util.annotations.Nullable;
 
 /**
  * The tool {@code add_to_inbox}: AI assistants may place new files in an inbox
@@ -72,6 +73,11 @@ final class McpInbox {
 		return isEnabled() && SettingsConf.Bool.McpInboxPathVisible.get();
 	}
 
+	/** Whether the user allows downloads from the internet into the inbox (each one asks first). */
+	static boolean isDownloadEnabled() {
+		return isEnabled() && SettingsConf.Bool.McpInboxDownload.get();
+	}
+
 	/** How the assistant may give the user files, for the instructions and the tool. */
 	@NotNull
 	static String fileRule() {
@@ -88,20 +94,36 @@ final class McpInbox {
 
 	/** Writes the file and returns its description. */
 	@NotNull
-	static Map<String, Object> add(@NotNull Map<String, Object> args) throws ToolException {
+	static Map<String, Object> add(@NotNull Map<String, Object> args, @Nullable McpServer.DownloadApprover approver)
+			throws ToolException {
 		if (!isEnabled())
 			throw new ToolException("Adding files to the inbox is switched off in DocFetcher's preferences.");
 		String name = checkName(McpTools.string(args, "name"));
 		String text = McpTools.string(args, "text");
 		String base64 = McpTools.string(args, "content_base64");
+		String url = McpTools.string(args, "url");
 		Object sheets = args.get("sheets");
-		int given = (text != null ? 1 : 0) + (base64 != null ? 1 : 0) + (sheets != null ? 1 : 0);
+		int given = (text != null ? 1 : 0) + (base64 != null ? 1 : 0) + (sheets != null ? 1 : 0) + (url != null ? 1 : 0);
 		if (given != 1)
 			throw new ToolException("Give the content as one of 'sheets' (.xlsx), 'text' (.docx, .pdf, "
-				+ "text files) or 'content_base64' (other files).");
+				+ "text files), " + (isDownloadEnabled() ? "'url' (a file on the internet) " : "")
+				+ "or 'content_base64' (other files).");
+		InboxFolders.Entry inbox = findInbox(McpTools.string(args, "inbox"));
+		File folder = inbox.getFolder();
+		if (!folder.isDirectory())
+			throw new ToolException("The inbox '" + inbox.getTabName() + "' is not available (its folder is missing).");
 		String extension = Util.getExtension(name).toLowerCase(Locale.ROOT);
 		byte[] data;
-		if (sheets != null) {
+		if (url != null) {
+			if (!isDownloadEnabled())
+				throw new ToolException("Downloading files from the internet is switched off in DocFetcher's preferences.");
+			McpDownload.checkAddress(url);
+			// The user decides before DocFetcher contacts the address
+			if (approver == null || !approver.approve(name, folder, url))
+				throw new ToolException("The user did not allow storing this file.");
+			data = McpDownload.fetch(url, name);
+		}
+		else if (sheets != null) {
 			if (!extension.equals("xlsx"))
 				throw new ToolException("'sheets' is for .xlsx files only.");
 			data = McpDocuments.xlsx(sheets);
@@ -128,11 +150,9 @@ final class McpInbox {
 		if (data.length > MAX_MB * 1024L * 1024L)
 			throw new ToolException("The file is too large (at most " + MAX_MB + " MB).");
 
-		InboxFolders.Entry inbox = findInbox(McpTools.string(args, "inbox"));
-		File folder = inbox.getFolder();
-		if (!folder.isDirectory())
-			throw new ToolException("The inbox '" + inbox.getTabName() + "' is not available (its folder is missing).");
 		File file = writeNew(folder, name, data);
+		if (url != null)
+			McpDownload.markFromInternet(file, url);
 
 		// The path only if the user allows direct access to the inbox folders
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
