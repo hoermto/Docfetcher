@@ -21,6 +21,8 @@
   come from the PATH). Output: `build/DocFetcher-<version>-Windows-64bit-Portable.zip` and the non-portable folder;
   the installer needs NSIS (`build-win-installer.nsi`), which is not installed. Afterwards `git checkout -- dist/`
   (commit changes under dist/ before building - the checkout reverts them).
+- build.py empties the whole build/ folder (clean_dir), older package folders included: never run a DocFetcher you use
+  from build/ (its portable indexes are lost on the next build); check `ls build/` before building.
 - Testing the package: it keeps its settings in `%APPDATA%\docfetcher\settings.conf`; start it with `APPDATA` pointing to
   a scratch folder (`cd <pkg> && APPDATA="$(cygpath -w <scratch>)" ./DocFetcher.exe &`) so the user's settings stay
   untouched. The package has the German UI: `win.py menu Datei "DocFetcher beenden"`, `menu Ansicht "Symbol>100"`.
