@@ -494,3 +494,13 @@
     Tests: DuplicatesTest (finder, through the index incl. copies under other names, cancel, singular/plural texts);
     app: dev build - groups (identical xlsx, letter + copy + second scan), group check, deletion to the recycle bin
     with confirmation, show in the main window, 'keep one' refused.
+- change (v2.10): duplicates refer to the active folder; option 'only by content'
+  - Answers: always the folder of the folder browser (rightmost; none: all indexes); only within that folder (with
+    subfolders), 'Global' includes all; unchecked 'only by content' adds same file name + size (also without text);
+    'only by content' on by default, remembered (SettingsConf DuplicatesContentOnly).
+  - Searcher.findDuplicates(folder, contentOnly): documents outside the folder are skipped (UID -> path,
+    normalized); name+size groups (lower-case name + stored size) unless a text group has them all; DuplicateGroup
+    .Kind IDENTICAL_TEXT / NEARLY_IDENTICAL_TEXT / SAME_NAME_AND_SIZE. Dialog: checkboxes 'Only by content' and
+    'Global (all indexes)' (disabled and on without a folder), status names the folder, changes restart the search.
+    Tests: DuplicatesTest.folderAndNameAndSize; app: dev build - folder of the browser without duplicates, Global
+    finds the workbooks, unchecked 'only by content' adds two same-named notes; the option is remembered.

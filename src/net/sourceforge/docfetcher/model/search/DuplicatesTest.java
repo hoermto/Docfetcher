@@ -72,8 +72,8 @@ public final class DuplicatesTest {
 
 	@Test
 	public void groupCountInTheTexts() throws Exception {
-		assertTrue(net.sourceforge.docfetcher.enums.Msg.dup_found.format(1).startsWith("One group of documents"));
-		assertTrue(net.sourceforge.docfetcher.enums.Msg.dup_found.format(3).startsWith("3 groups of documents"));
+		assertTrue(net.sourceforge.docfetcher.enums.Msg.dup_found.format(1).startsWith("One group of duplicates"));
+		assertTrue(net.sourceforge.docfetcher.enums.Msg.dup_found.format(3).startsWith("3 groups of duplicates"));
 		java.util.Properties de = new java.util.Properties();
 		java.io.InputStream in = new java.io.FileInputStream("dist/lang/Resource_de.properties");
 		try {
@@ -83,8 +83,8 @@ public final class DuplicatesTest {
 			in.close();
 		}
 		String pattern = de.getProperty("dup_found").replace("'", "''"); // As Msg.format does it
-		assertTrue(java.text.MessageFormat.format(pattern, 1).startsWith("Eine Gruppe von Dokumenten"));
-		assertTrue(java.text.MessageFormat.format(pattern, 4).startsWith("4 Gruppen von Dokumenten"));
+		assertTrue(java.text.MessageFormat.format(pattern, 1).startsWith("Eine Gruppe von Duplikaten"));
+		assertTrue(java.text.MessageFormat.format(pattern, 4).startsWith("4 Gruppen von Duplikaten"));
 	}
 
 	@Test
@@ -99,10 +99,50 @@ public final class DuplicatesTest {
 				Cancelable.nullCancelable, new Searcher.DuplicateProgress() {
 					public void update(int done, int total) {
 					}
-				});
+				}, null, true);
 			assertEquals(1, groups.size());
-			assertTrue(groups.get(0).identical);
+			assertEquals(Searcher.DuplicateGroup.Kind.IDENTICAL_TEXT, groups.get(0).kind);
 			assertEquals(2, groups.get(0).docs.size());
+		}
+		finally {
+			support.dispose();
+		}
+	}
+
+	private static List<Searcher.DuplicateGroup> find(SearchTestSupport support, java.io.File folder,
+			boolean contentOnly) throws Exception {
+		return support.registry.getSearcher().findDuplicates(Cancelable.nullCancelable,
+			new Searcher.DuplicateProgress() {
+				public void update(int done, int total) {
+				}
+			}, folder, contentOnly);
+	}
+
+	@Test
+	public void folderAndNameAndSize() throws Exception {
+		SearchTestSupport support = new SearchTestSupport(
+			"Archiv/2025/brief.txt", LETTER,
+			"Posteingang/brief.txt", LETTER,
+			"Archiv/2026/notiz.txt", "kurz",
+			"Posteingang/notiz.txt", "kurz");
+		try {
+			// Only within the folder (with subfolders): the copy in the inbox doesn't count
+			assertEquals(0, find(support, new java.io.File(support.root, "Archiv"), true).size());
+			assertEquals(0, find(support, new java.io.File(support.root, "Archiv/2025"), false).size());
+			// The root folder, or all indexes ('Global'): the letter and its copy
+			assertEquals(1, find(support, support.root, true).size());
+			List<Searcher.DuplicateGroup> all = find(support, null, true);
+			assertEquals(1, all.size());
+			assertEquals(Searcher.DuplicateGroup.Kind.IDENTICAL_TEXT, all.get(0).kind);
+
+			// Not only by content: same name and size too, also without text to compare;
+			// the letters are in the text group already, not again
+			List<Searcher.DuplicateGroup> withNames = find(support, null, false);
+			assertEquals(2, withNames.size());
+			assertEquals(Searcher.DuplicateGroup.Kind.IDENTICAL_TEXT, withNames.get(0).kind);
+			assertEquals(Searcher.DuplicateGroup.Kind.SAME_NAME_AND_SIZE, withNames.get(1).kind);
+			assertEquals("notiz.txt", withNames.get(1).docs.get(0).getFilename());
+			assertEquals(2, withNames.get(1).docs.size());
 		}
 		finally {
 			support.dispose();
@@ -129,7 +169,7 @@ public final class DuplicatesTest {
 					public void update(int done, int total) {
 						progress.add(done);
 					}
-				});
+				}, null, true);
 			assertEquals(1, groups.size());
 			List<String> names = new ArrayList<String>();
 			for (ResultDocument doc : groups.get(0).docs)
@@ -145,7 +185,7 @@ public final class DuplicatesTest {
 			}, new Searcher.DuplicateProgress() {
 				public void update(int done, int total) {
 				}
-			}).size());
+			}, null, true).size());
 		}
 		finally {
 			support.dispose();

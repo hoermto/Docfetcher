@@ -687,12 +687,15 @@ public final class Searcher {
 	
 	/** A group of documents with identical or nearly identical text (see {@link DuplicateFinder}). */
 	public static final class DuplicateGroup {
-		public final List<ResultDocument> docs;
-		public final boolean identical;
+		/** Why the documents are duplicates. */
+		public enum Kind { IDENTICAL_TEXT, NEARLY_IDENTICAL_TEXT, SAME_NAME_AND_SIZE }
 
-		DuplicateGroup(@NotNull List<ResultDocument> docs, boolean identical) {
+		public final List<ResultDocument> docs;
+		public final Kind kind;
+
+		DuplicateGroup(@NotNull List<ResultDocument> docs, @NotNull Kind kind) {
 			this.docs = docs;
-			this.identical = identical;
+			this.kind = kind;
 		}
 	}
 
@@ -703,14 +706,19 @@ public final class Searcher {
 
 	/**
 	 * Finds the documents with identical or nearly identical text, from the
-	 * text stored in the indexes - no document is opened. The documents of a
-	 * group are sorted oldest first; groups of one file that is in two
-	 * indexes are left out. Returns what was found until canceled.
+	 * words in the indexes - no document is opened - among the documents in
+	 * the given folder and its subfolders (null: all). Unless only the content
+	 * counts, documents with the same file name and size are duplicates too,
+	 * also without text (e.g. images). The documents of a group are sorted
+	 * oldest first; groups of one file that is in two indexes are left out.
+	 * Returns nothing if canceled.
 	 */
 	@NotNull
 	@ThreadSafe
 	public List<DuplicateGroup> findDuplicates(	@NotNull Cancelable cancelable,
-												@NotNull DuplicateProgress progress)
+												@NotNull DuplicateProgress progress,
+												@Nullable java.io.File folder,
+												boolean contentOnly)
 			throws SearchException, CheckedOutOfMemoryError {
 		readLock.lock();
 		try {
@@ -726,10 +734,27 @@ public final class Searcher {
 			 * copies under another name are identical.
 			 */
 			List<Map<String, Integer>> nameWords = new ArrayList<Map<String, Integer>>(reader.maxDoc());
-			java.util.Set<String> nameField = Collections.singleton(Fields.FILENAME.key());
+			java.util.Set<String> storedFields = new java.util.HashSet<String>(Arrays.asList(
+				Fields.FILENAME.key(), Fields.UID.key(), Fields.SIZE.key()));
+			java.io.File scope = folder == null ? null : normalize(folder);
+			boolean[] inScope = new boolean[reader.maxDoc()];
+			// Same file name and size: the documents of each name and size, in the scope
+			Map<String, List<Integer>> byNameAndSize = new java.util.LinkedHashMap<String, List<Integer>>();
+			org.apache.lucene.util.Bits allLive = org.apache.lucene.index.MultiFields.getLiveDocs(reader);
 			for (int i = 0; i < reader.maxDoc(); i++) {
-				String filename = reader.document(i, nameField).get(Fields.FILENAME.key());
-				nameWords.add(filename == null ? Collections.<String, Integer> emptyMap() : nameWords(filename, field));
+				Document stored = reader.document(i, storedFields);
+				String filename = stored.get(Fields.FILENAME.key());
+				String uid = stored.get(Fields.UID.key());
+				inScope[i] = (allLive == null || allLive.get(i)) && uid != null && (scope == null
+					|| Util.contains(scope, normalize(new java.io.File(DocumentType.extractPath(uid).getPath()))));
+				nameWords.add(filename == null || !inScope[i] ? Collections.<String, Integer> emptyMap() : nameWords(filename, field));
+				if (!contentOnly && inScope[i] && filename != null && stored.get(Fields.SIZE.key()) != null) {
+					String key = filename.toLowerCase(java.util.Locale.ROOT) + "/" + stored.get(Fields.SIZE.key());
+					List<Integer> same = byNameAndSize.get(key);
+					if (same == null)
+						byNameAndSize.put(key, same = new ArrayList<Integer>(2));
+					same.add(i);
+				}
 			}
 
 			long totalTerms = 0;
@@ -758,6 +783,8 @@ public final class Searcher {
 						if (live != null && !live.get(doc))
 							continue;
 						int key = leaf.docBase + doc;
+						if (!inScope[key])
+							continue;
 						Integer inName = nameWords.get(key).get(word);
 						int count = postings.freq() - (inName == null ? 0 : inName);
 						if (count > 0)
@@ -767,27 +794,25 @@ public final class Searcher {
 			}
 			progress.update((int) Math.min(Integer.MAX_VALUE, totalTerms), (int) Math.min(Integer.MAX_VALUE, totalTerms));
 
-			Query query = new MatchAllDocsQuery();
 			List<DuplicateGroup> groups = new ArrayList<DuplicateGroup>();
+			Map<Integer, Integer> textGroupOf = new HashMap<Integer, Integer>();
 			for (DuplicateFinder.Group group : finder.groups()) {
-				// One file in two indexes isn't a duplicate
-				Map<String, ResultDocument> byPath = new java.util.LinkedHashMap<String, ResultDocument>();
-				for (int key : group.keys) {
-					LuceneIndex index = indexes.get(((DecoratedMultiReader) reader).decoratedReaderIndex(key));
-					ResultDocument doc = new ResultDocument(reader.document(key), 0, query, true,
-						index.getConfig(), fileFactory, outlookMailFactory);
-					if (!byPath.containsKey(doc.getPathStr()))
-						byPath.put(doc.getPathStr(), doc);
-				}
-				if (byPath.size() < 2)
+				for (int key : group.keys)
+					textGroupOf.put(key, groups.size());
+				addGroup(groups, reader, group.keys, group.identical
+					? DuplicateGroup.Kind.IDENTICAL_TEXT
+					: DuplicateGroup.Kind.NEARLY_IDENTICAL_TEXT);
+			}
+			// Same name and size, unless a text group has them all already
+			for (List<Integer> same : byNameAndSize.values()) {
+				if (same.size() < 2)
 					continue;
-				List<ResultDocument> docs = new ArrayList<ResultDocument>(byPath.values());
-				Collections.sort(docs, new Comparator<ResultDocument>() {
-					public int compare(ResultDocument d1, ResultDocument d2) {
-						return Long.compare(time(d1), time(d2));
-					}
-				});
-				groups.add(new DuplicateGroup(docs, group.identical));
+				Integer textGroup = textGroupOf.get(same.get(0));
+				boolean covered = textGroup != null;
+				for (int key : same)
+					covered &= textGroup != null && textGroup.equals(textGroupOf.get(key));
+				if (!covered)
+					addGroup(groups, reader, same, DuplicateGroup.Kind.SAME_NAME_AND_SIZE);
 			}
 			return groups;
 		}
@@ -828,6 +853,37 @@ public final class Searcher {
 			stream.close();
 		}
 		return counts;
+	}
+
+	/** Adds the group, oldest first, unless it is only one file that is in two indexes. */
+	private void addGroup(	@NotNull List<DuplicateGroup> groups,
+							@NotNull IndexReader reader,
+							@NotNull List<Integer> keys,
+							@NotNull DuplicateGroup.Kind kind) throws IOException {
+		Query query = new MatchAllDocsQuery();
+		Map<String, ResultDocument> byPath = new java.util.LinkedHashMap<String, ResultDocument>();
+		for (int key : keys) {
+			LuceneIndex index = indexes.get(((DecoratedMultiReader) reader).decoratedReaderIndex(key));
+			ResultDocument doc = new ResultDocument(reader.document(key), 0, query, true,
+				index.getConfig(), fileFactory, outlookMailFactory);
+			if (!byPath.containsKey(doc.getPathStr()))
+				byPath.put(doc.getPathStr(), doc);
+		}
+		if (byPath.size() < 2)
+			return;
+		List<ResultDocument> docs = new ArrayList<ResultDocument>(byPath.values());
+		Collections.sort(docs, new Comparator<ResultDocument>() {
+			public int compare(ResultDocument d1, ResultDocument d2) {
+				return Long.compare(time(d1), time(d2));
+			}
+		});
+		groups.add(new DuplicateGroup(docs, kind));
+	}
+
+	/** The absolute path without '.' and '..', for comparing folders. */
+	@NotNull
+	private static java.io.File normalize(@NotNull java.io.File file) {
+		return file.getAbsoluteFile().toPath().normalize().toFile();
 	}
 
 	private static long time(@NotNull ResultDocument doc) {

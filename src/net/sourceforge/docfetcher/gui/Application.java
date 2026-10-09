@@ -2134,7 +2134,10 @@ private static SashForm folderSash;
 		});
 		createMenuItem(fileMenu, Msg.menu_find_duplicates.get(), null, new Runnable() {
 			public void run() {
-				DuplicatesDialog dialog = new DuplicatesDialog(shell, indexRegistry);
+				// The folder the folder browser shows (the rightmost one); none: all indexes
+				FolderPanel browser = folderPanel != null ? folderPanel : folderTabPanel;
+				DuplicatesDialog dialog = new DuplicatesDialog(shell, indexRegistry,
+					browser == null ? null : browser.getFolder());
 				dialog.evtShow.add(new Event.Listener<List<ResultDocument>>() {
 					public void update(List<ResultDocument> docs) {
 						showDocuments(docs, false); // The dialog stays in front

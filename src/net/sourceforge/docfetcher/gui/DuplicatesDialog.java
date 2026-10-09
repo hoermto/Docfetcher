@@ -28,6 +28,7 @@ import org.eclipse.swt.widgets.TreeColumn;
 import org.eclipse.swt.widgets.TreeItem;
 
 import net.sourceforge.docfetcher.enums.Msg;
+import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.model.Cancelable;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
@@ -40,11 +41,14 @@ import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 
 /**
- * Finds documents with identical or nearly identical text in the indexes
- * (menu File > Find Duplicates...) and shows them in groups, the oldest
- * document of a group first. Copies can be checked and moved to the recycle
- * bin; at least one document of each group always stays. The search runs in
- * the background and stops when the dialog is closed.
+ * Finds duplicate documents (menu File > Find Duplicates...) in the folder the
+ * folder browser shows, with its subfolders - or, with 'Global', in all
+ * indexes - and shows them in groups, the oldest document of a group first.
+ * 'Only by content' (remembered, on by default) compares only the texts;
+ * without it, the same file name and size count too. Copies can be checked
+ * and moved to the recycle bin; at least one document of each group always
+ * stays. The search runs in the background; changing an option starts it
+ * again, closing the dialog stops it.
  */
 final class DuplicatesDialog {
 
@@ -52,25 +56,51 @@ final class DuplicatesDialog {
 	final Event<List<ResultDocument>> evtShow = new Event<List<ResultDocument>>();
 
 	private final IndexRegistry registry;
+	@Nullable private final File folder;
 	private final Shell shell;
 	private final Label status;
+	private final Button contentOnlyBt;
+	private final Button globalBt;
+	/** The current search; an older one stops when this changes. */
+	private final java.util.concurrent.atomic.AtomicInteger run = new java.util.concurrent.atomic.AtomicInteger();
 	private final Tree tree;
 	private final Button showBt;
 	private final Button folderBt;
 	private final Button deleteBt;
-	private volatile boolean canceled = false;
 
-	DuplicatesDialog(@NotNull Shell parent, @NotNull IndexRegistry registry) {
+	/** For the folder the folder browser shows; null: all indexes. */
+	DuplicatesDialog(@NotNull Shell parent, @NotNull IndexRegistry registry, @Nullable File folder) {
 		this.registry = registry;
+		this.folder = folder;
 		shell = new Shell(parent, SWT.DIALOG_TRIM | SWT.RESIZE);
 		shell.setText(Msg.dup_title.get());
 		shell.setLayout(new GridLayout(1, false));
+
+		Composite options = new Composite(shell, SWT.NONE);
+		options.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
+		options.setLayout(UtilGui.createGridLayout(2, false, 0, 10));
+		contentOnlyBt = new Button(options, SWT.CHECK);
+		contentOnlyBt.setText(Msg.dup_content_only.get());
+		contentOnlyBt.setToolTipText(Msg.dup_content_only_hint.get());
+		contentOnlyBt.setSelection(SettingsConf.Bool.DuplicatesContentOnly.get());
+		globalBt = new Button(options, SWT.CHECK);
+		globalBt.setText(Msg.dup_global.get());
+		// Without a folder in the folder browser: all indexes
+		globalBt.setSelection(folder == null);
+		globalBt.setEnabled(folder != null);
+		SelectionAdapter restart = new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				SettingsConf.Bool.DuplicatesContentOnly.set(contentOnlyBt.getSelection());
+				start();
+			}
+		};
+		contentOnlyBt.addSelectionListener(restart);
+		globalBt.addSelectionListener(restart);
 
 		status = new Label(shell, SWT.WRAP);
 		GridData statusData = new GridData(SWT.FILL, SWT.TOP, true, false);
 		statusData.widthHint = 400;
 		status.setLayoutData(statusData);
-		status.setText(Msg.dup_progress.format(0));
 
 		tree = new Tree(shell, SWT.CHECK | SWT.BORDER | SWT.FULL_SELECTION | SWT.V_SCROLL | SWT.H_SCROLL);
 		tree.setHeaderVisible(true);
@@ -122,7 +152,7 @@ final class DuplicatesDialog {
 		shell.setLocation(parent.getLocation().x + 40, parent.getLocation().y + 40);
 		shell.addListener(SWT.Dispose, new org.eclipse.swt.widgets.Listener() {
 			public void handleEvent(org.eclipse.swt.widgets.Event event) {
-				canceled = true; // Stops the search
+				run.incrementAndGet(); // Stops the search
 			}
 		});
 	}
@@ -145,31 +175,50 @@ final class DuplicatesDialog {
 	/** Opens the dialog and starts the search in the background. */
 	void open() {
 		shell.open();
+		start();
+	}
+
+	/** Starts the search with the current options; a running one stops. */
+	private void start() {
+		final int myRun = run.incrementAndGet();
+		final File scope = globalBt.getSelection() ? null : folder;
+		final boolean contentOnly = contentOnlyBt.getSelection();
+		tree.removeAll();
+		status.setText(where(scope) + " " + Msg.dup_progress.format(0));
+		updateButtons();
 		Thread thread = new Thread(DuplicatesDialog.class.getName()) {
 			public void run() {
-				find();
+				find(myRun, scope, contentOnly);
 			}
 		};
 		thread.setDaemon(true);
 		thread.start();
 	}
 
-	private void find() {
+	/** Which documents are compared: the folder with its subfolders, or all indexes. */
+	@NotNull
+	private static String where(@Nullable File scope) {
+		return scope == null ? Msg.dup_scope_all.get() : Msg.dup_scope_folder.format(scope.getPath());
+	}
+
+	private void find(final int myRun, @Nullable final File scope, boolean contentOnly) {
 		final List<Searcher.DuplicateGroup> groups;
 		try {
 			groups = registry.getSearcher().findDuplicates(new Cancelable() {
 				public boolean isCanceled() {
-					return canceled;
+					return run.get() != myRun;
 				}
 			}, new Searcher.DuplicateProgress() {
 				public void update(final int done, final int total) {
 					UtilGui.runAsyncExec(status, new Runnable() {
 						public void run() {
-							status.setText(Msg.dup_progress.format(total == 0 ? 100 : (int) (100L * done / total)));
+							if (run.get() == myRun)
+								status.setText(where(scope) + " " + Msg.dup_progress.format(
+									total == 0 ? 100 : (int) (100L * done / total)));
 						}
 					});
 				}
-			});
+			}, scope, contentOnly);
 		}
 		catch (final Exception e) {
 			UtilGui.runAsyncExec(status, new Runnable() {
@@ -181,12 +230,14 @@ final class DuplicatesDialog {
 		}
 		UtilGui.runAsyncExec(tree, new Runnable() {
 			public void run() {
-				fill(groups);
+				if (run.get() == myRun)
+					fill(groups, scope);
 			}
 		});
 	}
 
-	private void fill(@NotNull List<Searcher.DuplicateGroup> groups) {
+	private void fill(@NotNull List<Searcher.DuplicateGroup> groups, @Nullable File scope) {
+		lastScope = scope;
 		DateFormat dateFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT);
 		for (Searcher.DuplicateGroup group : groups) {
 			TreeItem groupItem = new TreeItem(tree, SWT.NONE);
@@ -208,14 +259,21 @@ final class DuplicatesDialog {
 		updateStatus();
 	}
 
-	/** The group's line: identical or nearly identical, and how many documents. */
+	/** The group's line: why they are duplicates, and how many documents. */
 	private static void label(@NotNull TreeItem groupItem) {
 		Searcher.DuplicateGroup group = (Searcher.DuplicateGroup) groupItem.getData();
-		groupItem.setText(0, (group.identical ? Msg.dup_identical : Msg.dup_near).format(groupItem.getItemCount()));
+		Msg msg = group.kind == Searcher.DuplicateGroup.Kind.IDENTICAL_TEXT ? Msg.dup_identical
+			: group.kind == Searcher.DuplicateGroup.Kind.NEARLY_IDENTICAL_TEXT ? Msg.dup_near
+			: Msg.dup_same_name;
+		groupItem.setText(0, msg.format(groupItem.getItemCount()));
 	}
 
+	@Nullable private File lastScope;
+
 	private void updateStatus() {
-		status.setText(tree.getItemCount() == 0 ? Msg.dup_none.get() : Msg.dup_found.format(tree.getItemCount()));
+		status.setText(where(lastScope) + " " + (tree.getItemCount() == 0
+			? Msg.dup_none.get()
+			: Msg.dup_found.format(tree.getItemCount())));
 		shell.layout(true, true);
 	}
 
