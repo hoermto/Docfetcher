@@ -314,3 +314,16 @@
     missing _meta, removed methods, legacy headers), initializeAndListTools, httpTransport (modern over HTTP: 200/404);
     real clients: SDK 2.3.1 legacy -> 2025-11-25, auto and pin -> 2026-07-28, SDK 1.32.1 -> 2025-11-25,
     mcp-remote with the help's configuration - all without warnings.
+- change (v2.10): MCP: claude desktop wants per default https connection only - easier integration for a normal user
+  - Found: https would not help - Claude Desktop connects custom connectors (https addresses) from Anthropic's servers,
+    which can't reach localhost. Claude Desktop starts local servers on stdio; .mcpb files are not associated with it on
+    Windows (MSIX package), they are installed under Settings > Extensions.
+  - New: 'Create Claude Desktop Extension...' in the help on connecting Claude saves docfetcher.mcpb (default: Downloads)
+    and shows it in the Explorer. Manifest 0.3 (McpExtension) with the port of the help, the tools and the icon; the
+    bridge (server/index.js, no dependencies) passes stdio lines to http://localhost:<port>/mcp, adds the headers of
+    revision 2026-07-28 and answers with a clear error when DocFetcher isn't running. Runs with Claude Desktop's own
+    Node.js. The JSON configuration stays as '2c' for other apps. Util.winOpenDir works with spaces in paths.
+    Tests: McpExtensionTest (version, zip contents, manifest, bridge with Node against a server in both eras, server
+    stopped); mcpb validate (schema OK, unsigned); app: help dialog button -> save -> Explorer with the file selected,
+    SDK 2.3.1 over stdio through the saved extension: legacy 2025-11-25 and auto 2026-07-28 with search results.
+    Not installed in the user's Claude Desktop (no test entries in the user's Claude configuration).

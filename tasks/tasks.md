@@ -20,7 +20,6 @@
 
 ## changes
 
-[] MCP: claude desktop wants per default https connection only. add this or find an easier / convinient way of integration for a normal user to use the docfetcher mcp from a desktop claude / llm. Docfetcher always runs localization
 [] MCP: add endpoint for returning the original document (not only the full text) if requested (e.g. if a new doc shall be created using original style like in doc, xls or pdf)
 [] MCP: add endpoint to place a file in ScanBox folder for LLM. It is only allowed to place new files in there, no deletion, no modifications.
 

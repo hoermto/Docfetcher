@@ -39,7 +39,7 @@ Everything is undoable (`Ctrl+Z`), removed files go to the recycle bin, and docu
 - PDF split and merge, OCR with Tesseract, print, email.
 - MCP server (Model Context Protocol revisions 2026-07-28 and 2025-03-26 to 2025-11-25, Streamable HTTP on `http://localhost:28835/mcp`) with the read-only tools
   `search`, `read_document` and `list_folder`; e.g. `claude mcp add --transport http docfetcher http://localhost:28835/mcp`
-  (the preferences show how to connect Claude). Large result sets come newest first with an overview (time range,
+  (the preferences show how to connect Claude; for Claude Desktop they create a one-click extension, `docfetcher.mcpb`). Large result sets come newest first with an overview (time range,
   counts per year/month, top folders, characteristic words of the texts and names with their share of documents)
   that helps the assistant to narrow the search by adding or excluding words.
 - Portable version (settings and indexes next to the program) and installed version.
@@ -97,7 +97,7 @@ GUI tests drive the running development build with `dev/guitest/win.py` (Windows
 |------|---------|
 | `src/net/sourceforge/docfetcher/gui` | SWT user interface (main window, toolbar, panes, dialogs) |
 | `src/net/sourceforge/docfetcher/model` | Indexing, parsing, search (Lucene), OCR, PDF operations |
-| `src/net/sourceforge/docfetcher/mcp` | MCP server for AI assistants (HTTP, JSON-RPC, tools) |
+| `src/net/sourceforge/docfetcher/mcp` | MCP server for AI assistants (HTTP, JSON-RPC, tools, Claude Desktop extension) |
 | `src/net/sourceforge/docfetcher/enums` | Messages (`Msg`), settings (`SettingsConf`), images (`Img`) |
 | `dist/` | Files shipped with the package: language files, images, launchers |
 | `doc/` | Manual sources (Markdown) and the manual build |

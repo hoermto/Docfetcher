@@ -83,7 +83,7 @@ final class McpTools {
 	// ---- Tool definitions
 
 	@NotNull
-	List<Object> definitions() {
+	static List<Object> definitions() {
 		List<Object> tools = new ArrayList<Object>();
 		tools.add(tool("search",
 			"Full-text search in the user's documents indexed by DocFetcher (letters, invoices, "

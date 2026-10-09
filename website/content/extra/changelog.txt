@@ -3,6 +3,7 @@
 === Bugfixes ===
 
 === Features ===
+  * Claude Desktop connects with one file: 'Create Claude Desktop Extension...' in the help on connecting Claude saves docfetcher.mcpb, which is dragged into Claude Desktop (Settings > Extensions). It contains a small bridge to the MCP server on localhost and runs with the Node.js built into Claude Desktop - no Node.js installation, no editing of claude_desktop_config.json. An https address (custom connector) can't work, as Claude Desktop connects those from Anthropic's servers.
   * MCP server: also speaks the stateless protocol revision 2026-07-28 (server/discover, version and client capabilities on every request), next to the earlier revisions 2025-03-26 to 2025-11-25 with initialize - new and older clients connect without version warnings. Unknown versions get 2025-11-25 (was 2025-06-18); resources/list and prompts/list answer with empty lists instead of 'Method not found'; the Claude Desktop configuration uses 'npx -y'.
 
 ==== 2026-09-26 - DocFetcher 2.9 ====

@@ -105,6 +105,11 @@
   `versionNegotiation: { mode: 'legacy' | 'auto' | { pin: '2026-07-28' } }`, v1 (sdk) only with initialize.
   Claude Desktop's bridge: pipe JSON-RPC lines into `npx -y mcp-remote http://localhost:28835/mcp` (stdio).
   Claude Desktop logs: %LOCALAPPDATA%/Claude/logs (mcp.log, main.log).
+- Claude Desktop extension: McpExtension writes docfetcher.mcpb; validate with the official CLI
+  (`npm install @anthropic-ai/mcpb` in the scratchpad, `node .../dist/cli/cli.js validate manifest.json`, `info x.mcpb`).
+  Run the bridge like Claude Desktop with the SDK's StdioClientTransport (command node, args/env from the manifest).
+  The app's save dialog ignores `win.py save` paths and saves to Downloads: move the file away and close only the
+  Explorer window that has it selected (Shell.Application Windows(), Document.SelectedItems()).
 - The package's Java runtime is made with jlink: every JDK module the code uses must be in the list above (jdk.httpserver for
   the MCP server - missing, enabling MCP crashed with NoClassDefFoundError; the dev build runs on the full JDK and can't show
   this). So the package test always includes enabling MCP in the preferences and a curl request.

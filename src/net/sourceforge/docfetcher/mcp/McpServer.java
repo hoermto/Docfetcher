@@ -439,7 +439,7 @@ public final class McpServer {
 			throws RpcError {
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
 		if (method.equals("tools/list"))
-			result.put("tools", tools.definitions());
+			result.put("tools", McpTools.definitions());
 		else if (method.equals("tools/call"))
 			return callTool(params);
 		// No resources and prompts; some clients ask anyway, an empty list saves them an error
