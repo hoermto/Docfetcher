@@ -479,3 +479,18 @@
     files even if unchanged (FileContext.setReparseCsv), then setCsvCurrent; removed by hand it stays removed.
     Tests: ReparseOnceTest.outdatedIndexesAddCsvFilesOnce; app: dev build with its September inbox index - a CSV
     with an old date is found after the startup update.
+- change (v2.10): menu tool to identify duplicate documents, by the document index (not the file name)
+  - Answers: identical + nearly identical text; show + recycle bin. The index doesn't store the text (only for
+    highlighting): DuplicateFinder works on the words of the index with their counts - identical: same words and
+    counts (64-bit hash); nearly identical: MinHash over the word sets (64 values, LSH 16 bands x 4), >= 0.9
+    (high, as invoices of the same kind share most words); fewer than 20 different words are ignored.
+    Searcher.findDuplicates reads the postings of the content field per leaf, subtracts the words of the file name
+    (the content field contains them; analyzer on 'name basename'), merges one file in two indexes, oldest first;
+    cancelable, with progress.
+  - DuplicatesDialog (File > Find Duplicates...): background search, tree of groups, group check = all but the
+    oldest, Show in DocFetcher (Application.showDocuments without bringing the window up), Open in Explorer, Move
+    Checked to Recycle Bin via ResultPanel.deleteDocuments (extracted from deleteSelection: confirmation, recycle
+    bin, index update, undo history); every group keeps one document.
+    Tests: DuplicatesTest (finder, through the index incl. copies under other names, cancel, singular/plural texts);
+    app: dev build - groups (identical xlsx, letter + copy + second scan), group check, deletion to the recycle bin
+    with confirmation, show in the main window, 'keep one' refused.

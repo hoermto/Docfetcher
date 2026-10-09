@@ -2132,6 +2132,17 @@ private static SashForm folderSash;
 				DocumentPrinter.printSeparatorSheet(shell);
 			}
 		});
+		createMenuItem(fileMenu, Msg.menu_find_duplicates.get(), null, new Runnable() {
+			public void run() {
+				DuplicatesDialog dialog = new DuplicatesDialog(shell, indexRegistry);
+				dialog.evtShow.add(new Event.Listener<List<ResultDocument>>() {
+					public void update(List<ResultDocument> docs) {
+						showDocuments(docs, false); // The dialog stays in front
+					}
+				});
+				dialog.open();
+			}
+		});
 		createMenuItem(fileMenu, Msg.menu_indexes.get(), Img.FOLDER.get(), new Runnable() {
 			public void run() {
 				openPrefDialog(true);
@@ -2649,7 +2660,7 @@ private static SashForm folderSash;
 					public void show(final List<ResultDocument> docs) {
 						UtilGui.runAsyncExec(shell, new Runnable() {
 							public void run() {
-								showDocuments(docs);
+								showDocuments(docs, true);
 							}
 						});
 					}
@@ -2676,13 +2687,14 @@ private static SashForm folderSash;
 	}
 
 	/**
-	 * Shows documents for an AI assistant (MCP show_document): the window
-	 * comes to the front, the Search tab lists them, the first one is
-	 * previewed and the folder browsers sync to it, even with the sync button
-	 * off - the user asked for this document.
+	 * Shows documents for an AI assistant (MCP show_document) or from the
+	 * duplicates dialog: the window comes to the front if wanted, the Search
+	 * tab lists them, the first one is previewed and the folder browsers sync
+	 * to it, even with the sync button off - the user asked for this document.
 	 */
-	private static void showDocuments(@NotNull List<ResultDocument> docs) {
-		activateMainWindow();
+	private static void showDocuments(@NotNull List<ResultDocument> docs, boolean activate) {
+		if (activate)
+			activateMainWindow();
 		mainTabFolder.setSelection(searchTab);
 		onTabSelected();
 		resultPanel.showResults(docs);

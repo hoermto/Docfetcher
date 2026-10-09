@@ -1433,28 +1433,46 @@ public final class ResultPanel {
 				deleteFolder(sel.get(0));
 			return;
 		}
-		for (ResultDocument doc : sel) {
+		List<ResultDocument> deleted = deleteDocuments(sel, indexRegistry);
+		if (deleted.isEmpty())
+			return;
+		viewer.removeElements(deleted);
+		viewer.refresh();
+		evtDocumentsChanged.fire(null);
+	}
+
+	/**
+	 * Deletes the files of the documents after a confirmation - to the
+	 * recycle bin if the system has one, otherwise for good, which the
+	 * confirmation says - and updates their indexes; returns the deleted
+	 * documents. Only plain files on disk can be deleted. Also used by the
+	 * duplicates dialog.
+	 */
+	@NotNull
+	public static List<ResultDocument> deleteDocuments(	@NotNull List<ResultDocument> docs,
+														@NotNull IndexRegistry indexRegistry) {
+		for (ResultDocument doc : docs) {
 			if (!doc.isPlainFileOnDisk()) {
 				AppUtil.showError(Msg.only_plain_files.get(), true, true);
-				return;
+				return Collections.emptyList();
 			}
 		}
-		
+
 		StringBuilder names = new StringBuilder();
-		for (ResultDocument doc : sel) {
+		for (ResultDocument doc : docs) {
 			if (names.length() > 0)
 				names.append("\n");
 			names.append(doc.getFilename());
 		}
 		String msg = UtilFile.isTrashSupported()
-			? Msg.confirm_delete_trash.format(sel.size(), names.toString())
-			: Msg.confirm_delete_permanently.format(sel.size(), names.toString());
+			? Msg.confirm_delete_trash.format(docs.size(), names.toString())
+			: Msg.confirm_delete_permanently.format(docs.size(), names.toString());
 		if (!AppUtil.showConfirmation(msg, true))
-			return;
-		
+			return Collections.emptyList();
+
 		List<File> affected = new ArrayList<File>();
 		List<ResultDocument> deleted = new ArrayList<ResultDocument>();
-		for (ResultDocument doc : sel) {
+		for (ResultDocument doc : docs) {
 			File file = doc.getPath().getCanonicalFile();
 			if (!UtilFile.delete(file)) {
 				AppUtil.showError(Msg.file_operation_failed.format(file.getPath()), true, true);
@@ -1464,13 +1482,11 @@ public final class ResultPanel {
 			deleted.add(doc);
 		}
 		if (deleted.isEmpty())
-			return;
-		viewer.removeElements(deleted);
-		viewer.refresh();
-		updateIndexesFor(affected);
+			return deleted;
+		updateIndexesFor(indexRegistry, affected);
 		FileOperationHistory.getInstance().add(FileOperationHistory.Kind.DELETE,
 			affected, Collections.<File> emptyList());
-		evtDocumentsChanged.fire(null);
+		return deleted;
 	}
 	
 	/**
