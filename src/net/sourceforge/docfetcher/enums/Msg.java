@@ -816,6 +816,10 @@ public enum Msg {
 	pref_tab_folders ("Folders",
 		"Label of the preferences tab with the inbox folders and the fixed " +
 		"move targets."),
+	pref_tab_mcp ("AI Assistants (MCP)",
+		"Label of the preferences tab with the MCP server for AI assistants. MCP = Model Context Protocol, don't translate."),
+	pref_mcp_intro ("AI assistants like Claude or ChatGPT can search your indexes and read documents through DocFetcher's MCP server. Each option below only applies together with the one it is indented under.",
+		"Text at the top of the preferences tab for AI assistants."),
 	pref_preview_position ("Preview position:",
 		Comments.prefOption + "Where the preview pane is placed relative to " +
 		"the result table."),

@@ -79,7 +79,7 @@ public final class McpServer {
 	 * as add_to_inbox comes and goes with the preferences.
 	 */
 	private static final long CACHE_TTL_MS = 60 * 1000;
-	/** Enough for a file of McpInbox.MAX_MB as base64 (a third larger). */
+	/** Enough for the content of a file of McpInbox.MAX_MB, as rows or text in JSON. */
 	private static final int MAX_REQUEST_BYTES = (McpInbox.MAX_MB * 4 / 3 + 2) * 1024 * 1024;
 	/** The image types AI assistants can look at; other images come as files. */
 	private static final List<String> IMAGE_TYPES = Arrays.asList("image/png", "image/jpeg", "image/gif", "image/webp");

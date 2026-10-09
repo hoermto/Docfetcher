@@ -8,7 +8,6 @@
 
 package net.sourceforge.docfetcher.mcp;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -17,7 +16,6 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -175,16 +173,10 @@ public final class McpInboxTest {
 		assertEquals("Miete 850 €", new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
 		// Windows ignores the case: also taken, the new name keeps the given spelling
 		assertEquals("angebot rosenweg (3).txt", call("{\"name\":\"angebot rosenweg.txt\",\"text\":\"x\"}", false).get("name"));
-		// Line breaks in base64 are fine
-		assertEquals("Zeile.txt", call("{\"name\":\"Zeile.txt\",\"content_base64\":\"WmVp\\nbGU=\"}", false).get("name"));
-		assertEquals("Zeile", new String(Files.readAllBytes(new File(inbox, "Zeile.txt").toPath()), StandardCharsets.UTF_8));
-
-		// Binary content as base64, into the second inbox chosen by name
-		byte[] docx = {'P', 'K', 3, 4, 0, (byte) 0xFF, 10, 13};
-		Map<String, Object> binary = call("{\"name\":\"Brief.docx\",\"inbox\":\"belege\",\"content_base64\":\""
-			+ Base64.getEncoder().encodeToString(docx) + "\"}", false);
-		assertEquals("Belege", binary.get("inbox"));
-		assertArrayEquals(docx, Files.readAllBytes(new File(second, "Brief.docx").toPath()));
+		// Into the second inbox chosen by name
+		Map<String, Object> other = call("{\"name\":\"Notiz.txt\",\"inbox\":\"belege\",\"text\":\"Zweite\"}", false);
+		assertEquals("Belege", other.get("inbox"));
+		assertEquals("Zweite", new String(Files.readAllBytes(new File(second, "Notiz.txt").toPath()), StandardCharsets.UTF_8));
 		assertTrue(error("{\"name\":\"x.txt\",\"inbox\":\"Other\",\"text\":\"x\"}").contains("'Scans', 'Belege'"));
 		// Not by path
 		assertTrue(error("{\"name\":\"x.txt\",\"inbox\":" + Json.write(second.getPath()) + ",\"text\":\"x\"}").contains("Unknown inbox"));
@@ -267,8 +259,9 @@ public final class McpInboxTest {
 				"script.ps1", "page.hta"})
 			assertTrue(name, call("{\"name\":" + Json.write(name) + ",\"text\":\"x\"}", true).get("error") != null);
 		assertTrue(error("{\"name\":\"a.txt\"}").contains("one of"));
-		assertTrue(error("{\"name\":\"a.txt\",\"text\":\"x\",\"content_base64\":\"eA==\"}").contains("one of"));
-		assertTrue(error("{\"name\":\"a.pdf\",\"content_base64\":\"%%%\"}").contains("base64"));
+		assertTrue(error("{\"name\":\"a.txt\",\"text\":\"x\",\"sheets\":[]}").contains("one of"));
+		// Base64 isn't accepted any more
+		assertTrue(error("{\"name\":\"a.pdf\",\"content_base64\":\"JVBERg==\"}").contains("one of"));
 		assertEquals("Nothing was written", 0, inbox.listFiles().length + second.listFiles().length);
 
 		SettingsConf.StrList.InboxFolders.set(Arrays.<String> asList());
@@ -277,19 +270,21 @@ public final class McpInboxTest {
 
 	@Test
 	public void sizeLimitAndHttp() throws Exception {
-		String tooLarge = "{\"name\":\"big.pdf\",\"content_base64\":\""
-			+ Base64.getEncoder().encodeToString(new byte[McpInbox.MAX_MB * 1024 * 1024 + 1]) + "\"}";
+		char[] large = new char[McpInbox.MAX_MB * 1024 * 1024 + 1];
+		Arrays.fill(large, 'x');
+		String tooLarge = "{\"name\":\"big.txt\",\"text\":\"" + new String(large) + "\"}";
 		assertTrue(error(tooLarge).contains("too large"));
 		assertEquals(0, inbox.listFiles().length);
 
 		// Over HTTP: 5 MB, more than the former limit of 1 MB per request
-		byte[] scan = new byte[5 * 1024 * 1024];
-		new java.util.Random(1).nextBytes(scan);
+		char[] chars = new char[5 * 1024 * 1024];
+		Arrays.fill(chars, 'z');
+		String content = new String(chars);
 		int port = McpServerTest.freePort();
 		server.start(port);
 		try {
 			String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"add_to_inbox\","
-				+ "\"arguments\":{\"name\":\"scan.pdf\",\"content_base64\":\"" + Base64.getEncoder().encodeToString(scan) + "\"}}}";
+				+ "\"arguments\":{\"name\":\"lang.txt\",\"text\":\"" + content + "\"}}}";
 			java.net.http.HttpResponse<String> response = java.net.http.HttpClient.newHttpClient().send(
 				java.net.http.HttpRequest.newBuilder(new java.net.URI("http://127.0.0.1:" + port + "/mcp"))
 					.header("Content-Type", "application/json")
@@ -297,7 +292,7 @@ public final class McpInboxTest {
 				java.net.http.HttpResponse.BodyHandlers.ofString());
 			assertEquals(200, response.statusCode());
 			assertFalse(response.body(), response.body().contains("\"isError\":true"));
-			assertArrayEquals(scan, Files.readAllBytes(new File(inbox, "scan.pdf").toPath()));
+			assertEquals(content, new String(Files.readAllBytes(new File(inbox, "lang.txt").toPath()), StandardCharsets.UTF_8));
 		}
 		finally {
 			server.stop();

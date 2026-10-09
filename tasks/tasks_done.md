@@ -424,3 +424,12 @@
     removed quietly; only folders with content are reported as before.
     Tests: ObsoleteIndexFilesTest (old index reported, empty leftover removed, new empty folder kept); app: dev build
     with an empty old inbox_<number> folder -> no question, folder gone.
+- change (v2.10): MCP options in their own section/tab; what does 'allow placing files' do; remove base64
+  - 'AI assistants may add new files to the inbox' was already the master switch of add_to_inbox (download and
+    inbox path only work with it, McpInbox.isDownloadEnabled/isPathVisible), but the dialog didn't show it.
+  - Preferences tab 'AI Assistants (MCP)' (intro text, server, add files, download, inbox path, port, help);
+    CheckOption with an optional parent: indented and disabled while the parent is off or disabled, value kept.
+  - content_base64 removed from add_to_inbox (user: not really useful); content is sheets, text or url.
+    get_original_document (DocFetcher -> assistant) stays base64.
+    Tests: McpInboxTest without base64 (base64 refused, 21 MB text too large, 5 MB text over HTTP); app: dev
+    preferences - tab, indentation, greying on two levels, values kept, OK saves; schema without content_base64.

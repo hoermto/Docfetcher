@@ -166,12 +166,11 @@ final class McpTools {
 			+ "there. " + McpInbox.fileRule() + " "
 			+ "Only creates new files: existing files are never changed or replaced (a taken name "
 			+ "gets a number, 'Offer (2).docx'). DocFetcher creates Office and PDF files itself, so "
-			+ "don't build them yourself and don't send them as base64: for .xlsx give 'sheets' (the "
+			+ "don't build them yourself: for .xlsx give 'sheets' (the "
 			+ "rows of each sheet; numbers stay numbers, '=SUM(B2:B300)' becomes a formula, "
 			+ "'2026-10-01' a date, the first row is a bold header); for .docx and .pdf give 'text' "
 			+ "('# ' headings, '- ' bullet points, empty lines between paragraphs); for .txt, .csv, "
-			+ ".md and other text files give 'text' (saved as UTF-8). Use 'content_base64' only for "
-			+ "files you already have as bytes, e.g. a small image"
+			+ ".md, .svg and other text files give 'text' (saved as UTF-8)"
 			+ (McpInbox.isDownloadEnabled() ? "; for a file on the internet give its https 'url' - "
 				+ "DocFetcher asks the user, then downloads and stores it" : "")
 			+ ". At most " + McpInbox.MAX_MB
@@ -181,8 +180,7 @@ final class McpTools {
 				"sheets", sheetsProp(),
 				"text", prop("string", "The content as text: for .docx and .pdf with '# ' headings and '- ' "
 					+ "bullet points, for text files as it is"),
-				"content_base64", prop("string", "The content, base64-encoded, only for files you already have as bytes"),
-				"url", prop("string", "Only if the user allows downloads: the https address of a public file to "
+"url", prop("string", "Only if the user allows downloads: the https address of a public file to "
 					+ "download into the inbox, e.g. a form; the user is asked first"),
 				"inbox", prop("string", "Name of the inbox if there are several (default: the first). The inboxes: "
 					+ McpInbox.inboxNames())),

@@ -14,7 +14,6 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -100,14 +99,12 @@ final class McpInbox {
 			throw new ToolException("Adding files to the inbox is switched off in DocFetcher's preferences.");
 		String name = checkName(McpTools.string(args, "name"));
 		String text = McpTools.string(args, "text");
-		String base64 = McpTools.string(args, "content_base64");
-		String url = McpTools.string(args, "url");
+String url = McpTools.string(args, "url");
 		Object sheets = args.get("sheets");
-		int given = (text != null ? 1 : 0) + (base64 != null ? 1 : 0) + (sheets != null ? 1 : 0) + (url != null ? 1 : 0);
+		int given = (text != null ? 1 : 0) + (sheets != null ? 1 : 0) + (url != null ? 1 : 0);
 		if (given != 1)
-			throw new ToolException("Give the content as one of 'sheets' (.xlsx), 'text' (.docx, .pdf, "
-				+ "text files), " + (isDownloadEnabled() ? "'url' (a file on the internet) " : "")
-				+ "or 'content_base64' (other files).");
+			throw new ToolException("Give the content as one of 'sheets' (.xlsx) or 'text' (.docx, .pdf, "
+				+ "text files)" + (isDownloadEnabled() ? " or 'url' (a file on the internet)" : "") + ".");
 		InboxFolders.Entry inbox = findInbox(McpTools.string(args, "inbox"));
 		File folder = inbox.getFolder();
 		if (!folder.isDirectory())
@@ -128,7 +125,7 @@ final class McpInbox {
 				throw new ToolException("'sheets' is for .xlsx files only.");
 			data = McpDocuments.xlsx(sheets);
 		}
-		else if (text != null) {
+		else {
 			// DocFetcher creates Word and PDF files from the text
 			if (extension.equals("docx"))
 				data = McpDocuments.docx(text);
@@ -138,14 +135,6 @@ final class McpInbox {
 				throw new ToolException("For .xlsx files give 'sheets' (the rows of each sheet), not 'text'.");
 			else
 				data = text.getBytes(StandardCharsets.UTF_8);
-		}
-		else {
-			try {
-				data = Base64.getDecoder().decode(base64.replaceAll("\\s", "")); // Line breaks are fine
-			}
-			catch (IllegalArgumentException e) {
-				throw new ToolException("'content_base64' is not valid base64: " + e.getMessage());
-			}
 		}
 		if (data.length > MAX_MB * 1024L * 1024L)
 			throw new ToolException("The file is too large (at most " + MAX_MB + " MB).");
