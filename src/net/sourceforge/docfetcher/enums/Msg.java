@@ -1406,6 +1406,8 @@ public enum Msg {
 		"Tooltip of the button that resets remembered answers."),
 	pref_mcp_server ("MCP server for AI assistants (read-only access to the indexes, this computer only)",
 		"Option on the preferences window: starts a server with which AI assistants like Claude can search the indexed documents and read their text. MCP = Model Context Protocol, don't translate."),
+	pref_mcp_paths ("Give AI assistants the file paths of the documents (they can then open the files themselves, and their apps may ask you for permission)",
+		"Option on the preferences tab for AI assistants, off by default: without it, assistants only get ids of the documents."),
 	pref_mcp_file_folder ("Folder in which AI assistants with file access (e.g. Claude Code) may save new files:",
 		"Option on the preferences tab for AI assistants: a dropdown of the inbox folders; assistants with their own file access are told to only add new files there."),
 	mcp_folder_title ("AI Assistant Wants to Save Files",

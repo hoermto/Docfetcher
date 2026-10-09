@@ -151,6 +151,47 @@ public final class McpServerTest {
 	}
 
 	@Test
+	@SuppressWarnings("unchecked")
+	public void pathsOnlyWhenAllowed() throws Exception {
+		File contract = new File(support.root, "Mieter/mietvertrag-rosenweg.txt");
+		String contractPath = McpTools.resolve(contract.getPath()).getPath().replace(File.separatorChar, '/');
+		// Default: ids only, a path isn't accepted
+		Map<String, Object> found = json(call("search", "{\"query\":\"Rosenweg\"}", false), 0);
+		assertFalse(Json.write(found), Json.write(found).contains(contractPath));
+		assertTrue(text(call("read_document", "{\"path\":" + Json.write(contract.getPath()) + "}", true), 0)
+			.contains("'id' is missing"));
+		assertFalse(Json.write(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}")).contains("instead of the id"));
+
+		net.sourceforge.docfetcher.enums.SettingsConf.Bool.McpPathsVisible.set(true);
+		try {
+			found = json(call("search", "{\"query\":\"Rosenweg\"}", false), 0);
+			assertEquals(contractPath, result(found, 0, "path"));
+			assertTrue(result(found, 0, "id") != null);
+			// Paths work as arguments, ids still do
+			assertTrue(text(call("read_document", "{\"path\":" + Json.write(contract.getPath()) + "}", false), 1).contains("Kaltmiete"));
+			assertTrue(text(call("read_document", "{\"id\":" + Json.write(result(found, 0, "id")) + "}", false), 1).contains("Kaltmiete"));
+			Map<String, Object> listing = json(call("list_folder", "{\"path\":" + Json.write(contract.getParent()) + "}", false), 0);
+			assertTrue(Json.write(listing), ((String) listing.get("path")).endsWith("/Mieter"));
+			assertTrue(Json.write(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}")).contains("instead of the id"));
+			assertTrue((String) result("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\"}}")
+				.get("instructions"), ((String) result("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":"
+				+ "{\"protocolVersion\":\"2025-06-18\"}}").get("instructions")).contains("The user allows file paths"));
+			// Still only inside the indexed folders
+			File outside = File.createTempFile("docfetcher-secret", ".txt");
+			try {
+				assertTrue(text(call("read_document", "{\"path\":" + Json.write(outside.getPath()) + "}", true), 0)
+					.startsWith("Access denied"));
+			}
+			finally {
+				outside.delete();
+			}
+		}
+		finally {
+			net.sourceforge.docfetcher.enums.SettingsConf.Bool.McpPathsVisible.set(false);
+		}
+	}
+
+	@Test
 	public void showDocuments() throws Exception {
 		File contract = new File(support.root, "Mieter/mietvertrag-rosenweg.txt");
 		File letter = new File(support.root, "Posteingang/stadtwerke.txt");

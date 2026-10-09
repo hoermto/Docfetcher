@@ -100,7 +100,10 @@ public final class McpServer {
 	/** The instructions with the rule for giving the user files, which the preferences set. */
 	@NotNull
 	static String instructions() {
-		return INSTRUCTIONS + McpFileFolder.rule();
+		return INSTRUCTIONS + (McpTools.pathsVisible()
+			? "The user allows file paths: results also carry them, and the tools take a 'path' "
+				+ "instead of an id; still use the tools for the content. "
+			: "") + McpFileFolder.rule();
 	}
 
 	final McpTools tools;

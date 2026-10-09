@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 import net.sourceforge.docfetcher.enums.ProgramConf;
+import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.gui.FolderPanel;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.parse.PdfVisualText;
@@ -116,7 +117,8 @@ final class McpTools {
 				"modified_after", prop("string", "Only documents modified on or after this date (YYYY-MM-DD)"),
 				"modified_before", prop("string", "Only documents modified before this date (YYYY-MM-DD)"),
 				"folder_id", prop("string", "Only documents in this folder or its subfolders: the id of a "
-					+ "folder from list_folder or from the overview's top_folders")),
+					+ "folder from list_folder or from the overview's top_folders"),
+				"folder", pathProp("folder")),
 			"query"));
 		tools.add(tool("read_document",
 			"Returns the text of a document found with search or list_folder, to answer questions "
@@ -124,7 +126,9 @@ final class McpTools {
 			+ "next_offset. This is the way to learn what a document says. If the user wants to "
 			+ "see the document itself, use show_document.",
 			props(
-				"id", prop("string", "Id of the document, as returned by search or list_folder"),
+				"id", prop("string", "Id of the document, as returned by search or list_folder"
+					+ (pathsVisible() ? " (or give 'path' instead)" : "")),
+				"path", pathProp("document"),
 				"offset", prop("integer", "Character offset to start at (default 0)"),
 				"max_chars", prop("integer", "Maximum number of characters (default " + DEFAULT_MAX_CHARS
 					+ ", at most " + MAX_CHARS_LIMIT + ")"),
@@ -132,7 +136,7 @@ final class McpTools {
 					+ "appears on the page, which keeps labels and values of forms and tables together "
 					+ "('Grundmiete 620,00 Euro'); 'stream' gives the order in which the text was drawn - "
 					+ "use it if columns of a multi-column page appear mixed", "visual", "stream")),
-			"id"));
+			pathsVisible() ? null : "id"));
 		tools.add(tool("get_original_document",
 			"Returns the original file of a document (base64, with its MIME type; images that can "
 			+ "be shown come as an image). Only when the original itself is needed: the user "
@@ -140,13 +144,15 @@ final class McpTools {
 			+ "a new document in the same style, or to look at a scan. For anything about the "
 			+ "content - questions, summaries, figures - always use read_document instead. Files "
 			+ "of at most " + maxOriginalMB() + " MB.",
-			props("id", prop("string", "Id of the document, as returned by search or list_folder")),
-			"id"));
+			props("id", prop("string", "Id of the document, as returned by search or list_folder"
+				+ (pathsVisible() ? " (or give 'path' instead)" : "")),
+				"path", pathProp("document")),
+			pathsVisible() ? null : "id"));
 		tools.add(tool("list_folder",
 			"Lists a folder: subfolders first, then the files, newest first, with dates and ids. "
 			+ "Without an id, lists the indexed folders (e.g. the inbox and the archive folders).",
 			props("id", prop("string", "Id of a folder, as returned by list_folder or search; omit for "
-				+ "the indexed folders")),
+				+ "the indexed folders"), "path", pathProp("folder")),
 			null));
 		Map<String, Object> idList = prop("array", "Ids of the documents, as returned by search or "
 			+ "list_folder; the first one is selected");
@@ -156,14 +162,25 @@ final class McpTools {
 			+ "or find a document ('show me the rental contract'): DocFetcher comes to the front and "
 			+ "lists them on its Search tab, the first one selected with its preview, and the folder "
 			+ "browser shows its folder. Changes nothing but the view.",
-			props("ids", idList),
-			"ids"));
+			props("ids", idList, "paths", pathsVisible() ? pathListProp() : null),
+			pathsVisible() ? null : "ids"));
 		Map<String, Object> fileFolder = McpFileFolder.definition();
 		if (fileFolder != null)
 			tools.add(fileFolder);
 		return tools;
 	}
 
+
+	/** An absolute path as alternative to the id, only if the user allows paths; null: none. */
+	private static Map<String, Object> pathProp(@NotNull String what) {
+		return pathsVisible() ? prop("string", "Absolute path of the " + what + ", instead of the id") : null;
+	}
+
+	private static Map<String, Object> pathListProp() {
+		Map<String, Object> list = prop("array", "Absolute paths of the documents, instead of the ids");
+		list.put("items", props("type", "string"));
+		return list;
+	}
 
 	@NotNull
 	private static Map<String, Object> tool(@NotNull String name, @NotNull String description,
@@ -187,7 +204,8 @@ final class McpTools {
 	private static Map<String, Object> props(@NotNull Object... namesAndProps) {
 		Map<String, Object> map = new LinkedHashMap<String, Object>();
 		for (int i = 0; i + 1 < namesAndProps.length; i += 2)
-			map.put((String) namesAndProps[i], namesAndProps[i + 1]);
+			if (namesAndProps[i + 1] != null) // Optional properties
+				map.put((String) namesAndProps[i], namesAndProps[i + 1]);
 		return map;
 	}
 
@@ -235,7 +253,8 @@ final class McpTools {
 		String sort = string(args, "sort");
 		Date after = date(args, "modified_after");
 		Date before = date(args, "modified_before");
-		File folder = string(args, "folder_id") == null ? null : target(args, "folder_id");
+		boolean folderGiven = string(args, "folder_id") != null || (pathsVisible() && string(args, "folder") != null);
+		File folder = folderGiven ? target(args, "folder_id") : null;
 
 		List<ResultDocument> found;
 		try {
@@ -349,6 +368,7 @@ final class McpTools {
 			Map<String, Object> folder = new LinkedHashMap<String, Object>();
 			folder.put("id", ids.idOf(folderFile));
 			folder.put("folder", location(folderFile));
+			putPath(folder, folderFile);
 			folder.put("count", entry.getValue());
 			topFolders.add(folder);
 		}
@@ -694,6 +714,14 @@ final class McpTools {
 		else if (value != null && !value.toString().trim().isEmpty()) {
 			wanted.add(value.toString()); // A single id instead of a list
 		}
+		boolean byPath = false;
+		if (wanted.isEmpty() && pathsVisible() && args.get("paths") != null) {
+			byPath = true;
+			Object paths = args.get("paths");
+			for (Object path : paths instanceof List ? (List<?>) paths : Arrays.asList(paths))
+				if (path != null && !path.toString().trim().isEmpty())
+					wanted.add(path.toString());
+		}
 		if (wanted.isEmpty())
 			throw new ToolException("The argument 'ids' is missing.");
 		if (wanted.size() > MAX_SHOWN)
@@ -706,7 +734,7 @@ final class McpTools {
 		List<String> shown = new ArrayList<String>();
 		List<String> notFound = new ArrayList<String>();
 		for (String id : wanted) {
-			File file = ids.fileOf(id);
+			File file = byPath ? resolve(id) : ids.fileOf(id);
 			checkAllowed(file);
 			try {
 				ResultDocument doc = findDocument(file);
@@ -745,10 +773,10 @@ final class McpTools {
 
 	@NotNull
 	private Map<String, Object> listFolder(@NotNull Map<String, Object> args) throws ToolException {
-		String id = string(args, "id");
+		boolean given = string(args, "id") != null || (pathsVisible() && string(args, "path") != null);
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
 		List<Object> entries = new ArrayList<Object>();
-		if (id == null || id.trim().isEmpty()) {
+		if (!given) {
 			for (File root : FolderPanel.getRootFolders(registry))
 				entries.add(folderEntry(root));
 			result.put("folders", entries);
@@ -785,6 +813,7 @@ final class McpTools {
 		}
 		result.put("id", ids.idOf(folder));
 		result.put("folder", location(folder));
+		putPath(result, folder);
 		result.put("total_entries", docs.size());
 		result.put("entries", entries);
 		return result;
@@ -797,6 +826,7 @@ final class McpTools {
 		map.put("id", ids.idOf(resolved));
 		map.put("name", location(resolved).replaceAll(".*/", ""));
 		map.put("type", "folder");
+		putPath(map, resolved);
 		return map;
 	}
 
@@ -817,10 +847,26 @@ final class McpTools {
 
 	// ---- References: ids instead of paths
 
+	/**
+	 * Whether the user allows giving assistants the file paths (preferences,
+	 * off by default): then results carry them, and the tools take a path
+	 * instead of an id.
+	 */
+	static boolean pathsVisible() {
+		return SettingsConf.Bool.McpPathsVisible.get();
+	}
+
 	/** The id of a document or folder and the folder it is in, inside the indexed folders. */
 	private void putReference(@NotNull Map<String, Object> map, @NotNull File file) {
 		map.put("id", ids.idOf(file));
 		map.put("folder", location(file.getParentFile()));
+		putPath(map, file);
+	}
+
+	/** The path, only if the user allows it. */
+	private static void putPath(@NotNull Map<String, Object> map, @NotNull File file) {
+		if (pathsVisible())
+			map.put("path", display(file));
 	}
 
 	/**
@@ -845,12 +891,23 @@ final class McpTools {
 		return folder.getName();
 	}
 
-	/** The document or folder whose id is given in the argument; only inside the indexed folders. */
+	/**
+	 * The document or folder whose id is given in the argument - or its path
+	 * in the argument without '_id' / 'id' ('folder', 'path'), if the user
+	 * allows paths; only inside the indexed folders.
+	 */
 	@NotNull
 	private File target(@NotNull Map<String, Object> args, @NotNull String key) throws ToolException {
 		String id = string(args, key);
-		if (id == null || id.trim().isEmpty())
-			throw new ToolException("The argument '" + key + "' is missing.");
+		if (id == null || id.trim().isEmpty()) {
+			String pathKey = key.equals("id") ? "path" : key.replace("_id", "");
+			String path = pathsVisible() ? string(args, pathKey) : null;
+			if (path == null || path.trim().isEmpty())
+				throw new ToolException("The argument '" + key + "' is missing.");
+			File file = resolve(path);
+			checkAllowed(file);
+			return file;
+		}
 		File file = ids.fileOf(id);
 		checkAllowed(file);
 		return file;

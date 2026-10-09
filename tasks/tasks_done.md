@@ -466,3 +466,10 @@
     Tests: McpServerTest (ids everywhere, no paths in results, unknown ids, folder_id filter), McpFileFolderTest
     (no folder in advance, asked, refused, remembered), SettingsConfTest; app (dev, port 28836): search without
     paths, dialog -> Allow + remember -> no second question, reset -> question again, Don't Allow respected.
+- change (v2.10): MCP option to completely prevent returning document paths, except for the postbox
+  - Paths are off by default (previous item); SettingsConf McpPathsVisible + checkbox below the MCP server: results
+    also carry 'path' (documents, folders, listing, overview), the tools take path/folder/paths instead of
+    id/folder_id/ids (schemas list them only then, ids then not required), the instructions mention it. The
+    postbox folder (get_file_folder) is told either way after the user agreed.
+    Tests: McpServerTest.pathsOnlyWhenAllowed (off: no paths, path refused; on: paths, path arguments, access
+    check); app: dev preferences checkbox -> search result with path.

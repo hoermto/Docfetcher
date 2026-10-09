@@ -20,7 +20,6 @@
 
 ## changes
 
-[] MCP: add option in settings to completely prevent returning document pathes except for post box. 
 [] by default also add csv to index
 [] add extra tool in menu fo identify duplicate documents. Suggest a way to detect them by using the document index (not file name)
 

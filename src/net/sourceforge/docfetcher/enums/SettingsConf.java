@@ -107,6 +107,7 @@ public final class SettingsConf {
 		SyncFolderPanels (true), // The folders tab shows the parent of the folder panel
 		TolerantSearch (true), // Umlauts and OCR errors: 'Muller' finds 'Müller', 'Bonn' finds 'B0nn'
 		McpServerEnabled (false), // MCP server for AI assistants on localhost (read-only access to the indexes)
+		McpPathsVisible (false), // MCP results carry file paths too, and the tools take paths (else ids only)
 ShowFolderPanel (true), // Show a second folder browser next to the tabs
 FolderSortAscending (false), // Sort order of the folder view
 

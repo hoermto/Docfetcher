@@ -227,6 +227,10 @@ new CheckOption(
 			1024, 65535);
 		mcpOptions.addAll(Arrays.asList(
 			mcpServerOption,
+			new CheckOption(
+				Msg.pref_mcp_paths.get(),
+				SettingsConf.Bool.McpPathsVisible,
+				mcpServerOption),
 			new McpFolderOption(mcpServerOption),
 			mcpPortOption,
 			new McpHelpOption(mcpPortOption)));
