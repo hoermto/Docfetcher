@@ -40,7 +40,8 @@ Everything is undoable (`Ctrl+Z`), removed files go to the recycle bin, and docu
 - MCP server (Model Context Protocol revisions 2026-07-28 and 2025-03-26 to 2025-11-25, Streamable HTTP on `http://localhost:28835/mcp`) with the read-only tools
   `search`, `read_document`, `get_original_document` (a base64 copy of the file, e.g. as a template) and `list_folder`,
   plus `add_to_inbox` when allowed in the preferences (new files only, no programs, at most 20 MB); e.g. `claude mcp add --transport http docfetcher http://localhost:28835/mcp`
-  (the preferences show how to connect Claude; for Claude Desktop they create a one-click extension, `docfetcher.mcpb`). Large result sets come newest first with an overview (time range,
+  (the preferences show how to connect Claude Code, Claude Desktop - a one-click extension, `docfetcher.mcpb` -, the ChatGPT
+  desktop app and Codex - `codex mcp add docfetcher --url http://localhost:28835/mcp` - and other assistants). Large result sets come newest first with an overview (time range,
   counts per year/month, top folders, characteristic words of the texts and names with their share of documents)
   that helps the assistant to narrow the search by adding or excluding words.
 - Portable version (settings and indexes next to the program) and installed version.

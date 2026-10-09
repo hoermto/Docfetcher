@@ -351,3 +351,11 @@
     second inbox by name, unknown inbox, refused names/contents, no inbox, size limit, 5 MB over HTTP); app: option in
     the preferences -> tool listed; SDK 2.3.1 through the Claude Desktop extension in both eras: text, same name
     (numbered), PDF as base64, .exe refused; the inbox tab shows the files, search finds the new offer.
+- change (v2.10): documentation for non-Claude users (ChatGPT desktop app and others)
+  - Help dialog 'Connect AI Assistants to DocFetcher' (link 'How to connect AI assistants (Claude, ChatGPT)...'):
+    2c ChatGPT desktop / Codex (shared ~/.codex/config.toml, streamable HTTP, no bridge; or 'codex mcp add docfetcher
+    --url ...'), 2d other assistants (HTTP address, or the JSON configuration for apps that start local programs), why
+    web assistants can't connect; button 'Copy ChatGPT / Codex Configuration'; buttons in two rows. Manual EN/DE, README.
+    The config entry is exactly what Codex CLI 0.162 writes with 'codex mcp add --url' (checked with a scratch
+    CODEX_HOME); not tested in the ChatGPT app itself (not installed here, needs an OpenAI login).
+    Tests: McpHelpOptionTest (configurations, English and German help with all parts); app: help dialog in the dev build.
