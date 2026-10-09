@@ -95,36 +95,69 @@ public final class McpFileFolderTest {
 		return result;
 	}
 
-	@Test
 	@SuppressWarnings("unchecked")
-	public void folderOnlyWhenChosen() {
+	private static Map<String, Object> answer(Map<String, Object> result) {
+		String text = (String) ((Map<String, Object>) ((List<Object>) result.get("content")).get(0)).get("text");
+		return (Map<String, Object>) Json.parse(text);
+	}
+
+	@Test
+	public void folderOnlyWhenChosenAndAllowed() {
 		String folder = inbox.getPath().replace(File.separatorChar, '/');
 		// Default: no folder, no tool, never write
 		assertNull(listedTool());
 		assertTrue(instructions(), instructions().contains("Never write into the user's folders yourself"));
-		assertFalse(instructions().contains(folder));
 		assertEquals(Boolean.TRUE, call().get("isError"));
 
-		// An inbox folder chosen: tool and instructions with the folder and the rule
+		// An inbox folder chosen: the tool, but no folder in advance (an app may ask for permission to any path it sees)
 		SettingsConf.Str.McpFileFolder.set(inbox.getPath());
 		Map<String, Object> tool = listedTool();
 		String description = (String) tool.get("description");
-		assertTrue(description, description.contains(folder) && description.contains("never change, overwrite, rename, move or delete"));
-		assertEquals(Boolean.TRUE, ((Map<String, Object>) tool.get("annotations")).get("readOnlyHint"));
-		assertTrue(instructions().contains(folder));
-		// Without permission the assistant asks the user for this folder
-		assertTrue(description, description.contains("ask the user to give you access") && description.contains("/add-dir " + folder));
-		Map<String, Object> result = call();
-		assertEquals(Boolean.FALSE, result.get("isError"));
-		String text = (String) ((Map<String, Object>) ((List<Object>) result.get("content")).get(0)).get("text");
-		Map<String, Object> answer = (Map<String, Object>) Json.parse(text);
-		assertEquals(folder, answer.get("folder"));
-		assertEquals(Boolean.TRUE, answer.get("exists"));
+		assertTrue(description, description.contains("DocFetcher asks the user first"));
+		assertFalse(description, description.contains(folder));
+		assertFalse(instructions().contains(folder));
+		assertTrue(instructions(), instructions().contains("get_file_folder"));
+
+		// Asked: no one to ask, the user says no, the user says yes
+		final List<String> asked = new java.util.ArrayList<String>();
+		final boolean[] allow = {false};
+		assertEquals(Boolean.TRUE, call().get("isError"));
+		server.setFolderApprover(new McpServer.FolderApprover() {
+			public boolean approve(File asking) {
+				asked.add(asking.getPath());
+				return allow[0];
+			}
+		});
+		try {
+			Map<String, Object> refused = call();
+			assertEquals(Boolean.TRUE, refused.get("isError"));
+			assertEquals(1, asked.size());
+			allow[0] = true;
+			Map<String, Object> result = call();
+			assertEquals(Boolean.FALSE, result.get("isError"));
+			Map<String, Object> answer = answer(result);
+			assertEquals(folder, answer.get("folder"));
+			assertEquals(Boolean.TRUE, answer.get("exists"));
+			String rule = (String) answer.get("rule");
+			assertTrue(rule, rule.contains("never change, overwrite, rename, move or delete") && rule.contains("/add-dir " + folder));
+
+			// Remembered answers: no question
+			asked.clear();
+			SettingsConf.Int.McpFileFolderAnswer.set(SettingsConf.MCP_FOLDER_DENY);
+			assertEquals(Boolean.TRUE, call().get("isError"));
+			SettingsConf.Int.McpFileFolderAnswer.set(SettingsConf.MCP_FOLDER_ALLOW);
+			assertEquals(Boolean.FALSE, call().get("isError"));
+			assertTrue(asked.isEmpty());
+		}
+		finally {
+			server.setFolderApprover(null);
+			SettingsConf.Int.McpFileFolderAnswer.set(SettingsConf.MCP_FOLDER_ASK);
+		}
 
 		// No longer an inbox folder: none
 		SettingsConf.StrList.InboxFolders.set(Arrays.<String> asList());
 		assertNull(listedTool());
-		assertFalse(instructions().contains(folder));
+		assertFalse(instructions().contains("get_file_folder"));
 		assertEquals("DocFetcher writes nothing", 0, inbox.listFiles().length);
 	}
 

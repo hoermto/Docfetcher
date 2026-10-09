@@ -91,10 +91,11 @@ public final class McpServer {
 		+ "'Rechnung' - the stars also find compound words like 'Einkommensteuer'), then "
 		+ "'read_document' on the best results to read their content. "
 		+ "Use sort=newest for the latest documents and modified_after/modified_before for "
-		+ "periods. When the user asks for a document itself, answer with its path, and "
-		+ "'show_document' shows it to the user in DocFetcher's window; "
-		+ "'get_original_document' returns the file itself when its original form is needed, "
-		+ "e.g. as a template for a new document. ";
+		+ "periods. Documents and folders are referred to by ids, not file paths - you don't "
+		+ "need the files themselves. When the user wants to see a document, use "
+		+ "'show_document', which shows it in DocFetcher's window. Use 'get_original_document' "
+		+ "only when the original file itself is needed (explicitly asked for, or its layout as "
+		+ "a template); for the content always 'read_document'. ";
 
 	/** The instructions with the rule for giving the user files, which the preferences set. */
 	@NotNull
@@ -102,7 +103,7 @@ public final class McpServer {
 		return INSTRUCTIONS + McpFileFolder.rule();
 	}
 
-	private final McpTools tools;
+	final McpTools tools;
 	@Nullable private HttpServer server;
 	@Nullable private ExecutorService executor;
 	private int port = -1;
@@ -115,6 +116,17 @@ public final class McpServer {
 	public interface DocumentViewer {
 		/** Called on the server's thread; the documents are found and accessible. */
 		void show(@NotNull List<ResultDocument> docs);
+	}
+
+	/** Asks the user whether an assistant may learn the folder for its files (get_file_folder). */
+	public interface FolderApprover {
+		/** Called on the server's thread; returns whether the user agreed. */
+		boolean approve(@NotNull java.io.File folder);
+	}
+
+	/** Sets who approves telling the folder; null: it is never told unless allowed for good. */
+	public void setFolderApprover(@Nullable FolderApprover approver) {
+		tools.folderApprover = approver;
 	}
 
 	/** Sets the window that show_document shows the documents in; null: none. */

@@ -2654,6 +2654,17 @@ private static SashForm folderSash;
 						});
 					}
 				});
+				mcpServer.setFolderApprover(new McpServer.FolderApprover() {
+					public boolean approve(final File folder) {
+						final boolean[] allowed = {false};
+						UtilGui.runSyncExec(shell, new Runnable() {
+							public void run() {
+								allowed[0] = askFileFolder(folder);
+							}
+						});
+						return allowed[0];
+					}
+				});
 }
 			mcpServer.start(port);
 		}
@@ -2678,6 +2689,31 @@ private static SashForm folderSash;
 		// Sync first: a folder browser changing its folder clears the preview
 		showInRightmostFolderPanel(docs.get(0));
 		previewPanel.setPreview(docs.get(0));
+	}
+
+	/**
+	 * Asks whether an AI assistant may learn the folder for the files it
+	 * created (MCP get_file_folder); the answer can be remembered, and 'Reset
+	 * Remembered Answers' in the preferences brings the question back. The
+	 * window comes to the front first, as it may be in the tray.
+	 */
+	private static boolean askFileFolder(@NotNull File folder) {
+		activateMainWindow();
+		MultipleChoiceDialog<Boolean> dialog = new MultipleChoiceDialog<Boolean>(shell);
+		dialog.setTitle(Msg.mcp_folder_title.get());
+		dialog.setImage(SWT.ICON_QUESTION);
+		dialog.setText(Msg.mcp_folder_question.format(folder.getPath()));
+		dialog.setCheckBox(Msg.remember_choice.get());
+		dialog.addButton(Msg.mcp_folder_allow.get(), Boolean.TRUE);
+		dialog.addButton(Msg.mcp_folder_deny.get(), Boolean.FALSE);
+		Boolean answer = dialog.open();
+		if (answer == null)
+			return false; // Closed: not allowed
+		if (dialog.isChecked())
+			SettingsConf.Int.McpFileFolderAnswer.set(answer
+				? SettingsConf.MCP_FOLDER_ALLOW
+				: SettingsConf.MCP_FOLDER_DENY);
+		return answer;
 	}
 
 	private static void showManual() {

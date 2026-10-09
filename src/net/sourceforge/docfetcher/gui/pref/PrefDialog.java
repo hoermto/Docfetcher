@@ -471,8 +471,10 @@ new DropdownOption(
 				boolean mcpWasEnabled = SettingsConf.Bool.McpServerEnabled.get();
 				for (PrefOption checkOption : checkOptions)
 					checkOption.save();
-				if (resetHints)
+				if (resetHints) {
 					SettingsConf.Bool.ShowRelativePathsMessage.set(true);
+					SettingsConf.Int.McpFileFolderAnswer.set(SettingsConf.MCP_FOLDER_ASK);
+				}
 				for (PrefOption fieldOption : fieldOptions) {
 					fieldOption.save();
 					

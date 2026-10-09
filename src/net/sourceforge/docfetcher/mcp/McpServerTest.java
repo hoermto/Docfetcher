@@ -103,10 +103,20 @@ public final class McpServerTest {
 		return (Map<String, Object>) Json.parse(text(content, index));
 	}
 
+	/** A value of the search result at the index: its id, filename, folder... */
 	@SuppressWarnings("unchecked")
-	private static String path(Map<String, Object> searchResult, int index) {
+	private static String result(Map<String, Object> searchResult, int index, String key) {
 		List<Object> results = (List<Object>) searchResult.get("results");
-		return (String) ((Map<String, Object>) results.get(index)).get("path");
+		return (String) ((Map<String, Object>) results.get(index)).get(key);
+	}
+
+	/** The id of a file or folder, as a search or listing gives it to the client. */
+	static String id(McpServer server, File file) {
+		return server.tools.ids.idOf(McpTools.resolve(file.getPath()));
+	}
+
+	private static String id(File file) {
+		return id(server, file);
 	}
 
 	@Test
@@ -144,7 +154,7 @@ public final class McpServerTest {
 	public void showDocuments() throws Exception {
 		File contract = new File(support.root, "Mieter/mietvertrag-rosenweg.txt");
 		File letter = new File(support.root, "Posteingang/stadtwerke.txt");
-		assertTrue(text(call("show_document", "{\"paths\":[" + Json.write(contract.getPath()) + "]}", true), 0)
+		assertTrue(text(call("show_document", "{\"ids\":[" + Json.write(id(contract)) + "]}", true), 0)
 			.contains("not available"));
 
 		final List<String> shown = new java.util.ArrayList<String>();
@@ -157,25 +167,25 @@ public final class McpServerTest {
 		try {
 			// Several documents, the order kept; a missing one is reported
 			File missing = new File(support.root, "Mieter/gibt-es-nicht.txt");
-			Map<String, Object> result = json(call("show_document", "{\"paths\":[" + Json.write(letter.getPath()) + ","
-				+ Json.write(contract.getPath()) + "," + Json.write(missing.getPath()) + "]}", false), 0);
+			Map<String, Object> result = json(call("show_document", "{\"ids\":[" + Json.write(id(letter)) + ","
+				+ Json.write(id(contract)) + "," + Json.write(id(missing)) + "]}", false), 0);
 			assertEquals(java.util.Arrays.asList("stadtwerke.txt", "mietvertrag-rosenweg.txt"), shown);
 			assertEquals(2, ((List<?>) result.get("shown")).size());
 			assertTrue(result.get("not_found").toString().contains("gibt-es-nicht.txt"));
 
 			// A single path instead of a list
 			shown.clear();
-			call("show_document", "{\"paths\":" + Json.write(contract.getPath()) + "}", false);
+			call("show_document", "{\"ids\":" + Json.write(id(contract)) + "}", false);
 			assertEquals(java.util.Arrays.asList("mietvertrag-rosenweg.txt"), shown);
 
 			// Nothing found, nothing given, not accessible: errors, nothing shown
 			shown.clear();
-			assertTrue(text(call("show_document", "{\"paths\":[" + Json.write(missing.getPath()) + "]}", true), 0)
+			assertTrue(text(call("show_document", "{\"ids\":[" + Json.write(id(missing)) + "]}", true), 0)
 				.startsWith("Not found"));
-			assertTrue(text(call("show_document", "{\"paths\":[]}", true), 0).contains("missing"));
+			assertTrue(text(call("show_document", "{\"ids\":[]}", true), 0).contains("missing"));
 			File outside = File.createTempFile("docfetcher-secret", ".txt");
 			try {
-				assertTrue(text(call("show_document", "{\"paths\":[" + Json.write(outside.getPath()) + "]}", true), 0)
+				assertTrue(text(call("show_document", "{\"ids\":[" + Json.write(id(outside)) + "]}", true), 0)
 					.startsWith("Access denied"));
 			}
 			finally {
@@ -193,7 +203,7 @@ public final class McpServerTest {
 	public void originalDocuments() throws Exception {
 		// A text file: its description, then the bytes as an embedded resource
 		File contract = new File(support.root, "Mieter/mietvertrag-rosenweg.txt");
-		List<Object> content = call("get_original_document", "{\"path\":" + Json.write(contract.getPath()) + "}", false);
+		List<Object> content = call("get_original_document", "{\"id\":" + Json.write(id(contract)) + "}", false);
 		assertEquals(2, content.size());
 		Map<String, Object> meta = json(content, 0);
 		assertEquals("mietvertrag-rosenweg.txt", meta.get("name"));
@@ -216,12 +226,12 @@ public final class McpServerTest {
 		java.nio.file.Files.write(tiff.toPath(), bytes);
 		try {
 			Map<String, Object> image = (Map<String, Object>) call("get_original_document",
-				"{\"path\":" + Json.write(png.getPath()) + "}", false).get(1);
+				"{\"id\":" + Json.write(id(png)) + "}", false).get(1);
 			assertEquals("image", image.get("type"));
 			assertEquals("image/png", image.get("mimeType"));
 			assertTrue(java.util.Arrays.equals(bytes, java.util.Base64.getDecoder().decode((String) image.get("data"))));
 			Map<String, Object> file = (Map<String, Object>) call("get_original_document",
-				"{\"path\":" + Json.write(tiff.getPath()) + "}", false).get(1);
+				"{\"id\":" + Json.write(id(tiff)) + "}", false).get(1);
 			assertEquals("resource", file.get("type"));
 			assertEquals("image/tiff", ((Map<String, Object>) file.get("resource")).get("mimeType"));
 		}
@@ -235,18 +245,18 @@ public final class McpServerTest {
 		java.nio.file.Files.write(large.toPath(), new byte[1024 * 1024 + 1]);
 		net.sourceforge.docfetcher.enums.ProgramConf.Int.McpMaxOriginalMB.load("1");
 		try {
-			String error = text(call("get_original_document", "{\"path\":" + Json.write(large.getPath()) + "}", true), 0);
+			String error = text(call("get_original_document", "{\"id\":" + Json.write(id(large)) + "}", true), 0);
 			assertTrue(error, error.contains("too large") && error.contains("read_document"));
 		}
 		finally {
 			net.sourceforge.docfetcher.enums.ProgramConf.Int.McpMaxOriginalMB.load("50");
 			large.delete();
 		}
-		assertTrue(text(call("get_original_document", "{\"path\":" + Json.write(large.getPath()) + "}", true), 0)
+		assertTrue(text(call("get_original_document", "{\"id\":" + Json.write(id(large)) + "}", true), 0)
 			.startsWith("Not a file"));
 		File outside = File.createTempFile("docfetcher-secret", ".pdf");
 		try {
-			assertTrue(text(call("get_original_document", "{\"path\":" + Json.write(outside.getPath()) + "}", true), 0)
+			assertTrue(text(call("get_original_document", "{\"id\":" + Json.write(id(outside)) + "}", true), 0)
 				.startsWith("Access denied"));
 		}
 		finally {
@@ -365,8 +375,8 @@ public final class McpServerTest {
 		Map<String, Object> found = json(call("search",
 			"{\"query\":\"Renate *steuer* Januar\",\"sort\":\"newest\"}", false), 0);
 		assertEquals(2L, found.get("total_found"));
-		assertTrue(path(found, 0), path(found, 0).endsWith("finanzamt-neu.txt"));
-		assertTrue(path(found, 1).endsWith("finanzamt-alt.txt"));
+		assertTrue(result(found, 0, "filename"), result(found, 0, "filename").equals("finanzamt-neu.txt"));
+		assertTrue(result(found, 1, "filename").equals("finanzamt-alt.txt"));
 		assertTrue(Json.write(found), Json.write(found).contains("snippet"));
 
 		// Only the last month
@@ -375,7 +385,7 @@ public final class McpServerTest {
 		Map<String, Object> recent = json(call("search",
 			"{\"query\":\"Renate *steuer* Januar\",\"modified_after\":\"" + lastMonth + "\"}", false), 0);
 		assertEquals(1L, recent.get("total_found"));
-		assertTrue(path(recent, 0).endsWith("finanzamt-neu.txt"));
+		assertTrue(result(recent, 0, "filename").equals("finanzamt-neu.txt"));
 	}
 
 	@Test
@@ -386,14 +396,16 @@ public final class McpServerTest {
 		Map<String, Object> found = json(call("search", "{\"query\":\"Bonn\",\"max_results\":1}", false), 0);
 		assertEquals(4L, found.get("total_found"));
 		assertEquals(1L, found.get("returned"));
-		assertTrue("Newest first", path(found, 0).endsWith("mietvertrag-rosenweg.txt"));
+		assertTrue("Newest first", result(found, 0, "filename").equals("mietvertrag-rosenweg.txt"));
 		Map<String, Object> overview = (Map<String, Object>) found.get("overview");
 		assertTrue(Json.write(overview), overview.containsKey("oldest") && overview.containsKey("newest"));
 		assertTrue(Json.write(overview), overview.containsKey("by_month"));
 		List<Object> folders = (List<Object>) overview.get("top_folders");
-		assertTrue(Json.write(folders), ((String) ((Map<String, Object>) folders.get(0)).get("path")).endsWith("Posteingang"));
-		assertEquals(3L, ((Map<String, Object>) folders.get(0)).get("count"));
-		assertFalse("Same path format as the results", ((String) ((Map<String, Object>) folders.get(0)).get("path")).contains("\\"));
+		Map<String, Object> top = (Map<String, Object>) folders.get(0);
+		assertEquals(support.root.getName() + "/Posteingang", top.get("folder"));
+		assertEquals(3L, top.get("count"));
+		assertEquals("The id works as a search filter", id(new File(support.root, "Posteingang")), top.get("id"));
+		assertFalse("No paths", Json.write(found).contains(support.root.getParent().replace('\\', '/')));
 		String words = Json.write(overview.get("name_words"));
 		assertTrue(words, words.contains("finanzamt (2)"));
 		assertFalse("Query words are no hints", words.contains("bonn"));
@@ -416,10 +428,12 @@ public final class McpServerTest {
 		// 'What rent does my client in Rosenweg have?'
 		Map<String, Object> found = json(call("search", "{\"query\":\"Rosenweg *miete*\"}", false), 0);
 		assertEquals(1L, found.get("total_found"));
-		String path = path(found, 0);
-		List<Object> content = call("read_document", "{\"path\":" + Json.write(path) + "}", false);
+		String id = result(found, 0, "id");
+		assertEquals(support.root.getName() + "/Mieter", result(found, 0, "folder"));
+		List<Object> content = call("read_document", "{\"id\":" + Json.write(id) + "}", false);
 		Map<String, Object> meta = json(content, 0);
-		assertEquals(path, meta.get("path"));
+		assertEquals(id, meta.get("id"));
+		assertFalse("No path", meta.containsKey("path"));
 		assertFalse("Short document, no more parts", meta.containsKey("next_offset"));
 		assertTrue(text(content, 1), text(content, 1).contains("Kaltmiete beträgt 850,00 EUR"));
 	}
@@ -458,10 +472,10 @@ public final class McpServerTest {
 		File file = new File(support.root, "Mieter/vertrag-generiert.pdf");
 		writeGeneratedForm(file);
 		try {
-			String visual = text(call("read_document", "{\"path\":" + Json.write(file.getPath()) + "}", false), 1);
+			String visual = text(call("read_document", "{\"id\":" + Json.write(id(file)) + "}", false), 1);
 			assertTrue(visual, visual.contains("Grundmiete 620,00 Euro"));
 			assertTrue(visual, visual.contains("Gesamtbetrag 790,00 Euro"));
-			String stream = text(call("read_document", "{\"path\":" + Json.write(file.getPath()) + ",\"order\":\"stream\"}", false), 1);
+			String stream = text(call("read_document", "{\"id\":" + Json.write(id(file)) + ",\"order\":\"stream\"}", false), 1);
 			assertTrue(stream, stream.contains("620,00 Euro"));
 			assertFalse("Drawing order separates labels and values: " + stream, stream.contains("Grundmiete 620,00"));
 		}
@@ -506,7 +520,7 @@ public final class McpServerTest {
 			boolean seen = false;
 			for (Object result : (List<Object>) found.get("results")) {
 				Map<String, Object> map = (Map<String, Object>) result;
-				if (((String) map.get("path")).endsWith("scan-zebra.pdf")) {
+				if ("scan-zebra.pdf".equals(map.get("filename"))) {
 					seen = true;
 					assertFalse("No text recognition for the snippet", map.containsKey("snippet"));
 				}
@@ -536,16 +550,16 @@ public final class McpServerTest {
 
 	@Test
 	public void longDocumentsComeInParts() {
-		String path = new File(support.root, "Mieter/lang.txt").getPath();
-		List<Object> first = call("read_document", "{\"path\":" + Json.write(path) + ",\"max_chars\":1000}", false);
+		String path = id(new File(support.root, "Mieter/lang.txt"));
+		List<Object> first = call("read_document", "{\"id\":" + Json.write(path) + ",\"max_chars\":1000}", false);
 		Map<String, Object> meta = json(first, 0);
 		assertEquals(1000L, meta.get("returned_chars"));
 		assertEquals(1000L, meta.get("next_offset"));
 		assertEquals(1000, text(first, 1).length());
-		List<Object> second = call("read_document", "{\"path\":" + Json.write(path) + ",\"offset\":1000}", false);
+		List<Object> second = call("read_document", "{\"id\":" + Json.write(path) + ",\"offset\":1000}", false);
 		assertEquals(1000L, json(second, 0).get("offset"));
 		// The default part size
-		List<Object> part = call("read_document", "{\"path\":" + Json.write(path) + "}", false);
+		List<Object> part = call("read_document", "{\"id\":" + Json.write(path) + "}", false);
 		assertEquals((long) McpTools.DEFAULT_MAX_CHARS, json(part, 0).get("returned_chars"));
 	}
 
@@ -554,11 +568,19 @@ public final class McpServerTest {
 	public void listFolders() {
 		Map<String, Object> roots = json(call("list_folder", "{}", false), 0);
 		assertTrue(Json.write(roots), Json.write(roots).contains("\"name\":\"" + support.root.getName() + "\""));
-		String inbox = new File(support.root, "Posteingang").getPath();
-		Map<String, Object> listing = json(call("list_folder", "{\"path\":" + Json.write(inbox) + "}", false), 0);
+		Map<String, Object> listing = json(call("list_folder", "{\"id\":" + Json.write(id(new File(support.root, "Posteingang"))) + "}", false), 0);
+		assertEquals(support.root.getName() + "/Posteingang", listing.get("folder"));
 		List<Object> entries = (List<Object>) listing.get("entries");
 		assertEquals(3, entries.size());
-		assertTrue("Newest first", ((String) ((Map<String, Object>) entries.get(0)).get("path")).endsWith("stadtwerke.txt"));
+		assertEquals("Newest first", "stadtwerke.txt", ((Map<String, Object>) entries.get(0)).get("filename"));
+		// The ids of the listing work in the other tools
+		String entryId = (String) ((Map<String, Object>) entries.get(0)).get("id");
+		assertTrue(text(call("read_document", "{\"id\":" + Json.write(entryId) + "}", false), 1).contains("Stadtwerke"));
+		assertFalse("No paths", Json.write(listing).contains(support.root.getParent().replace('\\', '/')));
+		// A folder id as search filter
+		Map<String, Object> filtered = json(call("search", "{\"query\":\"Bonn\",\"folder_id\":"
+			+ Json.write(id(new File(support.root, "Mieter"))) + "}", false), 0);
+		assertEquals(1L, filtered.get("total_found"));
 	}
 
 	/**
@@ -579,16 +601,16 @@ public final class McpServerTest {
 			String text = (String) ((Map<String, Object>) ((List<Object>) result.get("content")).get(0)).get("text");
 			Map<String, Object> search = (Map<String, Object>) Json.parse(text);
 			assertEquals(1L, search.get("total_found"));
-			String path = path(search, 0);
-			assertFalse("Normalized: " + path, path.contains(".."));
+			String path = result(search, 0, "id");
+			assertFalse("Normalized: " + result(search, 0, "folder"), result(search, 0, "folder").contains(".."));
 
 			String read = detourServer.handle("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":"
-				+ "{\"name\":\"read_document\",\"arguments\":{\"path\":" + Json.write(path) + "}}}");
+				+ "{\"name\":\"read_document\",\"arguments\":{\"id\":" + Json.write(path) + "}}}");
 			assertTrue(read, read.contains("\"isError\":false"));
 			assertTrue(read, read.contains("Mahnung wegen Mietrückstand"));
 
 			String list = detourServer.handle("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":"
-				+ "{\"name\":\"list_folder\",\"arguments\":{\"path\":" + Json.write(new File(detour.root, "Mieter").getPath()) + "}}}");
+				+ "{\"name\":\"list_folder\",\"arguments\":{\"id\":" + Json.write(id(detourServer, new File(detour.root, "Mieter"))) + "}}}");
 			assertTrue(list, list.contains("\"isError\":false") && list.contains("brief.txt"));
 		}
 		finally {
@@ -601,13 +623,15 @@ public final class McpServerTest {
 	public void onlyIndexedFoldersAreAccessible() throws Exception {
 		File outside = File.createTempFile("docfetcher-secret", ".txt");
 		try {
-			assertTrue(text(call("read_document", "{\"path\":" + Json.write(outside.getPath()) + "}", true), 0)
+			assertTrue(text(call("read_document", "{\"id\":" + Json.write(id(outside)) + "}", true), 0)
 				.startsWith("Access denied"));
-			assertTrue(text(call("list_folder", "{\"path\":" + Json.write(outside.getParent()) + "}", true), 0)
+			assertTrue(text(call("list_folder", "{\"id\":" + Json.write(id(outside.getParentFile())) + "}", true), 0)
 				.startsWith("Access denied"));
-			String sneaky = new File(support.root, "../" + outside.getName()).getPath();
-			assertTrue(text(call("read_document", "{\"path\":" + Json.write(sneaky) + "}", true), 0)
+			File sneaky = new File(support.root, "../" + outside.getName());
+			assertTrue(text(call("read_document", "{\"id\":" + Json.write(id(sneaky)) + "}", true), 0)
 				.startsWith("Access denied"));
+			// Ids nobody handed out
+			assertTrue(text(call("read_document", "{\"id\":\"0123456789ab\"}", true), 0).startsWith("Unknown id"));
 		}
 		finally {
 			outside.delete();

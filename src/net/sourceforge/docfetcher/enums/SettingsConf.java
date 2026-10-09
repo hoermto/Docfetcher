@@ -78,6 +78,11 @@ public final class SettingsConf {
 	public static final int ORIGINALS_REMOVE = 1;
 	public static final int ORIGINALS_KEEP = 2;
 
+	/** Remembered answers to 'An AI assistant wants to save files' (Int.McpFileFolderAnswer). */
+	public static final int MCP_FOLDER_ASK = 0;
+	public static final int MCP_FOLDER_ALLOW = 1;
+	public static final int MCP_FOLDER_DENY = 2;
+
 
 	@Description("# Boolean entries. Allowed values: true, false")
 	public enum Bool implements Storable {
@@ -182,6 +187,8 @@ FolderSortAscending (false), // Sort order of the folder view
 
 		// Port of the MCP server on localhost (see Bool.McpServerEnabled)
 		McpServerPort (28835),
+		// May an assistant learn the folder for its files: MCP_FOLDER_ASK/ALLOW/DENY ('Remember my choice')
+		McpFileFolderAnswer (0),
 		;
 
 		public final Event<Integer> evtChanged = new Event<Integer> ();

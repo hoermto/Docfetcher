@@ -22,10 +22,12 @@ import net.sourceforge.docfetcher.util.annotations.Nullable;
  * The folder in which AI assistants with their own file access (e.g. Claude
  * Code) may save new files for the user: one of the inbox folders, chosen in
  * the preferences (none by default). DocFetcher doesn't write anything
- * itself; it tells the assistant the folder and the rule to only add new
- * files there - in the tool {@code get_file_folder}, whose description the
- * assistant always sees, and in the server instructions. As an inbox folder,
- * DocFetcher indexes the new files, and the user files them from there.
+ * itself. The folder isn't named in advance - an app that sees a path may ask
+ * the user for permission in every conversation: only when the assistant
+ * calls {@code get_file_folder} to save a file, and only after the user
+ * agreed (the answer can be remembered), it gets the folder and the rule to
+ * only add new files there. As an inbox folder, DocFetcher indexes the new
+ * files, and the user files them from there.
  */
 final class McpFileFolder {
 
@@ -47,12 +49,18 @@ final class McpFileFolder {
 		return null;
 	}
 
-	/** How the assistant may give the user files, for the instructions and the tool. */
+	/** The rule for the server instructions: no folder in advance. */
 	@NotNull
 	static String rule() {
-		File folder = get();
-		if (folder == null)
+		if (get() == null)
 			return "Never write into the user's folders yourself.";
+		return "Never write into the user's folders yourself - except when the user asks you to save "
+			+ "a file you created: then call '" + TOOL + "' for the folder and the rules.";
+	}
+
+	/** The folder and the rule, told after the user agreed. */
+	@NotNull
+	private static String folderRule(@NotNull File folder) {
 		return "If you have your own file access (e.g. Claude Code, or a file system tool), you may save "
 			+ "new files for the user - e.g. a letter, a table or a picture you created - into the folder "
 			+ path(folder) + ". DocFetcher indexes them there, and the user files them. Only add new files "
@@ -60,8 +68,7 @@ final class McpFileFolder {
 			+ "write into the user's other folders. Use a new name if a file with the name exists. "
 			+ "If you can't write into this folder (no permission yet), ask the user to give you access "
 			+ "to exactly this folder - e.g. in Claude Code by confirming the permission prompt or with "
-			+ "'/add-dir " + path(folder) + "', in Claude Desktop by adding it to the allowed folders of "
-			+ "the Filesystem extension (Settings > Extensions) - and never save the file elsewhere instead.";
+			+ "'/add-dir " + path(folder) + "' - and never save the file elsewhere instead.";
 	}
 
 	/** The tool, only while a folder is chosen. */
@@ -76,23 +83,34 @@ final class McpFileFolder {
 		annotations.put("readOnlyHint", Boolean.TRUE);
 		Map<String, Object> tool = new LinkedHashMap<String, Object>();
 		tool.put("name", TOOL);
-		tool.put("description", "Tells where to save files you create for the user. " + rule());
+		tool.put("description", "Only when the user asks you to save a file you created and you have "
+			+ "your own file access (e.g. Claude Code): gives the folder to save it in and the rules. "
+			+ "DocFetcher asks the user first. Don't call it otherwise.");
 		tool.put("inputSchema", schema);
 		tool.put("annotations", annotations);
 		return tool;
 	}
 
-	/** The result of the tool: the folder and the rule. */
+	/**
+	 * The result of the tool: the folder and the rule - if the user allows it,
+	 * for good (remembered answer) or when asked now.
+	 */
 	@NotNull
-	static Map<String, Object> call() throws McpTools.ToolException {
+	static Map<String, Object> call(@Nullable McpServer.FolderApprover approver) throws McpTools.ToolException {
 		File folder = get();
 		if (folder == null)
 			throw new McpTools.ToolException("The user has not chosen a folder for files from AI assistants. "
 				+ "Never write into the user's folders yourself.");
+		int answer = SettingsConf.Int.McpFileFolderAnswer.get();
+		boolean allowed = answer == SettingsConf.MCP_FOLDER_ALLOW
+			|| (answer == SettingsConf.MCP_FOLDER_ASK && approver != null && approver.approve(folder));
+		if (!allowed)
+			throw new McpTools.ToolException("The user doesn't allow you to save files. Don't write into "
+				+ "the user's folders; offer the content in the chat instead.");
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
 		result.put("folder", path(folder));
 		result.put("exists", folder.isDirectory());
-		result.put("rule", rule());
+		result.put("rule", folderRule(folder));
 		return result;
 	}
 

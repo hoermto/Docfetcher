@@ -449,3 +449,20 @@
   - The assistant can't grant itself access; the rule now tells it to ask the user for access to exactly this folder
     (Claude Code: permission prompt or /add-dir <folder>; Claude Desktop: allowed folders of the Filesystem
     extension) and never to save elsewhere instead. Test: McpFileFolderTest.
+- change (v2.10): MCP - LLMs went for the original documents (permission request per path in every conversation,
+  rejecting it stopped Claude Desktop); full text by default, the original only when needed
+  - Answers: ids + option for paths (next item); get_original_document only on explicit need; folder only on
+    request with 'Remember my choice', covered by 'Reset Remembered Answers'.
+  - McpIds: 12-hex SHA-256 ids of paths, map of the handed-out ids (LRU 200000); results carry id + folder inside
+    the indexed folders (index folder name + subfolders; a drive root as 'Drive D'); read_document/
+    get_original_document/list_folder take id, show_document ids, search folder_id; overview top folders with
+    id + folder; no paths in errors. Instructions: ids, show_document to show, get_original_document only for
+    the original itself.
+  - get_file_folder: no folder in its description or the instructions; on a call DocFetcher asks (Application.
+    askFileFolder, MultipleChoiceDialog with 'Remember my choice'), SettingsConf Int McpFileFolderAnswer (ask/
+    allow/deny), reset by 'Reset Remembered Answers' and when another folder is chosen.
+  - Found in the app test: the new constants between @Description and enum Str broke saving the settings (NPE);
+    moved; SettingsConfTest saves the settings.
+    Tests: McpServerTest (ids everywhere, no paths in results, unknown ids, folder_id filter), McpFileFolderTest
+    (no folder in advance, asked, refused, remembered), SettingsConfTest; app (dev, port 28836): search without
+    paths, dialog -> Allow + remember -> no second question, reset -> question again, Don't Allow respected.

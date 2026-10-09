@@ -85,7 +85,11 @@ final class McpFolderOption extends PrefOption {
 	@Override
 	protected void save() {
 		int index = combo.getSelectionIndex();
-		SettingsConf.Str.McpFileFolder.set(index <= 0 ? "" : inboxes.get(index - 1).getFolder().getPath());
+		String path = index <= 0 ? "" : inboxes.get(index - 1).getFolder().getPath();
+		// Another folder: the user is asked again
+		if (!path.equals(SettingsConf.Str.McpFileFolder.get()))
+			SettingsConf.Int.McpFileFolderAnswer.set(SettingsConf.MCP_FOLDER_ASK);
+		SettingsConf.Str.McpFileFolder.set(path);
 	}
 
 }

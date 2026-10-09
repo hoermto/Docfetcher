@@ -149,11 +149,11 @@ public final class McpExtensionTest {
 			Files.write(large.toPath(), new byte[9 * 1024 * 1024]);
 			try {
 				lines = runBridge(node, script, port,
-					"{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"get_original_document\",\"arguments\":{\"path\":"
-						+ Json.write(large.getPath()) + "}}}",
+					"{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"get_original_document\",\"arguments\":{\"id\":"
+						+ Json.write(McpServerTest.id(server, large)) + "}}}",
 					"{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/list\"}",
-					"{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"get_original_document\",\"arguments\":{\"path\":"
-						+ Json.write(large.getPath()) + "}," + meta + "}}");
+					"{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"get_original_document\",\"arguments\":{\"id\":"
+						+ Json.write(McpServerTest.id(server, large)) + "}," + meta + "}}");
 			}
 			finally {
 				large.delete();
