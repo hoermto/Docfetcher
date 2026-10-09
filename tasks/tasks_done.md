@@ -473,3 +473,9 @@
     postbox folder (get_file_folder) is told either way after the user agreed.
     Tests: McpServerTest.pathsOnlyWhenAllowed (off: no paths, path refused; on: paths, path arguments, access
     check); app: dev preferences checkbox -> search result with path.
+- change (v2.10): by default also add csv to index
+  - Answer: new and existing indexes. IndexingConfig default text extensions txt csv java cpp py; TreeIndex
+    csvVersion (0 in older indexes): FileIndex.update adds 'csv' to the text extensions once and parses the CSV
+    files even if unchanged (FileContext.setReparseCsv), then setCsvCurrent; removed by hand it stays removed.
+    Tests: ReparseOnceTest.outdatedIndexesAddCsvFilesOnce; app: dev build with its September inbox index - a CSV
+    with an old date is found after the startup update.

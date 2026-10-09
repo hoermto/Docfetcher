@@ -78,6 +78,14 @@ public abstract class TreeIndex <
 	 * again on the next update, and only those.
 	 */
 	private int pdfFormsVersion = PdfForms.VERSION;
+
+	/**
+	 * 1 once CSV files are among the text files of the index; 0 in older
+	 * indexes, which get 'csv' added to their text extensions on the next
+	 * update and parse their CSV files then, once.
+	 */
+	private int csvVersion = CSV_VERSION;
+	private static final int CSV_VERSION = 1;
 /** Time of the last successful update or creation, 0 if unknown (older indexes). */
 	private long lastUpdated = 0;
 	@Nullable private final Path fileIndexDirPath;
@@ -142,6 +150,16 @@ public abstract class TreeIndex <
 	/** To be called after all Excel files were parsed with the current text format. */
 	public final void setExcelTextCurrent() {
 		excelTextVersion = ExcelText.VERSION;
+	}
+
+	/** Returns true if the index is older than CSV files among the text files. */
+	public final boolean isCsvOutdated() {
+		return csvVersion < CSV_VERSION;
+	}
+
+	/** To be called after the CSV files were added and parsed. */
+	public final void setCsvCurrent() {
+		csvVersion = CSV_VERSION;
 	}
 
 	/** Returns true if the PDF files with form fields must be parsed again. */
@@ -269,6 +287,7 @@ public abstract class TreeIndex <
 			formatVersion = CURRENT_FORMAT_VERSION;
 			excelTextVersion = ExcelText.VERSION;
 			pdfFormsVersion = PdfForms.VERSION;
+			csvVersion = CSV_VERSION;
 		}
 		if (fileIndexDirPath != null) {
 			File fileIndexDir = getIndexDirPath().getCanonicalFile();

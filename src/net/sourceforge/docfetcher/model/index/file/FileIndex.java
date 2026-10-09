@@ -244,6 +244,14 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 				boolean reparsePdfForms = isPdfFormsOutdated();
 				context.setReparseExcel(reparseExcel);
 				context.setReparsePdfForms(reparsePdfForms);
+				// Older indexes: CSV files become text files, once
+				boolean addCsv = isCsvOutdated();
+				if (addCsv && !config.getTextExtensions().contains("csv")) {
+					List<String> textExtensions = new ArrayList<String>(config.getTextExtensions());
+					textExtensions.add("csv");
+					config.setTextExtensions(textExtensions);
+				}
+				context.setReparseCsv(addCsv);
 
 				// Recognize text at the end, so that the other documents
 				// become searchable first
@@ -256,6 +264,8 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 						setExcelTextCurrent();
 					if (reparsePdfForms)
 						setPdfFormsCurrent();
+					if (addCsv)
+						setCsvCurrent();
 				}
 			}
 			else {
