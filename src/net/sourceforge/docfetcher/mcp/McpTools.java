@@ -161,8 +161,7 @@ final class McpTools {
 		Map<String, Object> tool = tool("add_to_inbox",
 			"Hands a new file to DocFetcher, which places it in the user's inbox, e.g. a letter, offer "
 			+ "or table you created for the user; DocFetcher indexes it, and the user files it from "
-			+ "there. This is the way to give the user a file: don't write into the user's folders "
-			+ "yourself - DocFetcher stores the file, and you don't need its location. "
+			+ "there. " + McpInbox.fileRule() + " "
 			+ "Only creates new files: existing files are never changed or replaced (a taken name "
 			+ "gets a number, 'Offer (2).docx'). DocFetcher creates Office and PDF files itself, so "
 			+ "don't build them yourself and don't send them as base64: for .xlsx give 'sheets' (the "

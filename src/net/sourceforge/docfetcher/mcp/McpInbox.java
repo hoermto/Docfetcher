@@ -33,9 +33,11 @@ import net.sourceforge.docfetcher.util.annotations.NotNull;
  * folder, if the user allows it in the preferences. Only new files are
  * created: an existing file is never changed, replaced or deleted (a taken
  * name gets a number, 'Offer (2).docx'), and only directly in the inbox
- * folder. Program files and Office files with macros are refused. The
- * assistant never learns where the inbox is: it names an inbox by its tab
- * name, and neither the result nor the errors contain a path.
+ * folder. Program files and Office files with macros are refused. By
+ * default the assistant never learns where the inbox is: it names an inbox by
+ * its tab name, and neither the result nor the errors contain a path. Only if
+ * the user allows it (McpInboxPathVisible), assistants with their own file
+ * access get the folders, with the rule to only add new files there.
  */
 final class McpInbox {
 
@@ -59,6 +61,29 @@ final class McpInbox {
 
 	static boolean isEnabled() {
 		return SettingsConf.Bool.McpInboxWrite.get();
+	}
+
+	/**
+	 * Whether the user also allows assistants with their own file access
+	 * (e.g. Claude Code) to save new files directly in the inbox folders:
+	 * then they learn the folders' paths. Off by default.
+	 */
+	static boolean isPathVisible() {
+		return isEnabled() && SettingsConf.Bool.McpInboxPathVisible.get();
+	}
+
+	/** How the assistant may give the user files, for the instructions and the tool. */
+	@NotNull
+	static String fileRule() {
+		if (!isEnabled())
+			return "Never write into the user's folders yourself.";
+		if (!isPathVisible())
+			return "To give the user a new file, use 'add_to_inbox' - never write into the user's "
+				+ "folders yourself; DocFetcher stores the file, and you don't need its location.";
+		return "To give the user a new file, use 'add_to_inbox', or - if you have your own file "
+			+ "access, e.g. for a picture - save it directly into an inbox folder (" + inboxNames()
+			+ "). The user allows only this: add new files there. Never change, overwrite, rename, "
+			+ "move or delete a file in these folders, and never write into the user's other folders.";
 	}
 
 	/** Writes the file and returns its description. */
@@ -109,8 +134,10 @@ final class McpInbox {
 			throw new ToolException("The inbox '" + inbox.getTabName() + "' is not available (its folder is missing).");
 		File file = writeNew(folder, name, data);
 
-		// No path: the assistant hands the file to DocFetcher and never learns where it is stored
+		// The path only if the user allows direct access to the inbox folders
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		if (isPathVisible())
+			result.put("path", file.getPath().replace(File.separatorChar, '/'));
 		result.put("name", file.getName());
 		result.put("renamed", !file.getName().equals(name));
 		result.put("size_bytes", data.length);
@@ -118,12 +145,19 @@ final class McpInbox {
 		return result;
 	}
 
-	/** The tab names of the inboxes, for the tool description. */
+	/**
+	 * The tab names of the inboxes, for the tool description; with their
+	 * folders if the user allows direct access.
+	 */
 	@NotNull
 	static String inboxNames() {
+		boolean withPath = isPathVisible();
 		StringBuilder names = new StringBuilder();
-		for (InboxFolders.Entry inbox : InboxFolders.load())
+		for (InboxFolders.Entry inbox : InboxFolders.load()) {
 			names.append(names.length() == 0 ? "" : ", ").append("'").append(inbox.getTabName()).append("'");
+			if (withPath)
+				names.append(": ").append(inbox.getFolder().getPath().replace(File.separatorChar, '/'));
+		}
 		return names.toString();
 	}
 

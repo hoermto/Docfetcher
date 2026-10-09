@@ -41,6 +41,7 @@ public final class McpInboxTest {
 	private static McpServer server;
 	private static List<String> savedInboxes;
 	private static boolean savedWrite;
+	private static boolean savedPathVisible;
 	private File inbox;
 	private File second;
 
@@ -50,12 +51,14 @@ public final class McpInboxTest {
 		server = new McpServer(support.registry);
 		savedInboxes = SettingsConf.StrList.InboxFolders.get();
 		savedWrite = SettingsConf.Bool.McpInboxWrite.get();
+		savedPathVisible = SettingsConf.Bool.McpInboxPathVisible.get();
 	}
 
 	@AfterClass
 	public static void tearDownClass() throws Exception {
 		SettingsConf.StrList.InboxFolders.set(savedInboxes);
 		SettingsConf.Bool.McpInboxWrite.set(savedWrite);
+		SettingsConf.Bool.McpInboxPathVisible.set(savedPathVisible);
 		server.stop();
 		support.dispose();
 	}
@@ -66,6 +69,7 @@ public final class McpInboxTest {
 		second = Files.createTempDirectory("mcp-inbox2").toFile();
 		SettingsConf.StrList.InboxFolders.set(Arrays.asList(inbox.getPath() + "|Scans", second.getPath() + "|Belege"));
 		SettingsConf.Bool.McpInboxWrite.set(true);
+		SettingsConf.Bool.McpInboxPathVisible.set(false);
 	}
 
 	@After
@@ -111,13 +115,41 @@ public final class McpInboxTest {
 		assertEquals(Boolean.FALSE, ((Map<String, Object>) tool.get("annotations")).get("destructiveHint"));
 		// The inboxes by name, never by path; the assistant is told not to write files itself
 		String definition = Json.write(tool);
-		assertTrue(definition, definition.contains("'Scans', 'Belege'") && definition.contains("don't write into"));
+		assertTrue(definition, definition.contains("'Scans', 'Belege'") && definition.contains("never write into the user's folders"));
 		assertFalse(definition, definition.contains(inbox.getName()) || definition.contains(second.getName()));
 
 		SettingsConf.Bool.McpInboxWrite.set(false);
 		assertEquals(null, listedTool());
 		assertTrue(error("{\"name\":\"a.txt\",\"text\":\"x\"}").contains("switched off"));
 		assertEquals(0, inbox.listFiles().length);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static String instructions() {
+		Map<String, Object> response = (Map<String, Object>) Json.parse(server.handle("{\"jsonrpc\":\"2.0\",\"id\":1,"
+			+ "\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\"}}"));
+		return (String) ((Map<String, Object>) response.get("result")).get("instructions");
+	}
+
+	@Test
+	public void inboxPathOnlyWhenAllowed() throws Exception {
+		String folder = inbox.getPath().replace(File.separatorChar, '/');
+		// Default: only through DocFetcher
+		assertTrue(instructions(), instructions().contains("never write into the user's folders yourself"));
+		assertFalse(instructions().contains(folder));
+
+		// Allowed: the folders with the rule to only add files, in the tool and the instructions
+		SettingsConf.Bool.McpInboxPathVisible.set(true);
+		String definition = Json.write(listedTool());
+		assertTrue(definition, definition.contains("'Scans': " + folder) && definition.contains("Never change, overwrite, rename"));
+		assertTrue(instructions(), instructions().contains(folder) && instructions().contains("add new files there"));
+		Map<String, Object> result = call("{\"name\":\"Bild.svg\",\"text\":\"<svg/>\"}", false);
+		assertEquals(folder + "/Bild.svg", result.get("path"));
+
+		// Only together with adding files
+		SettingsConf.Bool.McpInboxWrite.set(false);
+		assertFalse(instructions(), instructions().contains(folder));
+		assertTrue(instructions().contains("Never write into the user's folders"));
 	}
 
 	@Test

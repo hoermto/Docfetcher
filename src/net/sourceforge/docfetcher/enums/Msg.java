@@ -1404,6 +1404,8 @@ public enum Msg {
 		"Option on the preferences window: starts a server with which AI assistants like Claude can search the indexed documents and read their text. MCP = Model Context Protocol, don't translate."),
 	pref_mcp_inbox_write ("AI assistants may add new files to the inbox (never change or delete files)",
 		"Option on the preferences window, below the MCP server option: allows AI assistants to place new files in the inbox folder."),
+	pref_mcp_inbox_path ("Also tell AI assistants the inbox folder: those with file access (e.g. Claude Code) may save new files there directly",
+		"Option on the preferences window, below the option for adding files to the inbox: the assistants learn the path of the inbox folders and may add files there with their own tools (only add, never change or delete)."),
 	pref_mcp_port ("MCP server port (http://localhost:<port>/mcp):",
 		"Label of the port field of the MCP server on the preferences window."),
 	mcp_server_failed ("The MCP server could not be started on port {0}: {1}\nPerhaps another program uses this port; choose another one in the preferences.",

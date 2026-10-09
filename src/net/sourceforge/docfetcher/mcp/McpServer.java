@@ -94,8 +94,13 @@ public final class McpServer {
 		+ "periods. When the user asks for a document itself, answer with its path, and "
 		+ "'show_document' shows it to the user in DocFetcher's window; "
 		+ "'get_original_document' returns the file itself when its original form is needed, "
-		+ "e.g. as a template for a new document. To give the user a new file, use "
-		+ "'add_to_inbox' if it is available - never write into the user's folders yourself.";
+		+ "e.g. as a template for a new document. ";
+
+	/** The instructions with the rule for giving the user files, which the preferences set. */
+	@NotNull
+	static String instructions() {
+		return INSTRUCTIONS + McpInbox.fileRule();
+	}
 
 	private final McpTools tools;
 	@Nullable private HttpServer server;
@@ -372,7 +377,7 @@ public final class McpServer {
 				result = new LinkedHashMap<String, Object>();
 				result.put("supportedVersions", PROTOCOLS);
 				result.put("capabilities", capabilities());
-				result.put("instructions", INSTRUCTIONS);
+				result.put("instructions", instructions());
 			}
 			else {
 				result = call(method, params);
@@ -486,7 +491,7 @@ public final class McpServer {
 		result.put("protocolVersion", version);
 		result.put("capabilities", capabilities());
 		result.put("serverInfo", serverInfo());
-		result.put("instructions", INSTRUCTIONS);
+		result.put("instructions", instructions());
 		return result;
 	}
 

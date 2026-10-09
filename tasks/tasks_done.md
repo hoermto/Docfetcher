@@ -392,3 +392,13 @@
   - Test mishap: a sed edit left the extension on port 28835 (the user's running DocFetcher), four 139-byte test
     files landed in the user's inbox '00 Eingang'; moved to the recycle bin right away. skill.md: test on 28836 and
     check the target first.
+- change (v2.10): base64 for pictures? + toggle a) only via MCP to the postbox (default) b) inbox path for the LLM
+  - base64: no limit on DocFetcher's side (20 MB), but the assistant must type every byte - only small files work
+    (a 100 KB PNG is ~100k tokens); a photo shown in the chat or a chart made in the cloud sandbox isn't available as
+    bytes on this computer. SVG works as 'text'. Pictures: assistants with own file access, i.e. option b).
+  - SettingsConf McpInboxPathVisible (off), checkbox below the inbox option, effective only together with it.
+    McpInbox.fileRule() - one text for the server instructions (now built per request) and the tool: a) only
+    add_to_inbox, never write yourself; b) inbox names with paths, 'only add new files there, never change,
+    overwrite, rename, move or delete'; add_to_inbox then returns the path again.
+    Tests: McpInboxTest.inboxPathOnlyWhenAllowed (default, allowed, only with adding files); app: dev build on port
+    28836, checkbox in the preferences -> instructions and result with the path.

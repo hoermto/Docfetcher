@@ -173,7 +173,11 @@ new CheckOption(
 
 			new CheckOption(
 				Msg.pref_mcp_inbox_write.get(),
-				SettingsConf.Bool.McpInboxWrite)
+				SettingsConf.Bool.McpInboxWrite),
+
+			new CheckOption(
+				Msg.pref_mcp_inbox_path.get(),
+				SettingsConf.Bool.McpInboxPathVisible)
 
 			// TODO post-release-1.1: Implement this; requires saving and restoring the tree expansion state
 			//	new CheckOption(
