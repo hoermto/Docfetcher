@@ -369,3 +369,11 @@
     Tests: McpServerTest.showDocuments (no window, several in order, single path, not found, empty, outside);
     app: dev build minimized, sync button off -> curl show_document: window in front, Search tab with both documents,
     text preview of the first, folder browser on the inbox with the document selected.
+- change (v2.10): to send files to the inbox, MCP routes them via DocFetcher - no direct file access for the LLM
+  - The result of add_to_inbox had the host path of the new file (guiding the assistant to the inbox folder), and the
+    inbox could be chosen by path. Now: result = name, renamed, size_bytes, inbox (tab name); inbox only by tab name,
+    the names listed in the tool description; errors without paths (missing folder -> 'inbox X is not available',
+    write errors only with the exception type). Description and server instructions: give the user files with
+    add_to_inbox, never write into the user's folders yourself.
+    Tests: McpInboxTest (no path in result/definition, inbox by path refused, missing folder error without path);
+    app: SDK through the Claude Desktop extension - results without paths, description with the inbox names.

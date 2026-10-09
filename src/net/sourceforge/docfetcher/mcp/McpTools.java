@@ -159,8 +159,10 @@ final class McpTools {
 	@NotNull
 	private static Map<String, Object> addToInboxTool() {
 		Map<String, Object> tool = tool("add_to_inbox",
-			"Places a new file in the user's DocFetcher inbox folder, e.g. a letter, offer or table "
-			+ "you created for the user; DocFetcher indexes it, and the user files it from there. "
+			"Hands a new file to DocFetcher, which places it in the user's inbox, e.g. a letter, offer "
+			+ "or table you created for the user; DocFetcher indexes it, and the user files it from "
+			+ "there. This is the way to give the user a file: don't write into the user's folders "
+			+ "yourself - DocFetcher stores the file, and you don't need its location. "
 			+ "Only creates new files: existing files are never changed or replaced (a taken name "
 			+ "gets a number, 'Offer (2).docx'). Give the content as text (saved as UTF-8) or as "
 			+ "base64 for other files (.docx, .xlsx, .pdf, images). At most " + McpInbox.MAX_MB
@@ -169,7 +171,8 @@ final class McpTools {
 				"name", prop("string", "File name with extension, without a folder, e.g. 'Angebot Rosenweg 2026-10.docx'"),
 				"text", prop("string", "The content as text, for .txt, .md, .csv, .html and similar files"),
 				"content_base64", prop("string", "The content, base64-encoded, for all other files"),
-				"inbox", prop("string", "Name or path of the inbox if there are several (default: the first)")),
+				"inbox", prop("string", "Name of the inbox if there are several (default: the first). The inboxes: "
+					+ McpInbox.inboxNames())),
 			"name");
 		Map<String, Object> annotations = new LinkedHashMap<String, Object>();
 		annotations.put("readOnlyHint", Boolean.FALSE);

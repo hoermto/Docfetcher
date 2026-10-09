@@ -94,7 +94,8 @@ public final class McpServer {
 		+ "periods. When the user asks for a document itself, answer with its path, and "
 		+ "'show_document' shows it to the user in DocFetcher's window; "
 		+ "'get_original_document' returns the file itself when its original form is needed, "
-		+ "e.g. as a template for a new document.";
+		+ "e.g. as a template for a new document. To give the user a new file, use "
+		+ "'add_to_inbox' if it is available - never write into the user's folders yourself.";
 
 	private final McpTools tools;
 	@Nullable private HttpServer server;

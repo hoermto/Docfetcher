@@ -109,6 +109,10 @@ public final class McpInboxTest {
 		Map<String, Object> tool = listedTool();
 		assertEquals(Boolean.FALSE, ((Map<String, Object>) tool.get("annotations")).get("readOnlyHint"));
 		assertEquals(Boolean.FALSE, ((Map<String, Object>) tool.get("annotations")).get("destructiveHint"));
+		// The inboxes by name, never by path; the assistant is told not to write files itself
+		String definition = Json.write(tool);
+		assertTrue(definition, definition.contains("'Scans', 'Belege'") && definition.contains("don't write into"));
+		assertFalse(definition, definition.contains(inbox.getName()) || definition.contains(second.getName()));
 
 		SettingsConf.Bool.McpInboxWrite.set(false);
 		assertEquals(null, listedTool());
@@ -120,7 +124,10 @@ public final class McpInboxTest {
 	public void newFilesOnly() throws Exception {
 		Map<String, Object> first = call("{\"name\":\"Angebot Rosenweg.txt\",\"text\":\"Miete 850 €\"}", false);
 		File file = new File(inbox, "Angebot Rosenweg.txt");
-		assertEquals(file.getPath().replace(File.separatorChar, '/'), first.get("path"));
+		// DocFetcher stores the file: no path for the assistant
+		assertEquals("Angebot Rosenweg.txt", first.get("name"));
+		assertFalse(first.containsKey("path"));
+		assertFalse(Json.write(first), Json.write(first).contains(inbox.getName()));
 		assertEquals(Boolean.FALSE, first.get("renamed"));
 		assertEquals("Scans", first.get("inbox"));
 		assertEquals("Miete 850 €", new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
@@ -142,7 +149,20 @@ public final class McpInboxTest {
 			+ Base64.getEncoder().encodeToString(docx) + "\"}", false);
 		assertEquals("Belege", binary.get("inbox"));
 		assertArrayEquals(docx, Files.readAllBytes(new File(second, "Brief.docx").toPath()));
-		assertTrue(error("{\"name\":\"x.txt\",\"inbox\":\"Other\",\"text\":\"x\"}").contains("Scans, Belege"));
+		assertTrue(error("{\"name\":\"x.txt\",\"inbox\":\"Other\",\"text\":\"x\"}").contains("'Scans', 'Belege'"));
+		// Not by path
+		assertTrue(error("{\"name\":\"x.txt\",\"inbox\":" + Json.write(second.getPath()) + ",\"text\":\"x\"}").contains("Unknown inbox"));
+
+		// A missing inbox folder: the error names the inbox, not the folder
+		File moved = new File(second.getPath() + "-moved");
+		assertTrue(second.renameTo(moved));
+		try {
+			String missing = error("{\"name\":\"x.txt\",\"inbox\":\"Belege\",\"text\":\"x\"}");
+			assertTrue(missing, missing.contains("'Belege' is not available") && !missing.contains(second.getName()));
+		}
+		finally {
+			assertTrue(moved.renameTo(second));
+		}
 	}
 
 	@Test

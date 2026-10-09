@@ -33,7 +33,9 @@ import net.sourceforge.docfetcher.util.annotations.NotNull;
  * folder, if the user allows it in the preferences. Only new files are
  * created: an existing file is never changed, replaced or deleted (a taken
  * name gets a number, 'Offer (2).docx'), and only directly in the inbox
- * folder. Program files and Office files with macros are refused.
+ * folder. Program files and Office files with macros are refused. The
+ * assistant never learns where the inbox is: it names an inbox by its tab
+ * name, and neither the result nor the errors contain a path.
  */
 final class McpInbox {
 
@@ -87,11 +89,11 @@ final class McpInbox {
 		InboxFolders.Entry inbox = findInbox(McpTools.string(args, "inbox"));
 		File folder = inbox.getFolder();
 		if (!folder.isDirectory())
-			throw new ToolException("The inbox folder doesn't exist: " + folder.getPath());
+			throw new ToolException("The inbox '" + inbox.getTabName() + "' is not available (its folder is missing).");
 		File file = writeNew(folder, name, data);
 
+		// No path: the assistant hands the file to DocFetcher and never learns where it is stored
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
-		result.put("path", file.getPath().replace(File.separatorChar, '/'));
 		result.put("name", file.getName());
 		result.put("renamed", !file.getName().equals(name));
 		result.put("size_bytes", data.length);
@@ -99,7 +101,16 @@ final class McpInbox {
 		return result;
 	}
 
-	/** The first inbox, or the one whose tab name or path is given. */
+	/** The tab names of the inboxes, for the tool description. */
+	@NotNull
+	static String inboxNames() {
+		StringBuilder names = new StringBuilder();
+		for (InboxFolders.Entry inbox : InboxFolders.load())
+			names.append(names.length() == 0 ? "" : ", ").append("'").append(inbox.getTabName()).append("'");
+		return names.toString();
+	}
+
+	/** The first inbox, or the one with the given tab name (not a path). */
 	@NotNull
 	private static InboxFolders.Entry findInbox(String wanted) throws ToolException {
 		List<InboxFolders.Entry> inboxes = InboxFolders.load();
@@ -109,11 +120,10 @@ final class McpInbox {
 			return inboxes.get(0);
 		StringBuilder names = new StringBuilder();
 		for (InboxFolders.Entry inbox : inboxes) {
-			if (inbox.getTabName().equalsIgnoreCase(wanted.trim()) || inbox.getFolder().equals(McpTools.resolve(wanted)))
+			if (inbox.getTabName().equalsIgnoreCase(wanted.trim()))
 				return inbox;
-			names.append(names.length() == 0 ? "" : ", ").append(inbox.getTabName());
 		}
-		throw new ToolException("Unknown inbox '" + wanted + "'. The inboxes are: " + names);
+		throw new ToolException("Unknown inbox '" + wanted + "'. The inboxes are: " + inboxNames());
 	}
 
 	/** A plain file name: no folders, nothing Windows refuses or runs. */
@@ -158,7 +168,10 @@ final class McpInbox {
 				continue; // Taken: the next number
 			}
 			catch (Exception e) {
-				throw new ToolException("The file could not be written: " + e.getMessage());
+				// The message would contain the path
+				Util.printErr(e);
+				throw new ToolException("The file could not be written (" + e.getClass().getSimpleName()
+					+ ", e.g. the disk is full or the folder is write-protected).");
 			}
 		}
 		throw new ToolException("Too many files named '" + name + "' in the inbox.");
