@@ -80,8 +80,6 @@ final class McpTools {
 	private final IndexRegistry registry;
 	/** DocFetcher's window for show_document; null without one (tests). */
 	@Nullable volatile McpServer.DocumentViewer viewer;
-	/** Asks the user before a download into the inbox; null: refused. */
-	@Nullable volatile McpServer.DownloadApprover approver;
 
 	McpTools(@NotNull IndexRegistry registry) {
 		this.registry = registry;
@@ -152,70 +150,12 @@ final class McpTools {
 			+ "browser shows its folder. Changes nothing but the view.",
 			props("paths", paths),
 			"paths"));
-		if (McpInbox.isEnabled())
-			tools.add(addToInboxTool());
+		Map<String, Object> fileFolder = McpFileFolder.definition();
+		if (fileFolder != null)
+			tools.add(fileFolder);
 		return tools;
 	}
 
-	/** Only listed when the user allows it in the preferences. */
-	@NotNull
-	private static Map<String, Object> addToInboxTool() {
-		Map<String, Object> tool = tool("add_to_inbox",
-			"Hands a new file to DocFetcher, which places it in the user's inbox, e.g. a letter, offer "
-			+ "or table you created for the user; DocFetcher indexes it, and the user files it from "
-			+ "there. " + McpInbox.fileRule() + " "
-			+ "Only creates new files: existing files are never changed or replaced (a taken name "
-			+ "gets a number, 'Offer (2).docx'). DocFetcher creates Office and PDF files itself, so "
-			+ "don't build them yourself: for .xlsx give 'sheets' (the "
-			+ "rows of each sheet; numbers stay numbers, '=SUM(B2:B300)' becomes a formula, "
-			+ "'2026-10-01' a date, the first row is a bold header); for .docx and .pdf give 'text' "
-			+ "('# ' headings, '- ' bullet points, empty lines between paragraphs); for .txt, .csv, "
-			+ ".md, .svg and other text files give 'text' (saved as UTF-8)"
-			+ (McpInbox.isDownloadEnabled() ? "; for a file on the internet give its https 'url' - "
-				+ "DocFetcher asks the user, then downloads and stores it" : "")
-			+ ". At most " + McpInbox.MAX_MB
-			+ " MB; programs, scripts, shortcuts and Office files with macros are refused.",
-			props(
-				"name", prop("string", "File name with extension, without a folder, e.g. 'Angebot Rosenweg 2026-10.docx'"),
-				"sheets", sheetsProp(),
-				"text", prop("string", "The content as text: for .docx and .pdf with '# ' headings and '- ' "
-					+ "bullet points, for text files as it is"),
-"url", prop("string", "Only if the user allows downloads: the https address of a public file to "
-					+ "download into the inbox, e.g. a form; the user is asked first"),
-				"inbox", prop("string", "Name of the inbox if there are several (default: the first). The inboxes: "
-					+ McpInbox.inboxNames())),
-			"name");
-		Map<String, Object> annotations = new LinkedHashMap<String, Object>();
-		annotations.put("readOnlyHint", Boolean.FALSE);
-		annotations.put("destructiveHint", Boolean.FALSE);
-		annotations.put("idempotentHint", Boolean.FALSE);
-		annotations.put("openWorldHint", Boolean.FALSE);
-		tool.put("annotations", annotations);
-		return tool;
-	}
-
-	/** The schema of add_to_inbox's sheets: name, rows, column formats, header. */
-	@NotNull
-	private static Map<String, Object> sheetsProp() {
-		Map<String, Object> row = props("type", "array", "items", props());
-		Map<String, Object> rows = prop("array", "The rows, each a list of values: strings, numbers, "
-			+ "booleans, null for an empty cell, '=...' for a formula, 'yyyy-mm-dd' for a date");
-		rows.put("items", row);
-		Map<String, Object> formats = prop("object", "Optional number formats by column letter, "
-			+ "e.g. {\"B\": \"#,##0.00 €\", \"A\": \"dd.mm.yyyy\"}");
-		formats.put("additionalProperties", props("type", "string"));
-		Map<String, Object> sheet = props("type", "object", "properties", props(
-			"name", prop("string", "Name of the sheet"),
-			"rows", rows,
-			"column_formats", formats,
-			"header", prop("boolean", "Whether the first row is a bold header that stays visible (default true)")),
-			"required", Arrays.asList("rows"));
-		Map<String, Object> sheets = prop("array", "For .xlsx: the sheets of the workbook, e.g. "
-			+ "[{\"name\": \"Buchungen\", \"rows\": [[\"Datum\", \"Betrag\"], [\"2026-10-01\", 850.5], "
-			+ "[\"Summe\", \"=SUM(B2:B2)\"]], \"column_formats\": {\"B\": \"#,##0.00 €\"}}]");
-		sheets.put("items", sheet);
-		return sheets;
-	}
 
 	@NotNull
 	private static Map<String, Object> tool(@NotNull String name, @NotNull String description,
@@ -273,8 +213,8 @@ final class McpTools {
 			return listFolder(args);
 		if (name.equals("show_document"))
 			return showDocuments(args);
-		if (name.equals("add_to_inbox"))
-			return McpInbox.add(args, approver);
+		if (name.equals(McpFileFolder.TOOL))
+			return McpFileFolder.call();
 		throw new ToolException("Unknown tool: " + name);
 	}
 

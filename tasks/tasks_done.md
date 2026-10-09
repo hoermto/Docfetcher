@@ -433,3 +433,15 @@
     get_original_document (DocFetcher -> assistant) stays base64.
     Tests: McpInboxTest without base64 (base64 refused, 21 MB text too large, 5 MB text over HTTP); app: dev
     preferences - tab, indentation, greying on two levels, values kept, OK saves; schema without content_base64.
+- change (v2.10): direct folder access is the only usable way - remove all others; the user chooses the folder
+  - Answers: remove all (add_to_inbox with sheets/text/url, McpDocuments, McpDownload, download dialog, inbox-path
+    option); folder = dropdown of the inbox folders; how the LLM learns it (my question was unclear): tool + rules.
+  - McpFileFolder: SettingsConf.Str McpFileFolder (empty = none; must still be an inbox folder); rule() for the
+    server instructions and the read-only tool get_file_folder (only listed with a folder; description = folder +
+    'only add new files, never change, overwrite, rename, move or delete'). Request limit back to 1 MB.
+    Preferences: McpFolderOption (dropdown '(none)' + inbox folders, fixed width) below the MCP checkbox, disabled
+    while it is off (CheckOption passes its state to any dependent PrefOption).
+    Caveat told to the user: Claude Desktop has no file access (the Filesystem extension writes text only), so it
+    can't deliver Excel/Word files any more; Claude Code can.
+    Tests: McpFileFolderTest (none, chosen, no longer an inbox); app: dev preferences - dropdown, greying, OK saves;
+    tools/list with get_file_folder and the rule, add_to_inbox gone.

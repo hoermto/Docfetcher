@@ -39,7 +39,7 @@ final class CheckOption extends PrefOption {
 
 	private final SettingsConf.Bool enumOption;
 	@Nullable private final CheckOption parent;
-	private final List<CheckOption> children = new ArrayList<CheckOption>(0);
+	private final List<PrefOption> children = new ArrayList<PrefOption>(0);
 	@NotNull private Button bt;
 
 	public CheckOption(	@NotNull String labelText,
@@ -58,6 +58,11 @@ final class CheckOption extends PrefOption {
 			parent.children.add(this);
 	}
 
+	/** Makes the option disabled while this checkbox is off or disabled. */
+	void addDependent(@NotNull PrefOption option) {
+		children.add(option);
+	}
+
 	public void createControls(@NotNull Composite parentComp) {
 		bt = UtilGui.createCheckButton(parentComp, labelText);
 		GridData data = new GridData(SWT.LEFT, SWT.FILL, false, false, 2, 1);
@@ -73,6 +78,11 @@ final class CheckOption extends PrefOption {
 			bt.setEnabled(parent.isActive());
 	}
 
+	@Override
+	protected void afterCreation() {
+		updateChildren();
+	}
+
 	private int depth() {
 		return parent == null ? 0 : parent.depth() + 1;
 	}
@@ -83,10 +93,14 @@ final class CheckOption extends PrefOption {
 	}
 
 	private void updateChildren() {
-		for (CheckOption child : children) {
-			child.bt.setEnabled(isActive());
-			child.updateChildren();
-		}
+		for (PrefOption child : children)
+			child.setActive(isActive());
+	}
+
+	@Override
+	protected void setActive(boolean active) {
+		bt.setEnabled(active);
+		updateChildren();
 	}
 
 	protected void restoreDefault() {

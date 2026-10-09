@@ -116,10 +116,11 @@
   port (McpServerPort = 28836) and check the target before any writing test (initialize -> serverInfo version, or
   the listening process). Change the port in a manifest with a JSON tool, not sed: the URL also appears in the
   description (2026-10-09 a sed edit sent four test files into the user's inbox; removed to the recycle bin).
-- get_original_document / add_to_inbox: MCP SDK clients read at most 10 MiB per stdio message (bridge turns larger answers
-  into an error); over HTTP no such limit. add_to_inbox needs `McpInboxWrite = true` (preferences checkbox below MCP);
-  test scripts in the scratchpad's sdktest folder (stdio.mjs, original.mjs, inbox.mjs, http-original.mjs) - recreate
-  them from the task log if the scratchpad was cleaned.
+- get_original_document: MCP SDK clients read at most 10 MiB per stdio message (bridge turns larger answers into an
+  error); over HTTP no such limit. get_file_folder needs `McpFileFolder = <an inbox folder>` in the settings (dropdown
+  on the preferences tab AI Assistants (MCP)); DocFetcher never writes files for assistants. Test scripts in the
+  scratchpad's sdktest folder (stdio.mjs, original.mjs, http-original.mjs) - recreate them from the task log if the
+  scratchpad was cleaned.
 - The package's Java runtime is made with jlink: every JDK module the code uses must be in the list above (jdk.httpserver for
   the MCP server - missing, enabling MCP crashed with NoClassDefFoundError; the dev build runs on the full JDK and can't show
   this). So the package test always includes enabling MCP in the preferences and a curl request.

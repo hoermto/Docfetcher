@@ -221,25 +221,13 @@ new CheckOption(
 		CheckOption mcpServerOption = new CheckOption(
 			Msg.pref_mcp_server.get(),
 			SettingsConf.Bool.McpServerEnabled);
-		CheckOption inboxWriteOption = new CheckOption(
-			Msg.pref_mcp_inbox_write.get(),
-			SettingsConf.Bool.McpInboxWrite,
-			mcpServerOption);
 		IntFieldOption mcpPortOption = new IntFieldOption(
 			Msg.pref_mcp_port.get(),
 			SettingsConf.Int.McpServerPort,
 			1024, 65535);
 		mcpOptions.addAll(Arrays.asList(
 			mcpServerOption,
-			inboxWriteOption,
-			new CheckOption(
-				Msg.pref_mcp_inbox_download.get(),
-				SettingsConf.Bool.McpInboxDownload,
-				inboxWriteOption),
-			new CheckOption(
-				Msg.pref_mcp_inbox_path.get(),
-				SettingsConf.Bool.McpInboxPathVisible,
-				inboxWriteOption),
+			new McpFolderOption(mcpServerOption),
 			mcpPortOption,
 			new McpHelpOption(mcpPortOption)));
 
@@ -354,6 +342,8 @@ new DropdownOption(
 		intro.setLayoutData(introData);
 		for (PrefOption option : mcpOptions)
 			option.createControls(comp);
+		for (PrefOption option : mcpOptions)
+			option.afterCreation();
 		return comp;
 	}
 	
@@ -632,6 +622,12 @@ new DropdownOption(
 		protected abstract void createControls(@NotNull Composite parent);
 		protected abstract void restoreDefault();
 		protected abstract void save();
+		/** Enables or disables the controls, for options depending on a checkbox. */
+		protected void setActive(boolean active) {
+		}
+		/** Called when the controls of all options exist. */
+		protected void afterCreation() {
+		}
 	}
 
 }

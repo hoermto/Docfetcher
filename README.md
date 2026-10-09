@@ -23,7 +23,7 @@ workflow: scanned documents are recognized (OCR), named, split, merged and filed
 | **Split and merge scans** | Split a scanned stack into single documents at separator sheets or where the text changes; merge PDF files; blank pages are left out. |
 | **Search scanned paper** | Built-in Tesseract OCR (German and English) makes image PDFs and pictures searchable; the recognized text is stored once in the file. |
 | **Sort folders** | One, two or three panes with synced folder browsers next to the document view, for filing documents into a folder structure. |
-| **Ask an AI assistant** | A built-in MCP server (off by default, localhost only, read-only unless you allow new files in the inbox) lets assistants like Claude search the indexes and read documents: *"Which letters about tax arrived last?"* - *"What rent does my tenant in Rosenweg pay?"* |
+| **Ask an AI assistant** | A built-in MCP server (off by default, localhost only, read-only) lets assistants like Claude search the indexes and read documents: *"Which letters about tax arrived last?"* - *"What rent does my tenant in Rosenweg pay?"* |
 | **Print and send** | Print or email one or several selected documents directly from the result list. |
 
 Everything is undoable (`Ctrl+Z`), removed files go to the recycle bin, and documents containing text are never modified.
@@ -39,8 +39,8 @@ Everything is undoable (`Ctrl+Z`), removed files go to the recycle bin, and docu
 - PDF split and merge, OCR with Tesseract, print, email.
 - MCP server (Model Context Protocol revisions 2026-07-28 and 2025-03-26 to 2025-11-25, Streamable HTTP on `http://localhost:28835/mcp`) with the read-only tools
   `search`, `read_document`, `get_original_document` (a base64 copy of the file, e.g. as a template), `list_folder` and
-  `show_document` (shows documents in DocFetcher's window: Search tab, preview, folder browser),
-  plus `add_to_inbox` when allowed in the preferences (new files only, no programs, at most 20 MB); e.g. `claude mcp add --transport http docfetcher http://localhost:28835/mcp`
+  `show_document` (shows documents in DocFetcher's window: Search tab, preview, folder browser), and
+  `get_file_folder` when an inbox folder is chosen for assistants with file access (only add new files); e.g. `claude mcp add --transport http docfetcher http://localhost:28835/mcp`
   (the preferences show how to connect Claude Code, Claude Desktop - a one-click extension, `docfetcher.mcpb` -, the ChatGPT
   desktop app and Codex - `codex mcp add docfetcher --url http://localhost:28835/mcp` - and other assistants). Large result sets come newest first with an overview (time range,
   counts per year/month, top folders, characteristic words of the texts and names with their share of documents)

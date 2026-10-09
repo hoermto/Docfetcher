@@ -46,8 +46,9 @@ import net.sourceforge.docfetcher.util.annotations.Nullable;
  * POST JSON-RPC messages to {@code http://localhost:<port>/mcp} and get the
  * answer as JSON. The server only listens on the loopback interface, so only
  * programs on this computer can connect, and it rejects requests from web
- * pages (Origin header of another host). See {@link McpTools} for the tools;
- * the only one that writes, {@link McpInbox}, must be allowed by the user.
+ * pages (Origin header of another host). See {@link McpTools} for the tools.
+ * The server writes nothing; {@link McpFileFolder} only tells assistants
+ * with their own file access the folder the user chose for new files.
  * <p>
  * It serves both protocol eras: the stateless revision 2026-07-28 (version,
  * client capabilities and HTTP headers on every request, {@code
@@ -76,11 +77,10 @@ public final class McpServer {
 	private static final int UNSUPPORTED_VERSION = -32022;
 	/**
 	 * How long modern clients may cache the tool list and discovery: short,
-	 * as add_to_inbox comes and goes with the preferences.
+	 * as get_file_folder comes and goes with the preferences.
 	 */
 	private static final long CACHE_TTL_MS = 60 * 1000;
-	/** Enough for the content of a file of McpInbox.MAX_MB, as rows or text in JSON. */
-	private static final int MAX_REQUEST_BYTES = (McpInbox.MAX_MB * 4 / 3 + 2) * 1024 * 1024;
+	private static final int MAX_REQUEST_BYTES = 1024 * 1024;
 	/** The image types AI assistants can look at; other images come as files. */
 	private static final List<String> IMAGE_TYPES = Arrays.asList("image/png", "image/jpeg", "image/gif", "image/webp");
 
@@ -99,7 +99,7 @@ public final class McpServer {
 	/** The instructions with the rule for giving the user files, which the preferences set. */
 	@NotNull
 	static String instructions() {
-		return INSTRUCTIONS + McpInbox.fileRule();
+		return INSTRUCTIONS + McpFileFolder.rule();
 	}
 
 	private final McpTools tools;
@@ -120,17 +120,6 @@ public final class McpServer {
 	/** Sets the window that show_document shows the documents in; null: none. */
 	public void setViewer(@Nullable DocumentViewer viewer) {
 		tools.viewer = viewer;
-	}
-
-	/** Asks the user before add_to_inbox downloads a file from the internet. */
-	public interface DownloadApprover {
-		/** Called on the server's thread; returns whether the user agreed. */
-		boolean approve(@NotNull String fileName, @NotNull java.io.File folder, @NotNull String url);
-	}
-
-	/** Sets who approves downloads; null: downloads are refused. */
-	public void setDownloadApprover(@Nullable DownloadApprover approver) {
-		tools.approver = approver;
 	}
 
 	/**

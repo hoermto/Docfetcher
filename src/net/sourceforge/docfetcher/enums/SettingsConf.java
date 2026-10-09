@@ -102,10 +102,7 @@ public final class SettingsConf {
 		SyncFolderPanels (true), // The folders tab shows the parent of the folder panel
 		TolerantSearch (true), // Umlauts and OCR errors: 'Muller' finds 'Müller', 'Bonn' finds 'B0nn'
 		McpServerEnabled (false), // MCP server for AI assistants on localhost (read-only access to the indexes)
-		McpInboxWrite (false), // The MCP server's add_to_inbox: new files only, in an inbox folder
-		McpInboxDownload (false), // With McpInboxWrite: add_to_inbox may download a public https file, after asking the user
-		McpInboxPathVisible (false), // With McpInboxWrite: assistants may also save new files directly in the inbox folders
-		ShowFolderPanel (true), // Show a second folder browser next to the tabs
+ShowFolderPanel (true), // Show a second folder browser next to the tabs
 FolderSortAscending (false), // Sort order of the folder view
 
 		ShowPreviewPanel (true),
@@ -223,6 +220,12 @@ FolderSortAscending (false), // Sort order of the folder view
 			"\r\n# escaped by a preceding \\.")
 	public enum Str implements Storable {
 		LastIndexedFolder (Util.USER_HOME_PATH),
+
+		/*
+		 * The inbox folder in which AI assistants with their own file access
+		 * may save new files (the MCP server tells them); empty: none.
+		 */
+		McpFileFolder (""),
 		
 		/*
 		 * Custom index folder, set via the preferences dialog. Empty means
