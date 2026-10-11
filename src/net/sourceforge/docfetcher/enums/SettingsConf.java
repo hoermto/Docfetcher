@@ -107,10 +107,10 @@ public final class SettingsConf {
 		SyncFolderPanels (true), // The folders tab shows the parent of the folder panel
 		TolerantSearch (true), // Umlauts and OCR errors: 'Muller' finds 'Müller', 'Bonn' finds 'B0nn'
 		McpServerEnabled (false), // MCP server for AI assistants on localhost (read-only access to the indexes)
-		McpPathsVisible (false),
-		DuplicatesContentOnly (true), // Find Duplicates: only the texts count, not file name and size // MCP results carry file paths too, and the tools take paths (else ids only)
-ShowFolderPanel (true), // Show a second folder browser next to the tabs
-FolderSortAscending (false), // Sort order of the folder view
+		McpPathsVisible (false), // MCP results carry file paths too, and the tools take paths (else ids only)
+		DuplicatesContentOnly (true), // Find Duplicates: only the texts count, not file name and size
+		ShowFolderPanel (true), // Show a second folder browser next to the tabs
+		FolderSortAscending (false), // Sort order of the folder view
 
 		ShowPreviewPanel (true),
 		ShowPreviewPanelAtBottom (false),
@@ -235,6 +235,12 @@ FolderSortAscending (false), // Sort order of the folder view
 		 * may save new files (the MCP server tells them); empty: none.
 		 */
 		McpFileFolder (""),
+
+		/*
+		 * The DocFetcher bin: deleted files are moved into this folder (see
+		 * Bin); empty: they go to the recycle bin of the system.
+		 */
+		BinFolder (""),
 		
 		/*
 		 * Custom index folder, set via the preferences dialog. Empty means

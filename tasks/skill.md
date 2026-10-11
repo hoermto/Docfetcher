@@ -124,3 +124,8 @@
 - The package's Java runtime is made with jlink: every JDK module the code uses must be in the list above (jdk.httpserver for
   the MCP server - missing, enabling MCP crashed with NoClassDefFoundError; the dev build runs on the full JDK and can't show
   this). So the package test always includes enabling MCP in the preferences and a curl request.
+- Confirmation message boxes ('Confirm Operation', Ja/Nein) are native: `win.py press Ja` is reliable; a posted click
+  at the button's screenshot position worked for a narrow box but not for a wider one.
+- DocFetcher bin: `BinFolder = <scratch>/guidata/bin` in bin/settings-conf.txt (outside the inbox, so it gets its own
+  index bin_<n> in bin/indexes; remove it with the test data afterwards). Deleting in the bin tab and 'Empty Bin...'
+  use the real recycle bin of Windows (unit tests switch it off with UtilFile.setTrashDisabled).

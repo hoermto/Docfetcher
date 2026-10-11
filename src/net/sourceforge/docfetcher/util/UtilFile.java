@@ -10,6 +10,13 @@ package net.sourceforge.docfetcher.util;
 
 import java.awt.Desktop;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
@@ -63,6 +70,54 @@ public final class UtilFile {
 			}
 		}
 		return deletePermanently(file);
+	}
+
+	/**
+	 * Moves the given file or directory to the given target. If a simple
+	 * rename is not possible (e.g. because source and target are on different
+	 * drives), the source is copied recursively and then deleted.
+	 */
+	public static void move(@NotNull File source, @NotNull File target)
+			throws IOException {
+		Path srcPath = source.toPath();
+		final Path dstPath = target.toPath();
+		try {
+			Files.move(srcPath, dstPath, StandardCopyOption.ATOMIC_MOVE);
+			return;
+		}
+		catch (IOException e) {
+			// Fall through to copy + delete
+		}
+		if (source.isFile()) {
+			Files.copy(srcPath, dstPath);
+		}
+		else {
+			final Path srcRoot = srcPath;
+			Files.walkFileTree(srcRoot, new SimpleFileVisitor<Path>() {
+				public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
+						throws IOException {
+					Files.createDirectories(dstPath.resolve(srcRoot.relativize(dir)));
+					return FileVisitResult.CONTINUE;
+				}
+				public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+						throws IOException {
+					Files.copy(file, dstPath.resolve(srcRoot.relativize(file)));
+					return FileVisitResult.CONTINUE;
+				}
+			});
+		}
+		Util.deleteRecursively(source);
+	}
+
+	/** Returns the size for people: '512 KB', '12.3 MB', '1.2 GB'. */
+	@NotNull
+	public static String formatSize(long bytes) {
+		double kb = bytes / 1024.0;
+		if (kb < 1000)
+			return Math.round(Math.ceil(kb)) + " KB";
+		if (kb < 1000 * 1024)
+			return String.format("%.1f MB", kb / 1024);
+		return String.format("%.1f GB", kb / 1024 / 1024);
 	}
 
 	/**

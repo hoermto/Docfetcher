@@ -297,7 +297,8 @@ final class PdfOperations {
 	}
 
 	/**
-	 * Moves the originals to the recycle bin if the user wants that, after
+	 * Moves the originals to the DocFetcher bin or the recycle bin if the
+	 * user wants that, after
 	 * keeping backup copies for the undo. Returns the backups, or an empty
 	 * list if the originals were kept.
 	 */
@@ -323,7 +324,7 @@ final class PdfOperations {
 		}
 		List<ResultDocument> removed = new ArrayList<ResultDocument>();
 		for (int i = 0; i < files.size(); i++) {
-			if (!UtilFile.delete(files.get(i))) {
+			if (Bin.delete(files.get(i)) == null) {
 				AppUtil.showError(Msg.file_operation_failed.format(files.get(i).getPath()), true, true);
 				break;
 			}

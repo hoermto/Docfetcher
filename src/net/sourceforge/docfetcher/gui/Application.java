@@ -19,10 +19,6 @@ import java.io.InputStream;
 import java.io.StringReader;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.net.URL;
-import java.nio.file.FileVisitResult;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -112,6 +108,7 @@ import net.sourceforge.docfetcher.util.ConfLoader.Loadable;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.SettingsLocation;
 import net.sourceforge.docfetcher.util.Util;
+import net.sourceforge.docfetcher.util.UtilFile;
 import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
@@ -156,6 +153,8 @@ public final class Application {
 	@Nullable private static FolderPanel folderTabPanel; // On the 'Folders' tab
 	@Nullable private static TabItem foldersTab;
 	@NotNull private static TabItem searchTab;
+	@Nullable private static TabItem binTab; // After the search tab, if there is a bin folder
+	@Nullable private static InboxPanel binPanel;
 private static SashForm folderSash;
 	private static Composite folderPanelHolder;
 	private static Composite firstFolderHolder;
@@ -713,7 +712,7 @@ private static SashForm folderSash;
 			try {
 				if (target.exists())
 					throw new IOException("Target already exists: " + target);
-				moveFileOrDir(source, target);
+				UtilFile.move(source, target);
 			}
 			catch (IOException e) {
 				Util.printErr(e);
@@ -727,43 +726,6 @@ private static SashForm folderSash;
 		}
 	}
 	
-	/**
-	 * Moves the given file or directory to the given target. If a simple
-	 * rename is not possible (e.g. because source and target are on different
-	 * drives), the source is copied recursively and then deleted.
-	 */
-	private static void moveFileOrDir(@NotNull File source, @NotNull File target)
-			throws IOException {
-		java.nio.file.Path srcPath = source.toPath();
-		final java.nio.file.Path dstPath = target.toPath();
-		try {
-			java.nio.file.Files.move(srcPath, dstPath, StandardCopyOption.ATOMIC_MOVE);
-			return;
-		}
-		catch (IOException e) {
-			// Fall through to copy + delete
-		}
-		if (source.isFile()) {
-			java.nio.file.Files.copy(srcPath, dstPath);
-		}
-		else {
-			final java.nio.file.Path srcRoot = srcPath;
-			java.nio.file.Files.walkFileTree(srcRoot, new SimpleFileVisitor<java.nio.file.Path>() {
-				public FileVisitResult preVisitDirectory(java.nio.file.Path dir, BasicFileAttributes attrs)
-						throws IOException {
-					java.nio.file.Files.createDirectories(dstPath.resolve(srcRoot.relativize(dir)));
-					return FileVisitResult.CONTINUE;
-				}
-				public FileVisitResult visitFile(java.nio.file.Path file, BasicFileAttributes attrs)
-						throws IOException {
-					java.nio.file.Files.copy(file, dstPath.resolve(srcRoot.relativize(file)));
-					return FileVisitResult.CONTINUE;
-				}
-			});
-		}
-		Util.deleteRecursively(source);
-	}
-
 	private static void loadIndexRegistry(@NotNull final Shell mainShell, @NotNull File indexParentDir) {
 		UtilGui.assertSwtThread();
 		final Display display = mainShell.getDisplay();
@@ -1680,6 +1642,9 @@ private static SashForm folderSash;
 	private static void refreshInboxTabs() {
 		for (InboxTab inboxTab : inboxTabs)
 			inboxTab.panel.refresh();
+		InboxPanel bin = binPanel;
+		if (bin != null)
+			bin.refresh();
 	}
 
 	/**
@@ -1727,6 +1692,83 @@ private static SashForm folderSash;
 		// The folders tab belongs after the inbox tabs
 		if (foldersTab != null && mainTabFolder.indexOf(foldersTab) != inboxTabs.size())
 			applyPaneMode();
+		applyBin();
+	}
+
+	/**
+	 * Shows the tab of the DocFetcher bin after the search tab if a bin folder
+	 * is set, and makes sure the folder exists and is indexed; removes the
+	 * tab otherwise. The search bar offers to include the bin.
+	 */
+	private static void applyBin() {
+		File bin = Bin.getFolder();
+		searchBar.setBinVisible(bin != null);
+		if (bin == null) {
+			if (binTab != null) {
+				binTab.dispose();
+				binPanel.getControl().dispose();
+				binTab = null;
+				binPanel = null;
+			}
+			return;
+		}
+		if (!bin.isDirectory() && !bin.mkdirs())
+			AppUtil.showError(Msg.file_operation_failed.format(bin.getPath()), true, true);
+		if (binTab == null) {
+			final InboxPanel panel = new InboxPanel(mainTabFolder, indexRegistry, true);
+			binPanel = panel;
+			binTab = new TabItem(mainTabFolder, SWT.NONE);
+			binTab.setText(Msg.bin_tab.get());
+			binTab.setControl(panel.getControl());
+			initInboxResults(panel.getResultPanel());
+			// The folders in the bin open in the folder browser
+			panel.getResultPanel().evtFolderOpened.add(new Event.Listener<File>() {
+				public void update(File eventData) {
+					showInFolderView(eventData);
+				}
+			});
+			panel.addButton(Msg.restore_bt.get(), new Runnable() {
+				public void run() {
+					if (panel.getResultPanel().restoreSelection())
+						refreshFolderPanels();
+				}
+			});
+			panel.addButton(Msg.empty_bin_bt.get(), new Runnable() {
+				public void run() {
+					emptyBin();
+				}
+			});
+		}
+		binPanel.setFolder(bin);
+		ensureIndexed(bin);
+	}
+
+	/**
+	 * Moves everything in the DocFetcher bin to the recycle bin of the system,
+	 * after a confirmation.
+	 */
+	private static void emptyBin() {
+		File bin = Bin.getFolder();
+		if (bin == null)
+			return;
+		int count = Bin.getEntries(bin).size();
+		if (count == 0)
+			return;
+		String size = UtilFile.formatSize(Bin.getSize(bin));
+		String msg = UtilFile.isTrashSupported()
+			? Msg.confirm_empty_bin.format(count, size)
+			: Msg.confirm_empty_bin_permanently.format(count, size);
+		if (!AppUtil.showConfirmation(msg, true))
+			return;
+		List<File> failed = Bin.empty(bin);
+		if (!failed.isEmpty())
+			AppUtil.showError(Msg.file_operation_failed.format(Util.join("\n", failed)), true, true);
+		LuceneIndex index = indexRegistry.findIndexFor(bin);
+		if (index != null)
+			indexRegistry.getQueue().addTask(index, IndexAction.UPDATE);
+		previewPanel.clear();
+		refreshInboxTabs();
+		refreshFolderPanels();
 	}
 
 	@NotNull
@@ -1736,8 +1778,12 @@ private static SashForm folderSash;
 		TabItem tab = new TabItem(mainTabFolder, SWT.NONE, index);
 		tab.setText(withKey(entry.getTabName(), SettingsConf.IntArray.InboxKey));
 		tab.setControl(inboxPanel.getControl());
+		initInboxResults(inboxPanel.getResultPanel());
+		return new InboxTab(entry, tab, inboxPanel);
+	}
 
-		final ResultPanel inboxResults = inboxPanel.getResultPanel();
+	/** Lets the result table of an inbox tab (or the bin tab) show its documents. */
+	private static void initInboxResults(@NotNull final ResultPanel inboxResults) {
 		inboxResults.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
 			public void update(List<ResultDocument> eventData) {
 				if (!eventData.isEmpty())
@@ -1752,13 +1798,14 @@ private static SashForm folderSash;
 		});
 		inboxResults.evtDocumentsChanged.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
-				if (inboxResults.getSelection().isEmpty())
+				List<ResultDocument> sel = inboxResults.getSelection();
+				if (sel.isEmpty())
 					previewPanel.clear();
 				else
-					previewPanel.refresh();
+					previewPanel.refresh(sel.get(0));
+				showSelectedPath(sel);
 			}
 		});
-		return new InboxTab(entry, tab, inboxPanel);
 	}
 
 	/**
@@ -1851,7 +1898,7 @@ private static SashForm folderSash;
 
 	/** The sync of the sync button, for one document. */
 	private static void showInRightmostFolderPanel(@NotNull ResultDocument doc) {
-		if (!doc.isPlainFileOnDisk())
+		if (!doc.isPlainFileOnDisk() || Bin.contains(doc.getPath().getCanonicalFile()))
 			return;
 		FolderPanel rightmost = folderPanel != null ? folderPanel : folderTabPanel;
 		if (rightmost != null)
@@ -1864,6 +1911,11 @@ private static SashForm folderSash;
 		if (selected != null) {
 			selected.panel.refresh();
 			selected.panel.getResultPanel().activate();
+		}
+		else if (binPanel != null && mainTabFolder.getSelection().length > 0
+				&& mainTabFolder.getSelection()[0] == binTab) {
+			binPanel.refresh();
+			binPanel.getResultPanel().activate();
 		}
 		else if (folderTabPanel != null
 				&& mainTabFolder.getSelection().length > 0
@@ -2024,10 +2076,11 @@ private static SashForm folderSash;
 		resultPanel.evtDocumentsChanged.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
 				// Rows of moved-away documents are removed, clearing the selection
-				if (resultPanel.getSelection().isEmpty())
+				List<ResultDocument> sel = resultPanel.getSelection();
+				if (sel.isEmpty())
 					previewPanel.clear();
 				else
-					previewPanel.refresh();
+					previewPanel.refresh(sel.get(0));
 			}
 		});
 

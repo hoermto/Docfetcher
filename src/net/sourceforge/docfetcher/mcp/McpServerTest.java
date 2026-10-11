@@ -192,6 +192,27 @@ public final class McpServerTest {
 	}
 
 	@Test
+	public void theBinIsGoneForAssistants() throws Exception {
+		File contract = new File(support.root, "Mieter/mietvertrag-rosenweg.txt");
+		String contractId = id(contract);
+		// The folder 'Mieter' plays the DocFetcher bin
+		net.sourceforge.docfetcher.enums.SettingsConf.Str.BinFolder.set(contract.getParent());
+		try {
+			Map<String, Object> found = json(call("search", "{\"query\":\"Rosenweg Kaltmiete\"}", false), 0);
+			assertFalse(Json.write(found), Json.write(found).contains("rosenweg"));
+			assertTrue(text(call("read_document", "{\"id\":" + Json.write(contractId) + "}", true), 0)
+				.startsWith("Not found (deleted)"));
+			Map<String, Object> listing = json(call("list_folder", "{\"id\":" + Json.write(id(support.root)) + "}", false), 0);
+			assertFalse(Json.write(listing), Json.write(listing).contains("Mieter"));
+			assertTrue(Json.write(listing), Json.write(listing).contains("Posteingang"));
+		}
+		finally {
+			net.sourceforge.docfetcher.enums.SettingsConf.Str.BinFolder.set("");
+		}
+		assertTrue(text(call("read_document", "{\"id\":" + Json.write(contractId) + "}", false), 1).contains("Kaltmiete"));
+	}
+
+	@Test
 	public void showDocuments() throws Exception {
 		File contract = new File(support.root, "Mieter/mietvertrag-rosenweg.txt");
 		File letter = new File(support.root, "Posteingang/stadtwerke.txt");

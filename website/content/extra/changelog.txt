@@ -1,6 +1,11 @@
 ==== 2026-10-11 - DocFetcher 3.0 ====
 
+=== Bugfixes ===
+  * After deleting (or moving away) a document, the preview kept showing it ('File not found') although the next row was selected; it shows the selected document now.
+  * Messages with a file or folder name showed it in doubled apostrophes (''Unterordner''), e.g. the confirmation before deleting a folder.
+
 === Features ===
+  * DocFetcher bin: in the preferences (tab Folders) a folder can be chosen into which everything DocFetcher deletes is moved - files and folders from the result tables, the folder browsers and the duplicates, the originals after a merge or split - side by side under their names, with a hidden list of where each came from. The tab 'Bin' right of 'Search' lists them with their number and size; 'Restore...' (also in the context menu) puts them back where they were or into the first inbox folder (what came there otherwise goes into the inbox folder); Ctrl+Z also undoes a deletion. Deleting in the bin and 'Empty Bin...' move to the recycle bin of the system after a confirmation of their own. The checkbox 'Bin' right of the search field (off at every start) includes the bin in the search results; the duplicates search, the AI assistants and the folder sync leave it out. Without a bin folder nothing changes.
   * The window title shows the version, e.g. 'DocFetcher 3.0' (also in Help > About and the preferences).
 
 ==== 2026-10-09 - DocFetcher 2.10 ====

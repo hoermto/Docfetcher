@@ -718,6 +718,7 @@ public final class Searcher {
 	public List<DuplicateGroup> findDuplicates(	@NotNull Cancelable cancelable,
 												@NotNull DuplicateProgress progress,
 												@Nullable java.io.File folder,
+												@Nullable java.io.File excluded,
 												boolean contentOnly)
 			throws SearchException, CheckedOutOfMemoryError {
 		readLock.lock();
@@ -737,6 +738,7 @@ public final class Searcher {
 			java.util.Set<String> storedFields = new java.util.HashSet<String>(Arrays.asList(
 				Fields.FILENAME.key(), Fields.UID.key(), Fields.SIZE.key()));
 			java.io.File scope = folder == null ? null : normalize(folder);
+			java.io.File outside = excluded == null ? null : normalize(excluded);
 			boolean[] inScope = new boolean[reader.maxDoc()];
 			// Same file name and size: the documents of each name and size, in the scope
 			Map<String, List<Integer>> byNameAndSize = new java.util.LinkedHashMap<String, List<Integer>>();
@@ -745,8 +747,10 @@ public final class Searcher {
 				Document stored = reader.document(i, storedFields);
 				String filename = stored.get(Fields.FILENAME.key());
 				String uid = stored.get(Fields.UID.key());
-				inScope[i] = (allLive == null || allLive.get(i)) && uid != null && (scope == null
-					|| Util.contains(scope, normalize(new java.io.File(DocumentType.extractPath(uid).getPath()))));
+				java.io.File path = uid == null ? null : normalize(new java.io.File(DocumentType.extractPath(uid).getPath()));
+				inScope[i] = (allLive == null || allLive.get(i)) && path != null
+					&& (scope == null || Util.contains(scope, path))
+					&& (outside == null || !Util.contains(outside, path));
 				nameWords.add(filename == null || !inScope[i] ? Collections.<String, Integer> emptyMap() : nameWords(filename, field));
 				if (!contentOnly && inScope[i] && filename != null && stored.get(Fields.SIZE.key()) != null) {
 					String key = filename.toLowerCase(java.util.Locale.ROOT) + "/" + stored.get(Fields.SIZE.key());

@@ -89,6 +89,7 @@ import org.eclipse.swt.graphics.Image;
 import org.eclipse.swt.graphics.Point;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.DirectoryDialog;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Menu;
@@ -843,7 +844,16 @@ public final class ResultPanel {
 				deleteSelection();
 			}
 		}));
-		
+
+		menuManager.add(new MenuAction(Msg.restore_from_bin.get()) {
+			public boolean isEnabled() {
+				return isInBin(viewer.getSelection());
+			}
+			public void run() {
+				restoreSelection();
+			}
+		});
+
 		menuManager.addSeparator();
 		
 		String label = Util.IS_MAC_OS_X ? Msg.copy_macosx.get() : Msg.copy.get();
@@ -943,6 +953,37 @@ public final class ResultPanel {
 	}
 	
 	/** Returns true if the list is not empty and holds only plain files on disk. */
+	/**
+	 * Restores the selected files and folders from the DocFetcher bin (see
+	 * {@link #restoreFromBin}); returns true if anything was restored.
+	 */
+	public boolean restoreSelection() {
+		List<ResultDocument> sel = viewer.getSelection();
+		if (!isInBin(sel) || !restoreFromBin(getControl().getShell(), sel, indexRegistry))
+			return false;
+		viewer.removeElements(sel);
+		viewer.refresh();
+		evtDocumentsChanged.fire(null);
+		return true;
+	}
+
+	/**
+	 * Returns true if the documents are files or folders in the DocFetcher
+	 * bin (not the bin folder itself).
+	 */
+	public static boolean isInBin(@NotNull List<ResultDocument> docs) {
+		File bin = Bin.getFolder();
+		if (bin == null || docs.isEmpty())
+			return false;
+		for (ResultDocument doc : docs) {
+			File file = doc.getPath().getCanonicalFile();
+			if (doc.isParentRow() || !(doc.isFolder() || doc.isPlainFileOnDisk())
+					|| !Util.contains(bin, file))
+				return false;
+		}
+		return true;
+	}
+
 	private static boolean isAllPlainFiles(@NotNull List<ResultDocument> docs) {
 		if (docs.isEmpty())
 			return false;
@@ -1094,21 +1135,29 @@ public final class ResultPanel {
 		}
 		
 		int fileCount = UtilFile.countFiles(folder);
-		String msg = UtilFile.isTrashSupported()
-			? Msg.confirm_delete_folder_trash.format(folder.getName(), fileCount)
-			: Msg.confirm_delete_folder_permanently.format(folder.getName(), fileCount);
+		String msg;
+		if (Bin.contains(folder))
+			msg = UtilFile.isTrashSupported()
+				? Msg.confirm_remove_folder_from_bin.format(folder.getName(), fileCount)
+				: Msg.confirm_delete_folder_permanently.format(folder.getName(), fileCount);
+		else if (Bin.getFolder() != null)
+			msg = Msg.confirm_delete_folder_bin.format(folder.getName(), fileCount);
+		else
+			msg = UtilFile.isTrashSupported()
+				? Msg.confirm_delete_folder_trash.format(folder.getName(), fileCount)
+				: Msg.confirm_delete_folder_permanently.format(folder.getName(), fileCount);
 		if (!AppUtil.showConfirmation(msg, true))
 			return;
-		
-		if (!UtilFile.delete(folder)) {
+
+		File inBin = Bin.delete(folder);
+		if (inBin == null) {
 			AppUtil.showError(Msg.file_operation_failed.format(folder.getPath()), true, true);
 			return;
 		}
 		viewer.removeElements(Collections.singletonList(doc));
 		viewer.refresh();
-		updateIndexesFor(Collections.singletonList(folder));
-		FileOperationHistory.getInstance().add(FileOperationHistory.Kind.DELETE,
-			Collections.singletonList(folder), Collections.<File> emptyList());
+		updateIndexesFor(Arrays.asList(folder, inBin));
+		addDeletion(Collections.singletonList(folder), Collections.singletonList(inBin));
 		evtDocumentsChanged.fire(null);
 	}
 	
@@ -1443,10 +1492,12 @@ public final class ResultPanel {
 
 	/**
 	 * Deletes the files of the documents after a confirmation - to the
-	 * recycle bin if the system has one, otherwise for good, which the
-	 * confirmation says - and updates their indexes; returns the deleted
-	 * documents. Only plain files on disk can be deleted. Also used by the
-	 * duplicates dialog.
+	 * DocFetcher bin if there is one, otherwise to the recycle bin of the
+	 * system if it has one, otherwise for good, which the confirmation says -
+	 * and updates their indexes; returns the deleted documents. Documents in
+	 * the DocFetcher bin are removed from it to the recycle bin of the system,
+	 * after a confirmation of their own. Only plain files on disk can be
+	 * deleted. Also used by the duplicates dialog.
 	 */
 	@NotNull
 	public static List<ResultDocument> deleteDocuments(	@NotNull List<ResultDocument> docs,
@@ -1457,36 +1508,146 @@ public final class ResultPanel {
 				return Collections.emptyList();
 			}
 		}
+		List<ResultDocument> inBin = new ArrayList<ResultDocument>();
+		List<ResultDocument> others = new ArrayList<ResultDocument>();
+		for (ResultDocument doc : docs)
+			(Bin.contains(doc.getPath().getCanonicalFile()) ? inBin : others).add(doc);
+		List<ResultDocument> deleted = new ArrayList<ResultDocument>();
+		if (deleteDocuments(others, false, indexRegistry, deleted))
+			deleteDocuments(inBin, true, indexRegistry, deleted);
+		return deleted;
+	}
 
+	/**
+	 * Deletes the files of the documents after a confirmation and adds them to
+	 * {@code deleted}; returns false if the user canceled or a file couldn't
+	 * be deleted.
+	 */
+	private static boolean deleteDocuments(	@NotNull List<ResultDocument> docs,
+											boolean fromBin,
+											@NotNull IndexRegistry indexRegistry,
+											@NotNull List<ResultDocument> deleted) {
+		if (docs.isEmpty())
+			return true;
 		StringBuilder names = new StringBuilder();
 		for (ResultDocument doc : docs) {
 			if (names.length() > 0)
 				names.append("\n");
 			names.append(doc.getFilename());
 		}
-		String msg = UtilFile.isTrashSupported()
-			? Msg.confirm_delete_trash.format(docs.size(), names.toString())
-			: Msg.confirm_delete_permanently.format(docs.size(), names.toString());
+		String msg;
+		if (!fromBin && Bin.getFolder() != null)
+			msg = Msg.confirm_delete_bin.format(docs.size(), names.toString());
+		else if (!UtilFile.isTrashSupported())
+			msg = Msg.confirm_delete_permanently.format(docs.size(), names.toString());
+		else if (fromBin)
+			msg = Msg.confirm_remove_from_bin.format(docs.size(), names.toString());
+		else
+			msg = Msg.confirm_delete_trash.format(docs.size(), names.toString());
 		if (!AppUtil.showConfirmation(msg, true))
-			return Collections.emptyList();
+			return false;
 
-		List<File> affected = new ArrayList<File>();
-		List<ResultDocument> deleted = new ArrayList<ResultDocument>();
+		List<File> files = new ArrayList<File>();
+		List<File> nowAt = new ArrayList<File>();
+		boolean success = true;
 		for (ResultDocument doc : docs) {
 			File file = doc.getPath().getCanonicalFile();
-			if (!UtilFile.delete(file)) {
+			File now = Bin.delete(file);
+			if (now == null) {
 				AppUtil.showError(Msg.file_operation_failed.format(file.getPath()), true, true);
+				success = false;
 				break;
 			}
-			affected.add(file);
+			files.add(file);
+			nowAt.add(now);
 			deleted.add(doc);
 		}
-		if (deleted.isEmpty())
-			return deleted;
+		List<File> affected = new ArrayList<File>(files);
+		affected.addAll(nowAt);
 		updateIndexesFor(indexRegistry, affected);
-		FileOperationHistory.getInstance().add(FileOperationHistory.Kind.DELETE,
-			affected, Collections.<File> emptyList());
-		return deleted;
+		addDeletion(files, nowAt);
+		return success;
+	}
+
+	/**
+	 * Restores files and folders from the DocFetcher bin: to where they came
+	 * from or into the first inbox folder, as the user chooses. What came
+	 * there otherwise (no known origin) goes into the inbox folder, or into a
+	 * folder the user chooses if there is no inbox folder. Updates the
+	 * indexes; returns true if anything was restored.
+	 */
+	public static boolean restoreFromBin(	@NotNull Shell shell,
+											@NotNull List<ResultDocument> docs,
+											@NotNull IndexRegistry indexRegistry) {
+		File bin = Bin.getFolder();
+		if (bin == null || docs.isEmpty())
+			return false;
+		List<File> files = new ArrayList<File>();
+		boolean originKnown = false;
+		boolean originUnknown = false;
+		for (ResultDocument doc : docs) {
+			File file = doc.getPath().getCanonicalFile();
+			files.add(file);
+			if (Bin.getOrigin(bin, file) != null)
+				originKnown = true;
+			else
+				originUnknown = true;
+		}
+		List<File> inboxes = InboxFolders.getFolders();
+		File folder = inboxes.isEmpty() ? null : inboxes.get(0);
+		boolean toOrigin = originKnown;
+		if (originKnown && folder != null) {
+			MultipleChoiceDialog<Boolean> dialog = new MultipleChoiceDialog<Boolean>(shell);
+			dialog.setTitle(Msg.restore_title.get());
+			dialog.setText(Msg.restore_question.format(files.size(), Util.getSystemAbsPath(folder)));
+			dialog.addButton(Msg.restore_origin_bt.get(), Boolean.TRUE);
+			dialog.addButton(Msg.restore_inbox_bt.get(), Boolean.FALSE);
+			dialog.addButton(Msg.cancel.get(), null);
+			Boolean answer = dialog.open();
+			if (answer == null)
+				return false;
+			toOrigin = answer;
+		}
+		if (folder == null && originUnknown) {
+			DirectoryDialog dialog = new DirectoryDialog(shell);
+			dialog.setText(Msg.restore_title.get());
+			dialog.setMessage(Msg.restore_choose_folder.get());
+			String path = dialog.open();
+			if (path == null)
+				return false;
+			folder = new File(path);
+		}
+
+		List<File> affected = new ArrayList<File>();
+		for (File file : files) {
+			boolean known = Bin.getOrigin(bin, file) != null;
+			try {
+				File restored = Bin.restore(bin, file, toOrigin && known ? null : folder);
+				affected.add(file);
+				affected.add(restored);
+			}
+			catch (IOException e) {
+				AppUtil.showError(Msg.file_operation_failed.format(e.getMessage()), true, true);
+				break;
+			}
+		}
+		updateIndexesFor(indexRegistry, affected);
+		return !affected.isEmpty();
+	}
+
+	/**
+	 * Adds deleted files to the history of file operations: moved into the
+	 * DocFetcher bin, the undo moves them back; from the recycle bin of the
+	 * system, they can only be restored by hand.
+	 */
+	private static void addDeletion(@NotNull List<File> files, @NotNull List<File> nowAt) {
+		if (files.isEmpty())
+			return;
+		FileOperationHistory history = FileOperationHistory.getInstance();
+		if (files.get(0).equals(nowAt.get(0)))
+			history.add(FileOperationHistory.Kind.DELETE, files, Collections.<File> emptyList());
+		else
+			history.add(FileOperationHistory.Kind.MOVE, files, nowAt);
 	}
 	
 	/**
@@ -1573,23 +1734,31 @@ public final class ResultPanel {
 		for (File target : targets) {
 			if (!target.exists())
 				continue;
-			if (!UtilFile.delete(target)) {
+			File inBin = Bin.delete(target);
+			if (inBin == null) {
 				AppUtil.showError(Msg.file_operation_failed.format(target.getPath()), true, true);
 				return false; // Don't restore over a file that is still there
 			}
 			affected.add(target);
+			affected.add(inBin);
 		}
 		List<File> backups = entry.getBackups();
+		File bin = Bin.getFolder();
 		for (int i = 0; i < backups.size() && i < sources.size(); i++) {
 			File source = sources.get(i);
-			if (source.exists() || !backups.get(i).exists())
+			// The removed original is in the DocFetcher bin, unless it was emptied
+			File removed = bin == null ? null : Bin.find(bin, source);
+			if (removed == null)
+				removed = backups.get(i);
+			if (source.exists() || !removed.exists())
 				continue; // Not removed, or restored in the meantime
 			File parent = source.getParentFile();
 			if (parent != null && !parent.isDirectory() && !parent.mkdirs())
 				continue;
-			if (!moveFile(backups.get(i), source))
+			if (!moveFile(removed, source))
 				break; // Error already shown
 			affected.add(source);
+			affected.add(removed);
 		}
 		FileOperationHistory.deleteBackups(entry);
 		if (affected.isEmpty())
@@ -1608,7 +1777,7 @@ public final class ResultPanel {
 			return false;
 		}
 		try {
-			java.nio.file.Files.move(source.toPath(), target.toPath());
+			UtilFile.move(source, target); // Folders also to another drive
 			return true;
 		}
 		catch (IOException e) {
@@ -1954,7 +2123,7 @@ public final class ResultPanel {
 			// The copy may still be in progress; retry a few times
 			boolean deleted = false;
 			for (int attempt = 0; attempt < 10 && !deleted; attempt++) {
-				deleted = !file.exists() || UtilFile.delete(file); // Recycle bin
+				deleted = !file.exists() || Bin.delete(file) != null;
 				if (!deleted) {
 					try {
 						Thread.sleep(300);

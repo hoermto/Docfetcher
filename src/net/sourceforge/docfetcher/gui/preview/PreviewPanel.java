@@ -154,6 +154,16 @@ public final class PreviewPanel extends Composite {
 		if (lastDoc != null)
 			setPreviewUnchecked(lastDoc);
 	}
+
+	/**
+	 * Shows the selected document anew, e.g. after its file was renamed or
+	 * moved - or after the shown one was deleted and the next row selected.
+	 */
+	public void refresh(@NotNull ResultDocument selected) {
+		UtilGui.assertSwtThread();
+		lastDoc = selected;
+		setPreviewUnchecked(selected);
+	}
 	
 	public boolean setHtmlFile(@NotNull File file) {
 		Util.checkNotNull(file);

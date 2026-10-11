@@ -201,6 +201,12 @@ final class DuplicatesDialog {
 		return scope == null ? Msg.dup_scope_all.get() : Msg.dup_scope_folder.format(scope.getPath());
 	}
 
+	/** The DocFetcher bin is left out, unless the search is inside it. */
+	@Nullable
+	private static File binOutside(@Nullable File scope) {
+		return scope != null && Bin.contains(scope) ? null : Bin.getFolder();
+	}
+
 	private void find(final int myRun, @Nullable final File scope, boolean contentOnly) {
 		final List<Searcher.DuplicateGroup> groups;
 		try {
@@ -218,7 +224,7 @@ final class DuplicatesDialog {
 						}
 					});
 				}
-			}, scope, contentOnly);
+			}, scope, binOutside(scope), contentOnly);
 		}
 		catch (final Exception e) {
 			UtilGui.runAsyncExec(status, new Runnable() {

@@ -23,13 +23,13 @@
 
 [] add support for encrypted containers like cryptomator (follow you 1a) 1b) suggestions)
 
+[] MCP: add support for: split and rename files in inbox(es): LLm shall be able to tell how to split (pages), remove empty and suggest name following the rules (MCP to tell LLM the naming rules). original file might be moved to docfetcher bin
+[] MCP to move files to most suiting folder
+[] in no way LLM can delete a file, or modify file content in any folder except the inbox.
+[] MCP endpoint to allow renaming files after suer confirmation, and move files to another folder after user autorization and request
+[] all new MCP features to enable/disable by setting, off by default
+
 ## new version
-[] bin support: all files deleted shall land in bin folder. in settings the bin folder shall be defined as folder
-[] bin folder apears in left panel next to search
-
-[] removal from bin is possible, but user has to explicit confirm. removal from docfetcher bin moves it to OS bin, so there is a 2nd safety net
-
-[] add a toggle in search panel to include bin, default off
 
 
 ## future features/stories

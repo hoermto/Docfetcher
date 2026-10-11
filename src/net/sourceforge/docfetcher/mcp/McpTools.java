@@ -16,12 +16,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.enums.SettingsConf;
+import net.sourceforge.docfetcher.gui.Bin;
 import net.sourceforge.docfetcher.gui.FolderPanel;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.parse.PdfVisualText;
@@ -271,6 +273,8 @@ final class McpTools {
 			if (before != null && (date == null || !date.before(before)))
 				continue;
 			if (folder != null && !Util.contains(folder, resolve(doc.getPathStr())))
+				continue;
+			if (Bin.contains(resolve(doc.getPathStr())))
 				continue;
 			docs.add(doc);
 		}
@@ -778,7 +782,8 @@ final class McpTools {
 		List<Object> entries = new ArrayList<Object>();
 		if (!given) {
 			for (File root : FolderPanel.getRootFolders(registry))
-				entries.add(folderEntry(root));
+				if (!Bin.contains(root))
+					entries.add(folderEntry(root));
 			result.put("folders", entries);
 			return result;
 		}
@@ -803,6 +808,9 @@ final class McpTools {
 				return Long.compare(time(dateOf(d2)), time(dateOf(d1)));
 			}
 		});
+		for (Iterator<ResultDocument> it = docs.iterator(); it.hasNext();)
+			if (Bin.contains(resolve(it.next().getPathStr())))
+				it.remove();
 		for (ResultDocument doc : docs) {
 			if (entries.size() >= MAX_FOLDER_ENTRIES)
 				break;
@@ -832,6 +840,9 @@ final class McpTools {
 
 	/** Only the indexed folders (and the fixed move targets) are accessible. */
 	private void checkAllowed(@NotNull File file) throws ToolException {
+		// Deleted files in the DocFetcher bin are gone for assistants
+		if (Bin.contains(file))
+			throw new ToolException("Not found (deleted): " + file.getName());
 		for (File root : FolderPanel.getRootFolders(registry)) {
 			/*
 			 * Indexes with relative paths (portable repositories) have roots

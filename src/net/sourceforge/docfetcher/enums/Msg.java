@@ -980,7 +980,7 @@ public enum Msg {
 	undo_nothing ("There is nothing to undo.",
 		"Message shown when Ctrl+Z is pressed but no file operation has " +
 		"been carried out yet."),
-	undo_rename ("Undo the renaming of ''{0}''?",
+	undo_rename ("Undo the renaming of '{0}'?",
 		"Confirmation before undoing a renaming. The file name is inserted " +
 		"in the {0} slot."),
 	undo_move ("Move {0} file(s) back? ({1})",
@@ -989,7 +989,7 @@ public enum Msg {
 	undo_copy ("Remove the {0} copied file(s)? ({1}) The originals stay.",
 		"Confirmation before undoing a copy (Ctrl + drag and drop): the number of copies in {0}, the name of the first copy in {1}."),
 	undo_delete_in_trash (
-		"The last operation deleted {0} file(s), starting with ''{1}''. " +
+		"The last operation deleted {0} file(s), starting with '{1}'. " +
 		"Deleted files are in the recycle bin and can be restored from " +
 		"there.",
 		"Message shown when the user tries to undo a deletion. The number " +
@@ -1008,24 +1008,70 @@ public enum Msg {
 		"Move {0} file(s) to the recycle bin?\n\n{1}",
 		"Confirmation before deleting files. The number of files is " +
 		"inserted in the {0} slot, their names in the {1} slot."),
+	pref_bin_folder ("DocFetcher bin:",
+		"Label on the 'Folders' tab of the preferences: the folder into which deleted files are moved."),
+	pref_bin_choose ("Choose...",
+		"Button on the 'Folders' tab of the preferences: chooses the folder of the DocFetcher bin."),
+	pref_bin_hint ("Deleted files and folders are moved into this folder; the tab 'Bin' lists them and restores them where they were or into the inbox. Removed from there, they go to the recycle bin of the system. 'Bin' right of the search field also searches it. Without a folder, deleted files go directly to the recycle bin of the system.",
+		"Hint below the folder of the DocFetcher bin in the preferences."),
+	pref_bin_conflict ("The bin folder can't be an inbox folder, be inside one or contain one:\n{0}",
+		"Error in the preferences when the DocFetcher bin and an inbox folder overlap. The inbox folder is inserted in the {0} slot."),
+	search_include_bin ("Bin",
+		"Checkbox right of the search field: also show results from the DocFetcher bin. Off at every start."),
+	search_include_bin_tip ("Also show results from the DocFetcher bin",
+		"Tooltip of the checkbox 'Bin' right of the search field."),
+	bin_tab ("Bin",
+		"Title of the tab that lists the DocFetcher bin: the folder into which deleted files are moved."),
+	bin_folder_label ("DocFetcher bin: {0}",
+		"Label on the 'Bin' tab showing the bin folder. The folder path is inserted in the {0} slot."),
+	bin_count ("{0,choice,0#Empty|1#One entry, {1}|1<{0} entries, {1}}",
+		"Label on the 'Bin' tab: the number of files and folders in the bin ({0}) and their total size ({1}, e.g. '12.3 MB')."),
+	restore_from_bin ("Restore from Bin...",
+		"Context menu entry of the result table for files in the DocFetcher bin."),
+	restore_bt ("&Restore...",
+		"Button on the 'Bin' tab that restores the selected files and folders."),
+	empty_bin_bt ("&Empty Bin...",
+		"Button on the 'Bin' tab that moves everything in the DocFetcher bin to the recycle bin of the system."),
+	restore_title ("Restore",
+		"Title of the question where files from the DocFetcher bin should go, and of the folder chooser for them."),
+	restore_question ("Where should {0,choice,1#the selected entry|1<the {0} selected entries} go?\n\nOriginal location: back where they were deleted (entries put into the bin otherwise go into the inbox folder).\nInbox: into the inbox folder {1}.",
+		"Question before restoring files from the DocFetcher bin. The number of entries is inserted in the {0} slot, the inbox folder in the {1} slot."),
+	restore_origin_bt ("&Original Location",
+		"Button: restore the files from the DocFetcher bin where they were deleted."),
+	restore_inbox_bt ("&Inbox",
+		"Button: restore the files from the DocFetcher bin into the first inbox folder."),
+	restore_choose_folder ("Where were these entries before? Choose the folder to restore them into.",
+		"Message of the folder chooser for files in the DocFetcher bin whose original location isn't known, when there is no inbox folder."),
+	confirm_empty_bin ("Empty the DocFetcher bin? {0} entries ({1}) go to the recycle bin of the system.",
+		"Confirmation before emptying the DocFetcher bin. The number of files and folders is inserted in the {0} slot, their size in the {1} slot."),
+	confirm_empty_bin_permanently ("Empty the DocFetcher bin? {0} entries ({1}) are deleted permanently. This cannot be undone.",
+		"Confirmation before emptying the DocFetcher bin on a system without a recycle bin. The number of files and folders is inserted in the {0} slot, their size in the {1} slot."),
+	confirm_delete_bin ("Move {0} file(s) to the DocFetcher bin?\n\n{1}",
+		"Confirmation before deleting files when a DocFetcher bin folder is set. The number of files is inserted in the {0} slot, their names in the {1} slot."),
+	confirm_remove_from_bin ("Remove {0} file(s) from the DocFetcher bin? They go to the recycle bin of the system.\n\n{1}",
+		"Confirmation before deleting files that are in the DocFetcher bin. The number of files is inserted in the {0} slot, their names in the {1} slot."),
+	confirm_delete_folder_bin ("Move the folder '{0}' with {1} file(s) to the DocFetcher bin?",
+		"Confirmation before deleting a folder when a DocFetcher bin folder is set. The folder name is inserted in the {0} slot, the number of files in the {1} slot."),
+	confirm_remove_folder_from_bin ("Remove the folder '{0}' with {1} file(s) from the DocFetcher bin? It goes to the recycle bin of the system.",
+		"Confirmation before deleting a folder that is in the DocFetcher bin. The folder name is inserted in the {0} slot, the number of files in the {1} slot."),
 	confirm_delete_permanently (
 		"Delete {0} file(s) permanently? This cannot be undone.\n\n{1}",
 		"Confirmation before deleting files on a system without a recycle " +
 		"bin. The number of files is inserted in the {0} slot, their names " +
 		"in the {1} slot."),
 	confirm_delete_folder_trash (
-		"Move the folder ''{0}'' with {1} file(s) to the recycle bin?",
+		"Move the folder '{0}' with {1} file(s) to the recycle bin?",
 		"Confirmation before deleting a folder. The folder name is " +
 		"inserted in the {0} slot, the number of files it contains in the " +
 		"{1} slot."),
 	confirm_delete_folder_permanently (
-		"Delete the folder ''{0}'' with {1} file(s) permanently? This cannot " +
+		"Delete the folder '{0}' with {1} file(s) permanently? This cannot " +
 		"be undone.",
 		"Confirmation before deleting a folder on a system without a " +
 		"recycle bin. The folder name is inserted in the {0} slot, the " +
 		"number of files it contains in the {1} slot."),
 	delete_folder_index_root (
-		"''{0}'' is the root folder of an index and is therefore not deleted " +
+		"'{0}' is the root folder of an index and is therefore not deleted " +
 		"here. Remove the index first, then delete the folder in the file " +
 		"manager.",
 		"Error message shown when the user tries to delete the root folder " +
@@ -1034,11 +1080,11 @@ public enum Msg {
 		"Title of the dialog for renaming a folder in the folder browser."),
 	rename_folder_msg ("Please enter the new folder name:",
 		"Message of the dialog for renaming a folder."),
-	rename_folder_failed ("''{0}'' cannot be used as a folder name.",
+	rename_folder_failed ("'{0}' cannot be used as a folder name.",
 		"Error message for an unusable folder name, which is inserted in " +
 		"the {0} slot."),
 	rename_folder_index_root (
-		"''{0}'' is the root folder of an index and is therefore not renamed " +
+		"'{0}' is the root folder of an index and is therefore not renamed " +
 		"here. Remove the index first, rename the folder in the file " +
 		"manager, and create the index again.",
 		"Error message shown when the user tries to rename the root folder " +

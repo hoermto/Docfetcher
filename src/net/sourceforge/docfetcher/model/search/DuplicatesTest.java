@@ -99,7 +99,7 @@ public final class DuplicatesTest {
 				Cancelable.nullCancelable, new Searcher.DuplicateProgress() {
 					public void update(int done, int total) {
 					}
-				}, null, true);
+				}, null, null, true);
 			assertEquals(1, groups.size());
 			assertEquals(Searcher.DuplicateGroup.Kind.IDENTICAL_TEXT, groups.get(0).kind);
 			assertEquals(2, groups.get(0).docs.size());
@@ -111,11 +111,34 @@ public final class DuplicatesTest {
 
 	private static List<Searcher.DuplicateGroup> find(SearchTestSupport support, java.io.File folder,
 			boolean contentOnly) throws Exception {
+		return find(support, folder, null, contentOnly);
+	}
+
+	private static List<Searcher.DuplicateGroup> find(SearchTestSupport support, java.io.File folder,
+			java.io.File excluded, boolean contentOnly) throws Exception {
 		return support.registry.getSearcher().findDuplicates(Cancelable.nullCancelable,
 			new Searcher.DuplicateProgress() {
 				public void update(int done, int total) {
 				}
-			}, folder, contentOnly);
+			}, folder, excluded, contentOnly);
+	}
+
+	@Test
+	public void theBinIsLeftOut() throws Exception {
+		SearchTestSupport support = new SearchTestSupport(
+			"Archiv/brief.txt", LETTER,
+			"Papierkorb/brief.txt", LETTER,
+			"Papierkorb/brief-2.txt", LETTER);
+		try {
+			assertEquals(3, find(support, null, true).get(0).docs.size());
+			// The copies in the bin don't count
+			assertEquals(0, find(support, null, new java.io.File(support.root, "Papierkorb"), true).size());
+			// Inside the bin (the dialog excludes nothing then)
+			assertEquals(2, find(support, new java.io.File(support.root, "Papierkorb"), true).get(0).docs.size());
+		}
+		finally {
+			support.dispose();
+		}
 	}
 
 	@Test
@@ -169,7 +192,7 @@ public final class DuplicatesTest {
 					public void update(int done, int total) {
 						progress.add(done);
 					}
-				}, null, true);
+				}, null, null, true);
 			assertEquals(1, groups.size());
 			List<String> names = new ArrayList<String>();
 			for (ResultDocument doc : groups.get(0).docs)
@@ -185,7 +208,7 @@ public final class DuplicatesTest {
 			}, new Searcher.DuplicateProgress() {
 				public void update(int done, int total) {
 				}
-			}, null, true).size());
+			}, null, null, true).size());
 		}
 		finally {
 			support.dispose();

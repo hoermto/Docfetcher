@@ -8,6 +8,7 @@
 
 package net.sourceforge.docfetcher.gui.pref;
 
+import java.io.File;
 import java.util.List;
 
 import org.eclipse.swt.SWT;
@@ -23,10 +24,12 @@ import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.Table;
 import org.eclipse.swt.widgets.TableColumn;
 import org.eclipse.swt.widgets.TableItem;
+import org.eclipse.swt.widgets.Text;
 
 import net.sourceforge.docfetcher.enums.Img;
 import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.enums.SettingsConf;
+import net.sourceforge.docfetcher.gui.Bin;
 import net.sourceforge.docfetcher.gui.InboxFolders;
 import net.sourceforge.docfetcher.gui.MoveTargets;
 import net.sourceforge.docfetcher.util.AppUtil;
@@ -38,7 +41,8 @@ import net.sourceforge.docfetcher.util.gui.dialog.InputDialog;
 
 /**
  * The 'Folders' tab of the preferences dialog: the inbox folders (each
- * shown on its own tab in the main window) and the fixed move targets.
+ * shown on its own tab in the main window), the fixed move targets and the
+ * folder of the DocFetcher bin.
  */
 final class FoldersPanel {
 
@@ -47,6 +51,7 @@ final class FoldersPanel {
 	private final List<InboxFolders.Entry> inboxEntries;
 	private final Table targetTable;
 	private final List<String> targetPaths;
+	private final Text binText;
 
 	public FoldersPanel(@NotNull Composite parent) {
 		Util.checkNotNull(parent);
@@ -157,6 +162,32 @@ final class FoldersPanel {
 		removeTargetBt.setEnabled(false);
 		fillTargetTable();
 		createHint(comp, Msg.pref_move_targets_hint.get());
+
+		// DocFetcher bin
+		Label binLabel = new Label(comp, SWT.NONE);
+		binLabel.setText(Msg.pref_bin_folder.get());
+		GridData binLabelData = new GridData(SWT.FILL, SWT.CENTER, false, false, 2, 1);
+		binLabelData.verticalIndent = 10;
+		binLabel.setLayoutData(binLabelData);
+
+		binText = new Text(comp, SWT.BORDER | SWT.READ_ONLY);
+		binText.setText(SettingsConf.Str.BinFolder.get());
+		binText.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
+		Composite binButtons = createButtonColumn(comp);
+		createButton(binButtons, Msg.pref_bin_choose.get(), new Runnable() {
+			public void run() {
+				String current = binText.getText();
+				String path = chooseFolder(Msg.pref_bin_folder.get(), current.isEmpty() ? null : current);
+				if (path != null)
+					binText.setText(path);
+			}
+		});
+		createButton(binButtons, Msg.remove_index_bt.get(), new Runnable() {
+			public void run() {
+				binText.setText("");
+			}
+		});
+		createHint(comp, Msg.pref_bin_hint.get());
 	}
 
 	@NotNull
@@ -268,6 +299,7 @@ final class FoldersPanel {
 		fillInboxTable();
 		targetPaths.clear();
 		fillTargetTable();
+		binText.setText("");
 	}
 
 	/**
@@ -287,8 +319,24 @@ final class FoldersPanel {
 				return false;
 			}
 		}
+		String binPath = binText.getText().trim();
+		if (!binPath.isEmpty()) {
+			File bin = Util.getCanonicalFile(binPath);
+			for (InboxFolders.Entry entry : inboxEntries) {
+				File inbox = entry.getFolder();
+				if (Bin.contains(bin, inbox) || Util.contains(inbox, bin)) {
+					AppUtil.showError(Msg.pref_bin_conflict.format(entry.getPath()), true, true);
+					return false;
+				}
+			}
+			if (bin.getParentFile() == null || (!bin.isDirectory() && !bin.mkdirs())) {
+				AppUtil.showError(Msg.folder_not_found.get() + "\n" + binPath, true, true);
+				return false;
+			}
+		}
 		InboxFolders.save(inboxEntries);
 		MoveTargets.save(targetPaths);
+		SettingsConf.Str.BinFolder.set(binPath);
 		return true;
 	}
 

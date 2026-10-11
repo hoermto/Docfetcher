@@ -48,12 +48,15 @@ public final class SearchBar {
 	public final Event<String> evtSearchTypeAhead = new Event<String>();
 	public final Event<Void> evtOpenSearchSettings = new Event<Void>();
 	public final Event<Void> evtOpenSearchHelp = new Event<Void>();
+	public final Event<Void> evtIncludeBinChanged = new Event<Void>();
 
 	private final Composite comp;
 	private final Combo searchBox;
 	private final Button searchBt;
 	private final Button searchSettingsBt;
 	private final Button helpBt;
+	private final Button binBt; // Include the DocFetcher bin; off at every start
+	private volatile boolean includeBin = false;
 	private final MemoryList<String> searchHistory;
 
 	public SearchBar(@NotNull Composite parent) {
@@ -126,12 +129,26 @@ public final class SearchBar {
 			}
 		});
 
+		// Search the DocFetcher bin too; shown only if there is a bin folder
+		binBt = new Button(comp, SWT.CHECK);
+		binBt.setText(Msg.search_include_bin.get());
+		binBt.setToolTipText(Msg.search_include_bin_tip.get());
+		binBt.setVisible(false);
+		binBt.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				includeBin = binBt.getSelection();
+				evtIncludeBinChanged.fire(null);
+			}
+		});
+
 		// Make the search box smaller when there's not enough space left
 		comp.addControlListener(new ControlAdapter() {
 			public void controlResized(ControlEvent e) {
 				Point searchBoxSize = computeSize(searchBox);
 				Point searchBtSize = computeSize(searchBt);
 				Point helpBtSize = computeSize(helpBt);
+				Point binBtSize = binBt.getVisible() ? computeSize(binBt) : new Point(0, 0);
+				int binSpace = binBt.getVisible() ? binBtSize.x + SPACING * 3 : 0;
 				/*
 				 * In a narrow pane (e.g. with three panes), the settings button
 				 * gets a short label rather than leaving no room for the search
@@ -141,7 +158,7 @@ public final class SearchBar {
 				searchSettingsBt.setText(Msg.search_settings_bt.get());
 				Point fullSettingsSize = computeSize(searchSettingsBt);
 				int room = comp.getClientArea().width - MARGIN * 2 - searchBtSize.x
-					- fullSettingsSize.x - helpBtSize.x - SPACING * 3;
+					- fullSettingsSize.x - helpBtSize.x - SPACING * 3 - binSpace;
 				if (room < minBoxWidth)
 					searchSettingsBt.setText("...");
 				Point settingsBtSize = computeSize(searchSettingsBt);
@@ -154,6 +171,7 @@ public final class SearchBar {
 				spaceLeft -= searchBtSize.x;
 				spaceLeft -= settingsBtSize.x + SPACING;
 				spaceLeft -= helpBtSize.x + SPACING;
+				spaceLeft -= binSpace;
 
 				int searchBoxMaxWidth = ProgramConf.Int.SearchBoxMaxWidth.get();
 				int searchBoxWidth = Util.clamp(spaceLeft, Math.min(minBoxWidth, searchBoxMaxWidth), searchBoxMaxWidth);
@@ -167,6 +185,9 @@ public final class SearchBar {
 
 				int helpBtX = settingsBtX + settingsBtSize.x + SPACING;
 				setBounds(helpBt, helpBtX, helpBtSize.x, caHeight, helpBtSize.y);
+
+				int binBtX = helpBtX + helpBtSize.x + SPACING * 4;
+				setBounds(binBt, binBtX, binBtSize.x, caHeight, binBtSize.y);
 			}
 		});
 	}
@@ -194,6 +215,8 @@ public final class SearchBar {
 		width += settingsBtSize.x;
 		width += helpBtSize.x;
 		width += MARGIN * 2 + SPACING * 3;
+		if (binBt.getVisible())
+			width += computeSize(binBt).x + SPACING * 4;
 
 		int height = Math.max(searchBoxSize.y, searchBtSize.y);
 		height = Math.max(height, settingsBtSize.y);
@@ -232,6 +255,28 @@ public final class SearchBar {
 
 	public boolean isEnabled() {
 		return searchBox.isEnabled();
+	}
+
+	/**
+	 * Shows or hides the checkbox for including the DocFetcher bin; hidden,
+	 * the bin isn't included.
+	 */
+	public void setBinVisible(boolean visible) {
+		if (binBt.getVisible() == visible)
+			return;
+		binBt.setVisible(visible);
+		if (!visible && binBt.getSelection()) {
+			binBt.setSelection(false);
+			includeBin = false;
+			evtIncludeBinChanged.fire(null);
+		}
+		comp.getParent().layout(true, true);
+		comp.notifyListeners(SWT.Resize, new org.eclipse.swt.widgets.Event());
+	}
+
+	/** Returns true if the search results include the DocFetcher bin. Safe to call from any thread. */
+	public boolean isBinIncluded() {
+		return includeBin;
 	}
 
 	public void setEnabled(boolean enabled) {
