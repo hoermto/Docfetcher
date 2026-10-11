@@ -49,8 +49,8 @@ skip_notarization = False
 # With a 'windows' argument, only the Windows builds are created. This allows
 # cross-building the Windows packages on Linux/macOS: All Windows-specific
 # binaries (launcher, daemon, native libraries) are prebuilt under 'dist' and
-# 'lib', so no compilation on Windows is needed. Creating the installer still
-# requires running the NSIS script separately.
+# 'lib', so no compilation on Windows is needed. The MSI installer is created on
+# Windows only (WiX Toolset, see create_windows_msi).
 windows_only = "windows" in sys.argv[1:]
 
 if "skip" in sys.argv[1:]:
@@ -87,12 +87,6 @@ do_skip_recompilation = clean_dir(
 	build_dir,
 	["classes"] if skip_recompilation else []
 )
-
-# On Windows, write the version number and nothing else into a new text file, so
-# that the version number can be easily read by the NSIS compiler when creating
-# the Windows installer.
-if is_windows:
-	to_file(join("build/version.txt"), version)
 
 all_jar_files = collect_jar_files("lib")
 host_jar_files = filter_platform_jars(all_jar_files)

@@ -70,13 +70,6 @@
     non-portable folder (heat, candle, light) if it finds WiX: the folder in
     build-wix.txt ('wix=<folder with heat.exe, candle.exe, light.exe>') or the
     PATH; the WiX 3.14 binaries zip works without installation
-- build-win-installer.nsi
-  - older NSIS script for building an .exe setup (not built by build.py)
-  - requires NSIS and must be run on Windows
-  - requires NSIS plugins in dev/nsis-dependencies;
-    see installation instructions at the top of the .nsi file
-  - must run build.py first before running this
-  - output is in the "build" folder
 - build-dmg.sh:
   - builds a macOS disk image
   - must run build.py first
@@ -96,7 +89,7 @@
   - code-signing-windows.txt:
     - for code signing on Windows
     - should contain SHA1 thumbprint of code signing certificate
-    - if present, build.py and build-win-installer.nsi will perform code signing
+    - if present, build.py will perform code signing
     - the Windows SDK must be installed, and signtool.exe must be on the PATH
   - code-signing-macos.txt:
     - for code signing and notarization on macOS
