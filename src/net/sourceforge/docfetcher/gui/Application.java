@@ -2734,34 +2734,34 @@ private static SashForm folderSash;
 					}
 				});
 				mcpServer.setOrganizer(new McpServer.FileOrganizer() {
-					public File rename(final ResultDocument doc, final String name) {
+					public File rename(final ResultDocument doc, final String name, final String summary) {
 						final File[] renamed = {null};
 						UtilGui.runSyncExec(shell, new Runnable() {
 							public void run() {
 								// The user sees the document while deciding
 								showDocuments(Collections.singletonList(doc), true);
-								renamed[0] = resultPanel.renameProposed(doc, name);
+								renamed[0] = resultPanel.renameProposed(doc, name, summary);
 							}
 						});
 						return renamed[0];
 					}
-					public List<File> move(final List<ResultDocument> docs, final File folder) {
+					public List<File> move(final List<ResultDocument> docs, final File folder, final String summary) {
 						final List<List<File>> moved = new ArrayList<List<File>>(1);
 						UtilGui.runSyncExec(shell, new Runnable() {
 							public void run() {
 								showDocuments(docs, true);
-								moved.add(resultPanel.moveProposed(docs, folder));
+								moved.add(resultPanel.moveProposed(docs, folder, summary));
 							}
 						});
 						return moved.isEmpty() ? null : moved.get(0);
 					}
 					public List<File> split(final ResultDocument doc, final PdfPages.Role[] roles,
-							final List<String> names) {
+							final List<String> names, final String summary) {
 						final List<List<File>> parts = new ArrayList<List<File>>(1);
 						UtilGui.runSyncExec(shell, new Runnable() {
 							public void run() {
 								showDocuments(Collections.singletonList(doc), true);
-								parts.add(resultPanel.splitProposed(doc, roles, names));
+								parts.add(resultPanel.splitProposed(doc, roles, names, summary));
 							}
 						});
 						return parts.isEmpty() ? null : parts.get(0);

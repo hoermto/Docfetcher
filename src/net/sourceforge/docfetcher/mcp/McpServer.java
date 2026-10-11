@@ -94,7 +94,10 @@ public final class McpServer {
 		+ "Use sort=newest for the latest documents and modified_after/modified_before for "
 		+ "periods. Documents and folders are referred to by ids, not file paths - you don't "
 		+ "need the files themselves. When the user wants to see a document, use "
-		+ "'show_document', which shows it in DocFetcher's window. Use 'get_original_document' "
+		+ "'show_document', which shows it in DocFetcher's window. To understand how the user's "
+		+ "documents are organized, 'describe_folder' shows the folder hierarchy with what each "
+		+ "folder contains, and 'find_folders' the folders with documents like a given one. "
+		+ "Use 'get_original_document' "
 		+ "only when the original file itself is needed (explicitly asked for, or its layout as "
 		+ "a template); for the content always 'read_document'. Never rename, move, change or "
 		+ "delete the user's documents yourself, even if you can access the files. ";
@@ -131,16 +134,18 @@ public final class McpServer {
 
 	/**
 	 * Lets the user confirm the changes an assistant proposes, in DocFetcher's
-	 * own dialogs prefilled with the proposal. The methods are called on the
+	 * own dialogs prefilled with the proposal and showing the assistant's
+	 * summary of it. The methods are called on the
 	 * server's thread with a found, accessible document, and return the
 	 * result, or null if the user canceled.
 	 */
 	public interface FileOrganizer {
 		/** The file after renaming it, or null if the user canceled. */
-		@Nullable java.io.File rename(@NotNull ResultDocument doc, @NotNull String name);
+		@Nullable java.io.File rename(@NotNull ResultDocument doc, @NotNull String name, @NotNull String summary);
 
 		/** The moved files at their new place (maybe in another folder than proposed), or null if the user canceled. */
-		@Nullable List<java.io.File> move(@NotNull List<ResultDocument> docs, @NotNull java.io.File folder);
+		@Nullable List<java.io.File> move(@NotNull List<ResultDocument> docs, @NotNull java.io.File folder,
+				@NotNull String summary);
 
 		/**
 		 * The parts created from the PDF file, with the proposed role of each
@@ -149,7 +154,8 @@ public final class McpServer {
 		 */
 		@Nullable List<java.io.File> split(	@NotNull ResultDocument doc,
 											@NotNull PdfPages.Role[] roles,
-											@NotNull List<String> names);
+											@NotNull List<String> names,
+											@NotNull String summary);
 	}
 
 	/** Sets who lets the user confirm changes to files; null: none possible. */

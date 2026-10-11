@@ -145,12 +145,14 @@ public final class McpServerTest {
 		assertEquals(0, result("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"ping\"}").size());
 
 		List<Object> tools = (List<Object>) result("{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/list\"}").get("tools");
-		assertEquals(5, tools.size());
+		assertEquals(7, tools.size());
 		assertEquals("search", ((Map<String, Object>) tools.get(0)).get("name"));
 		assertEquals("read_document", ((Map<String, Object>) tools.get(1)).get("name"));
 		assertEquals("get_original_document", ((Map<String, Object>) tools.get(2)).get("name"));
 		assertEquals("list_folder", ((Map<String, Object>) tools.get(3)).get("name"));
-		assertEquals("show_document", ((Map<String, Object>) tools.get(4)).get("name"));
+		assertEquals("describe_folder", ((Map<String, Object>) tools.get(4)).get("name"));
+		assertEquals("find_folders", ((Map<String, Object>) tools.get(5)).get("name"));
+		assertEquals("show_document", ((Map<String, Object>) tools.get(6)).get("name"));
 	}
 
 	@Test
@@ -204,7 +206,7 @@ public final class McpServerTest {
 		final List<String> proposed = new java.util.ArrayList<String>();
 		final boolean[] accept = {false};
 		server.setOrganizer(new McpServer.FileOrganizer() {
-			public File rename(ResultDocument doc, String name) {
+			public File rename(ResultDocument doc, String name, String summary) {
 				proposed.add(name);
 				if (!accept[0])
 					return null; // The user canceled
@@ -212,10 +214,10 @@ public final class McpServerTest {
 				File target = new File(file.getParentFile(), name);
 				return file.renameTo(target) ? target : null;
 			}
-			public List<File> move(List<ResultDocument> docs, File folder) {
+			public List<File> move(List<ResultDocument> docs, File folder, String summary) {
 				return null;
 			}
-			public List<File> split(ResultDocument doc, PdfPages.Role[] roles, List<String> names) {
+			public List<File> split(ResultDocument doc, PdfPages.Role[] roles, List<String> names, String summary) {
 				return null;
 			}
 		});
@@ -244,15 +246,19 @@ public final class McpServerTest {
 				.startsWith("A name, not a path"));
 			assertTrue(proposed.isEmpty());
 
+			assertTrue(text(call("rename_document", "{\"id\":" + Json.write(id(scan)) + ",\"name\":\"neu\"}", true), 0)
+				.contains("'summary' is missing"));
+			assertTrue(proposed.isEmpty());
+
 			// Canceled: nothing happens; confirmed: renamed, the extension kept
 			Map<String, Object> result = json(call("rename_document", "{\"id\":" + Json.write(id(scan))
-				+ ",\"name\":\"2026-10-01_Stadtwerke-Stromrechnung\"}", false), 0);
+				+ ",\"name\":\"2026-10-01_Stadtwerke-Stromrechnung\",\"summary\":\"Stromrechnung\"}", false), 0);
 			assertEquals(Boolean.FALSE, result.get("renamed"));
 			assertTrue(scan.isFile());
 			assertEquals("2026-10-01_Stadtwerke-Stromrechnung.txt", proposed.get(0));
 			accept[0] = true;
 			result = json(call("rename_document", "{\"id\":" + Json.write(id(scan))
-				+ ",\"name\":\"2026-10-01_Stadtwerke-Stromrechnung.txt\"}", false), 0);
+				+ ",\"name\":\"2026-10-01_Stadtwerke-Stromrechnung.txt\",\"summary\":\"Stromrechnung\"}", false), 0);
 			assertEquals(Boolean.TRUE, result.get("renamed"));
 			assertEquals("2026-10-01_Stadtwerke-Stromrechnung.txt", result.get("name"));
 			File renamed = new File(inbox, "2026-10-01_Stadtwerke-Stromrechnung.txt");
@@ -262,7 +268,7 @@ public final class McpServerTest {
 
 			// Outside the inbox only if the user allows that too
 			SettingsConf.Bool.McpOutsideInbox.set(true);
-			result = json(call("rename_document", "{\"id\":" + Json.write(id(elsewhere)) + ",\"name\":\"notiz-neu\"}", false), 0);
+			result = json(call("rename_document", "{\"id\":" + Json.write(id(elsewhere)) + ",\"name\":\"notiz-neu\",\"summary\":\"Stromrechnung\"}", false), 0);
 			assertEquals(Boolean.TRUE, result.get("renamed"));
 			elsewhere = new File(elsewhere.getParentFile(), "notiz-neu.txt");
 		}
@@ -286,10 +292,10 @@ public final class McpServerTest {
 		final List<File> proposed = new java.util.ArrayList<File>();
 		final boolean[] accept = {false};
 		server.setOrganizer(new McpServer.FileOrganizer() {
-			public File rename(ResultDocument doc, String name) {
+			public File rename(ResultDocument doc, String name, String summary) {
 				return null;
 			}
-			public List<File> move(List<ResultDocument> docs, File folder) {
+			public List<File> move(List<ResultDocument> docs, File folder, String summary) {
 				proposed.add(folder);
 				if (!accept[0])
 					return null; // The user canceled
@@ -302,7 +308,7 @@ public final class McpServerTest {
 				}
 				return moved;
 			}
-			public List<File> split(ResultDocument doc, PdfPages.Role[] roles, List<String> names) {
+			public List<File> split(ResultDocument doc, PdfPages.Role[] roles, List<String> names, String summary) {
 				return null;
 			}
 		});
@@ -310,7 +316,7 @@ public final class McpServerTest {
 		SettingsConf.StrList.InboxFolders.set(java.util.Arrays.asList(inbox.getPath() + "|Scans"));
 		File moved = new File(mieter, letter.getName());
 		try {
-			String move = "{\"ids\":[" + Json.write(id(letter)) + "],\"folder_id\":" + Json.write(id(mieter)) + "}";
+			String move = "{\"ids\":[" + Json.write(id(letter)) + "],\"folder_id\":" + Json.write(id(mieter)) + ",\"summary\":\"Nachtrag\"}";
 			assertFalse(Json.write(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}")).contains("move_document"));
 			assertTrue(text(call("move_document", move, true), 0).contains("switched off"));
 
@@ -366,13 +372,13 @@ public final class McpServerTest {
 		final File part1 = new File(inbox, "2026-10-01_Stadtwerke-Rechnung.pdf");
 		final File part2 = new File(inbox, "2026-10-02_Finanzamt-Bescheid.pdf");
 		server.setOrganizer(new McpServer.FileOrganizer() {
-			public File rename(ResultDocument doc, String name) {
+			public File rename(ResultDocument doc, String name, String summary) {
 				return null;
 			}
-			public List<File> move(List<ResultDocument> docs, File folder) {
+			public List<File> move(List<ResultDocument> docs, File folder, String summary) {
 				return null;
 			}
-			public List<File> split(ResultDocument doc, PdfPages.Role[] proposed, List<String> partNames) {
+			public List<File> split(ResultDocument doc, PdfPages.Role[] proposed, List<String> partNames, String summary) {
 				roles.add(proposed);
 				names.add(partNames);
 				return accept[0] ? java.util.Arrays.asList(part1, part2) : null;
@@ -411,7 +417,7 @@ public final class McpServerTest {
 
 			// The blank page left out; names with the extension; canceled, then confirmed
 			String split = "{" + idArg + ",\"parts\":[{\"pages\":[1,2],\"name\":\"2026-10-01_Stadtwerke-Rechnung\"},"
-				+ "{\"pages\":[4],\"name\":\"2026-10-02_Finanzamt-Bescheid.pdf\"}]}";
+				+ "{\"pages\":[4],\"name\":\"2026-10-02_Finanzamt-Bescheid.pdf\"}],\"summary\":\"Zwei Briefe\"}";
 			Map<String, Object> result = json(call("split_document", split, false), 0);
 			assertEquals(Boolean.FALSE, result.get("split"));
 			assertEquals(java.util.Arrays.asList(PdfPages.Role.START, PdfPages.Role.CONTINUE, PdfPages.Role.OMIT,
@@ -431,6 +437,39 @@ public final class McpServerTest {
 			stack.delete();
 			elsewhere.delete();
 		}
+	}
+
+	@Test
+	@SuppressWarnings("unchecked")
+	public void foldersDescribedAndFoundByContent() throws Exception {
+		// The hierarchy with what each folder contains
+		Map<String, Object> roots = json(call("describe_folder", "{}", false), 0);
+		Map<String, Object> root = (Map<String, Object>) ((List<Object>) roots.get("folders")).get(0);
+		assertEquals(5L, ((Number) root.get("documents")).longValue());
+		List<Object> subfolders = (List<Object>) root.get("subfolders");
+		assertEquals(Json.write(root), 2, subfolders.size());
+		Map<String, Object> mieter = (Map<String, Object>) subfolders.get(0);
+		assertTrue(((String) mieter.get("folder")).endsWith("Mieter"));
+		assertEquals(2L, ((Number) mieter.get("documents")).longValue());
+		Map<String, Object> posteingang = (Map<String, Object>) subfolders.get(1);
+		assertEquals(3L, ((Number) posteingang.get("documents")).longValue());
+		String words = Json.write(posteingang.get("keywords"));
+		assertTrue(words, words.contains("finanzamt (2)"));
+		assertFalse("In all documents: says nothing", words.contains("bonn"));
+		assertEquals("stadtwerke.txt", ((List<Object>) posteingang.get("newest_documents")).get(0));
+		// Depth 0: no subfolders, but their number
+		Map<String, Object> flat = (Map<String, Object>) ((List<Object>) json(call("describe_folder",
+			"{\"depth\":0}", false), 0).get("folders")).get(0);
+		assertNull(flat.get("subfolders"));
+		assertEquals(2L, ((Number) flat.get("subfolders_not_listed")).longValue());
+
+		// Folders with similar documents, with their profiles
+		File letter = new File(support.root, "Posteingang/stadtwerke.txt");
+		Map<String, Object> found = json(call("find_folders", "{\"id\":" + Json.write(id(letter)) + "}", false), 0);
+		assertTrue(Json.write(found), found.get("similar_folders") instanceof List);
+		assertEquals("stadtwerke.txt", ((Map<String, Object>) found.get("document")).get("filename"));
+		assertTrue(text(call("find_folders", "{\"id\":" + Json.write(id(support.root)) + "}", true), 0)
+			.startsWith("Not a file"));
 	}
 
 	@Test
@@ -615,7 +654,7 @@ public final class McpServerTest {
 		assertEquals("private", discover.get("cacheScope"));
 
 		Map<String, Object> list = modernResult(modern("tools/list", "", null, v));
-		assertEquals(5, ((List<Object>) list.get("tools")).size());
+		assertEquals(7, ((List<Object>) list.get("tools")).size());
 		assertTrue(((Number) list.get("ttlMs")).longValue() > 0);
 
 		String search = "\"name\":\"search\",\"arguments\":{\"query\":\"Rosenweg\"}";

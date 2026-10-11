@@ -1516,6 +1516,8 @@ public enum Msg {
 		"Reason in the split dialog for a page whose role an AI assistant proposed."),
 	pref_mcp_outside_inbox ("Renaming and moving also outside the inbox folders (otherwise only there)",
 		"Option on the preferences tab for AI assistants, off by default."),
+	mcp_summary ("AI assistant: {0}",
+		"Shown at the top of the rename, move and split dialogs: the summary an AI assistant gives for its proposal ({0})."),
 	mcp_rename_msg ("An AI assistant proposes this name. Change it if you like - OK renames the file, Cancel declines:",
 		"Label in the rename dialog when an AI assistant proposes the name."),
 	pref_mcp_file_folder ("Folder in which AI assistants with file access (e.g. Claude Code) may save new files:",

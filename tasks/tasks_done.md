@@ -571,3 +571,21 @@
     proposal: roles, names while unchanged). App test (dev build, MCP 28836): 4-page PDF in the inbox; analyze_pages:
     1 start, 2 continue (2/2), 3 blank leave_out, 4 start; split_document -> split dialog prefilled, OK, originals
     question, Keep -> two parts with the proposed names, ids returned.
+- MCP: describe_folder, find_folders, summary of proposals (v3.0; 'use the LLM's power over DocFetcher's statistics')
+  - Answers: rename and move stay separate; a summary text in the dialog; describe_folder with folder + subfolders,
+    selectable depth; own tool find_folders.
+  - FolderProfile (model.search, Searcher.profileFolders): one pass over the postings of the content field for the
+    requested folders (each counts its subtree, bin excluded): documents, period (LAST_MODIFIED), newest 3 names,
+    keywords = folder document count x log(N/df) among the 300 most frequent words, words in more than half of all
+    documents, numbers, short words and file extensions left out; df via reader.docFreq only for candidates.
+  - describe_folder(id?, depth 0-3, default 1): breadth first, at most 150 folders (note when cut),
+    subfolders_not_listed below the depth; without id the root folders (not the bin). find_folders(id, max 10/20):
+    Searcher.suggestFolders on the document text (inbox folders and its own folder excluded) with profiles and
+    match, plus fixed targets with profiles. McpTools.text shared with read_document. Instructions mention both.
+  - rename/move/split_document require 'summary' (shown as 'AI assistant: ...' above the message in the rename,
+    move and split dialogs); descriptions: compose names / choose folders from the content, suggested_name and
+    matches are only statistics. Rename dialog wider (600) with a wrapping message.
+  - Tests: McpServerTest.foldersDescribedAndFoundByContent (root 5 documents, Mieter 2, Posteingang 3 with
+    'finanzamt (2)' and not 'bonn', newest name; depth 0; find_folders), summary missing refused, tool list 7.
+    App test (dev build, MCP 28836): describe_folder depth 2 (inbox, Archiv with 2025/2026, Belege), find_folders,
+    rename_document with summary -> shown at the top of the rename dialog; Cancel -> renamed false.

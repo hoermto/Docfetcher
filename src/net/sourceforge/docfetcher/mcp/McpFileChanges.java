@@ -75,33 +75,39 @@ final class McpFileChanges {
 		List<Map<String, Object>> tools = new ArrayList<Map<String, Object>>(1);
 		if (renameAllowed()) {
 			tools.add(McpTools.changingTool(RENAME,
-				"Proposes a new name for a document" + scope() + ". DocFetcher shows the "
-				+ "document and its rename dialog prefilled with the name; the user may change it, "
-				+ "confirm or cancel - the result says what happened. The extension stays. Follow "
-				+ "the user's naming rules: " + namingRules() + " read_document returns DocFetcher's "
-				+ "own suggestion as suggested_name (date and characteristic words), a good start.",
+				"Proposes a new name for a document" + scope() + ". Read the document first and "
+				+ "compose a name that tells the user at a glance what it is (who sent it, what it is "
+				+ "about, its date), following the user's naming rules: " + namingRules() + " The "
+				+ "suggested_name of read_document is only DocFetcher's statistical guess (a date and "
+				+ "frequent words) - use your understanding of the content instead. DocFetcher shows "
+				+ "the document and its rename dialog prefilled with your name and your summary; the "
+				+ "user may change the name, confirm or cancel - the result says what happened. The "
+				+ "extension stays.",
 				McpTools.props(
 					"id", McpTools.prop("string", "Id of the document, as returned by search or list_folder"),
-					"name", McpTools.prop("string", "The proposed file name, with or without the extension")),
-				"id", "name"));
+					"name", McpTools.prop("string", "The proposed file name, with or without the extension"),
+					"summary", summaryProp("what the document is")),
+				"id", "name", "summary"));
 		}
 		if (moveAllowed()) {
 			Map<String, Object> idList = McpTools.prop("array", "Ids of the documents, as returned by "
 				+ "search or list_folder");
 			idList.put("items", McpTools.props("type", "string"));
 			tools.add(McpTools.changingTool(MOVE,
-				"Proposes moving documents" + scope() + " into another folder, e.g. to file "
-				+ "a new letter where similar documents are. DocFetcher shows the documents and its "
-				+ "move dialog with the folder preselected (next to its own suggestions); the user "
-				+ "may choose another folder, confirm or cancel - the result says what happened. To "
-				+ "find the most suiting folder, read_document returns suggested_folders (the user's "
-				+ "fixed targets and folders with similar documents); list_folder shows the others. "
-				+ "The target must be an indexed folder.",
+				"Proposes moving documents" + scope() + " into the folder where they belong, "
+				+ "e.g. to file a new letter. Decide by meaning: read the document, learn the user's "
+				+ "filing system with describe_folder (the folder hierarchy with what each folder "
+				+ "contains) and use find_folders for candidates with similar documents - their "
+				+ "matches are statistics, your understanding decides. DocFetcher shows the documents "
+				+ "and its move dialog with your folder preselected and your summary; the user may "
+				+ "choose another folder, confirm or cancel - the result says what happened. The "
+				+ "target must be an indexed folder.",
 				McpTools.props(
 					"ids", idList,
 					"folder_id", McpTools.prop("string", "Id of the target folder, as returned by "
-						+ "read_document's suggested_folders or list_folder")),
-				"ids", "folder_id"));
+						+ "describe_folder, find_folders or list_folder"),
+					"summary", summaryProp("why the documents belong into this folder")),
+				"ids", "folder_id", "summary"));
 		}
 		if (splitAllowed()) {
 			Map<String, Object> id = McpTools.prop("string", "Id of a PDF document in an inbox folder, as "
@@ -132,9 +138,28 @@ final class McpFileChanges {
 				+ "Name the parts following the user's naming rules: " + namingRules() + " If the "
 				+ "user changes the parts, DocFetcher names them itself. DocFetcher asks the user "
 				+ "what happens to the original (by default into the bin).",
-				McpTools.props("id", id, "parts", parts), "id", "parts"));
+				McpTools.props("id", id, "parts", parts, "summary", summaryProp("which documents the "
+					+ "file contains")), "id", "parts", "summary"));
 		}
 		return tools;
+	}
+
+	/** The summary of a proposal, shown to the user in DocFetcher's dialog. */
+	@NotNull
+	private static Map<String, Object> summaryProp(@NotNull String what) {
+		return McpTools.prop("string", "One or two sentences for the user, shown in DocFetcher's "
+			+ "dialog: " + what + ", e.g. 'Stromrechnung der Stadtwerke Bonn für Oktober 2026, Abschlag "
+			+ "85 Euro' - in the user's language");
+	}
+
+	/** The summary of the proposal; required, so that the user sees what the assistant means. */
+	@NotNull
+	private static String summary(@NotNull Map<String, Object> args) throws ToolException {
+		String summary = McpTools.string(args, "summary");
+		if (summary == null || summary.trim().isEmpty())
+			throw new ToolException("The argument 'summary' is missing: tell the user in one or two "
+				+ "sentences what you propose and why.");
+		return summary.trim();
 	}
 
 	/** The part of the server instructions about changes, empty without any. */
@@ -334,7 +359,7 @@ final class McpFileChanges {
 		McpServer.FileOrganizer organizer = tools.organizer;
 		if (organizer == null)
 			throw new ToolException("DocFetcher's window is not available.");
-		List<File> created = organizer.split(tools.findDocument(file), roles, names);
+		List<File> created = organizer.split(tools.findDocument(file), roles, names, summary(args));
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
 		if (created == null || created.isEmpty()) {
 			result.put("split", false);
@@ -375,7 +400,7 @@ final class McpFileChanges {
 		McpServer.FileOrganizer organizer = tools.organizer;
 		if (organizer == null)
 			throw new ToolException("DocFetcher's window is not available.");
-		List<File> moved = organizer.move(docs, folder);
+		List<File> moved = organizer.move(docs, folder, summary(args));
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
 		if (moved == null || moved.isEmpty()) {
 			result.put("moved", false);
@@ -409,7 +434,7 @@ final class McpFileChanges {
 		if (organizer == null)
 			throw new ToolException("DocFetcher's window is not available.");
 		ResultDocument doc = tools.findDocument(file);
-		File renamed = organizer.rename(doc, name);
+		File renamed = organizer.rename(doc, name, summary(args));
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
 		if (renamed == null || renamed.equals(file)) {
 			result.put("renamed", false);

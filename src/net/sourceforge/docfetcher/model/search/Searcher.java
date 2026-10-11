@@ -699,6 +699,32 @@ public final class Searcher {
 		}
 	}
 
+	/**
+	 * Returns the profiles of the given folders (see FolderProfile), from the
+	 * words in the indexes - no document is opened. Documents in
+	 * {@code excluded} (the bin) don't count.
+	 */
+	@NotNull
+	@ThreadSafe
+	public List<FolderProfile> profileFolders(	@NotNull List<java.io.File> folders,
+												@Nullable java.io.File excluded)
+			throws SearchException, CheckedOutOfMemoryError {
+		readLock.lock();
+		try {
+			checkIndexesExist();
+			return FolderProfile.compute(luceneSearcher.getIndexReader(), folders, excluded);
+		}
+		catch (IOException e) {
+			throw new SearchException(e.getMessage());
+		}
+		catch (OutOfMemoryError e) {
+			throw new CheckedOutOfMemoryError(e);
+		}
+		finally {
+			readLock.unlock();
+		}
+	}
+
 	/** Reports how many documents were compared, of how many. */
 	public interface DuplicateProgress {
 		void update(int done, int total);

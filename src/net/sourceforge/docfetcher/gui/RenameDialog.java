@@ -61,9 +61,11 @@ final class RenameDialog {
 		shell.setImage(Img.FILE.get());
 		shell.setLayout(UtilGui.createGridLayout(1, false, 10, 5));
 
-		Label label = new Label(shell, SWT.NONE);
+		Label label = new Label(shell, SWT.WRAP);
 		label.setText(message);
-		label.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		GridData labelData = new GridData(SWT.FILL, SWT.CENTER, true, false);
+		labelData.widthHint = 560; // Long messages (an assistant's summary) wrap
+		label.setLayoutData(labelData);
 
 		nameEditor = new NameEditor(shell, extension, Msg.use_current_name.get());
 		nameEditor.getControl().setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
@@ -104,7 +106,7 @@ final class RenameDialog {
 
 		shell.pack();
 		Point size = shell.getSize();
-		shell.setSize(Math.max(size.x, 500), size.y);
+		shell.setSize(Math.max(size.x, 600), size.y);
 		UtilGui.setCenteredBounds(shell, shell.getSize().x, shell.getSize().y);
 	}
 

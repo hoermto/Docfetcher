@@ -26,6 +26,7 @@ import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.gui.Bin;
 import net.sourceforge.docfetcher.gui.InboxFolders;
 import net.sourceforge.docfetcher.gui.MoveTargets;
+import net.sourceforge.docfetcher.model.search.FolderProfile;
 import net.sourceforge.docfetcher.model.search.FolderSuggestion;
 import net.sourceforge.docfetcher.model.search.NameSuggester;
 import net.sourceforge.docfetcher.gui.FolderPanel;
@@ -64,6 +65,9 @@ final class McpTools {
 	private static final int MAX_FOLDER_ENTRIES = 500;
 	private static final int OVERVIEW_FOLDERS = 10;
 	private static final int OVERVIEW_WORDS = 15;
+	/** describe_folder: levels of subfolders and folders in one answer, at most. */
+	private static final int MAX_DEPTH = 3;
+	private static final int MAX_DESCRIBED = 150;
 	private static final int OVERVIEW_PERIODS = 24;
 	/** Content words: the text of at most this many documents is read, within the time limit. */
 	private static final int SAMPLE_SIZE = 20;
@@ -162,6 +166,26 @@ final class McpTools {
 			props("id", prop("string", "Id of a folder, as returned by list_folder or search; omit for "
 				+ "the indexed folders"), "path", pathProp("folder")),
 			null));
+		tools.add(tool("describe_folder",
+			"Describes what folders contain, to understand the user's filing system (e.g. to decide "
+			+ "where a document belongs): for the folder and its subfolders down to 'depth' levels, the "
+			+ "number of documents, their period, the newest names and the words that characterize "
+			+ "them (frequent there, rare elsewhere; from DocFetcher's index, with the number of "
+			+ "documents containing each word). Without an id: the indexed folders. Judge the meaning "
+			+ "yourself - the words are statistics, the folder names and the hierarchy tell a lot too.",
+			props("id", prop("string", "Id of a folder, as returned by list_folder, find_folders or "
+					+ "describe_folder; omit for the indexed folders"),
+				"depth", prop("integer", "Levels of subfolders, 0 to " + MAX_DEPTH + " (default 1)")),
+			null));
+		tools.add(tool("find_folders",
+			"Finds the folders whose documents are most similar to a document (DocFetcher compares "
+			+ "the words with all indexed documents), each with its place in the hierarchy, the match "
+			+ "and its profile as in describe_folder - candidates for where the document belongs. "
+			+ "Also lists the user's fixed move targets. A statistical starting point: read the "
+			+ "document and decide by its meaning, also considering other folders (describe_folder).",
+			props("id", prop("string", "Id of the document, as returned by search or list_folder"),
+				"max_results", prop("integer", "Maximum number of similar folders (default 10, at most 20)")),
+			"id"));
 		Map<String, Object> idList = prop("array", "Ids of the documents, as returned by search or "
 			+ "list_folder; the first one is selected");
 		idList.put("items", props("type", "string"));
@@ -270,6 +294,10 @@ final class McpTools {
 			return showDocuments(args);
 		if (name.equals(McpFileFolder.TOOL))
 			return McpFileFolder.call(folderApprover);
+		if (name.equals("describe_folder"))
+			return describeFolder(args);
+		if (name.equals("find_folders"))
+			return findFolders(args);
 		if (name.equals(McpFileChanges.RENAME))
 			return McpFileChanges.rename(this, args);
 		if (name.equals(McpFileChanges.MOVE))
@@ -618,17 +646,7 @@ final class McpTools {
 		int maxChars = Util.clamp(integer(args, "max_chars", DEFAULT_MAX_CHARS), 1, MAX_CHARS_LIMIT);
 
 		ResultDocument doc = findDocument(file);
-		String text = null;
-		// PDF files in visual order, unless asked otherwise (see the tool description)
-		if (!"stream".equals(string(args, "order")) && file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf"))
-			text = PdfVisualText.of(file);
-		try {
-			if (text == null)
-				text = doc.getText(); // Also recognizes scans whose text wasn't stored
-		}
-		catch (Throwable e) {
-			throw new ToolException("The text of the document could not be read: " + e.getMessage());
-		}
+		String text = text(doc, file, "stream".equals(string(args, "order")));
 		int start = Math.min(offset, text.length());
 		int end = Math.min(text.length(), start + maxChars);
 
@@ -653,6 +671,176 @@ final class McpTools {
 		if (end < text.length())
 			meta.put("next_offset", end);
 		return Arrays.<Object> asList(meta, text.substring(start, end));
+	}
+
+	@NotNull
+	private Map<String, Object> describeFolder(@NotNull Map<String, Object> args) throws ToolException {
+		int depth = Util.clamp(integer(args, "depth", 1), 0, MAX_DEPTH);
+		List<File> starts = new ArrayList<File>();
+		if (string(args, "id") != null || (pathsVisible() && string(args, "path") != null)) {
+			File folder = target(args, "id");
+			if (!folder.isDirectory())
+				throw new ToolException("Not a folder (or not found): " + folder.getName());
+			starts.add(folder);
+		}
+		else {
+			for (File root : FolderPanel.getRootFolders(registry))
+				if (!Bin.contains(root))
+					starts.add(resolve(root.getPath()));
+		}
+		// The folders to describe, breadth first, so that a limit cuts the deepest levels
+		List<File> all = new ArrayList<File>(starts);
+		Map<File, List<File>> children = new java.util.HashMap<File, List<File>>();
+		List<File> level = starts;
+		boolean truncated = false;
+		for (int d = 0; d < depth && !level.isEmpty(); d++) {
+			List<File> next = new ArrayList<File>();
+			for (File folder : level) {
+				List<File> subfolders = subfolders(folder);
+				if (all.size() + subfolders.size() > MAX_DESCRIBED) {
+					truncated = true;
+					continue;
+				}
+				children.put(folder, subfolders);
+				all.addAll(subfolders);
+				next.addAll(subfolders);
+			}
+			level = next;
+		}
+		Map<File, FolderProfile> profiles = profiles(all);
+		List<Object> described = new ArrayList<Object>();
+		for (File folder : starts)
+			described.add(folderTree(folder, profiles, children));
+		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		result.put("folders", described);
+		if (truncated)
+			result.put("note", "Not all subfolders are listed (at most " + MAX_DESCRIBED + " folders): "
+				+ "describe a subfolder by its id for more.");
+		return result;
+	}
+
+	/** The subfolders on disk, by name, without hidden ones and the bin. */
+	@NotNull
+	private static List<File> subfolders(@NotNull File folder) {
+		List<File> subfolders = new ArrayList<File>();
+		File[] files = folder.listFiles();
+		if (files == null)
+			return subfolders;
+		for (File file : files)
+			if (file.isDirectory() && !file.isHidden() && !Bin.contains(file))
+				subfolders.add(file);
+		Collections.sort(subfolders, new Comparator<File>() {
+			public int compare(File f1, File f2) {
+				return AlphanumComparator.ignoreCaseInstance.compare(f1.getName(), f2.getName());
+			}
+		});
+		return subfolders;
+	}
+
+	/** The profiles of the folders, from the index. */
+	@NotNull
+	private Map<File, FolderProfile> profiles(@NotNull List<File> folders) throws ToolException {
+		Map<File, FolderProfile> profiles = new java.util.HashMap<File, FolderProfile>();
+		try {
+			for (FolderProfile profile : registry.getSearcher().profileFolders(folders, Bin.getFolder()))
+				profiles.put(profile.folder, profile);
+		}
+		catch (Exception e) {
+			throw new ToolException("The folders could not be described: " + e.getMessage());
+		}
+		return profiles;
+	}
+
+	/** A folder with its profile and, if listed, its subfolders. */
+	@NotNull
+	private Map<String, Object> folderTree(	@NotNull File folder,
+											@NotNull Map<File, FolderProfile> profiles,
+											@NotNull Map<File, List<File>> children) {
+		Map<String, Object> map = folderProfile(folder, profiles.get(folder));
+		List<File> subfolders = children.get(folder);
+		if (subfolders != null) {
+			if (!subfolders.isEmpty()) {
+				List<Object> list = new ArrayList<Object>();
+				for (File subfolder : subfolders)
+					list.add(folderTree(subfolder, profiles, children));
+				map.put("subfolders", list);
+			}
+		}
+		else {
+			int count = subfolders(folder).size();
+			if (count > 0)
+				map.put("subfolders_not_listed", count);
+		}
+		return map;
+	}
+
+	/** A folder with its place in the hierarchy and its profile. */
+	@NotNull
+	private Map<String, Object> folderProfile(@NotNull File folder, @Nullable FolderProfile profile) {
+		Map<String, Object> map = new LinkedHashMap<String, Object>();
+		map.put("id", ids.idOf(folder));
+		map.put("folder", location(folder));
+		putPath(map, folder);
+		if (profile == null || profile.getDocuments() == 0) {
+			map.put("documents", 0);
+			return map;
+		}
+		map.put("documents", profile.getDocuments());
+		if (profile.getOldest() > 0) {
+			map.put("oldest", format(new Date(profile.getOldest())).substring(0, 10));
+			map.put("newest", format(new Date(profile.getNewest())).substring(0, 10));
+		}
+		if (!profile.getKeywords().isEmpty())
+			map.put("keywords", profile.getKeywords());
+		map.put("newest_documents", profile.getExamples());
+		return map;
+	}
+
+	@NotNull
+	private Map<String, Object> findFolders(@NotNull Map<String, Object> args) throws ToolException {
+		File file = target(args, "id");
+		if (!file.isFile())
+			throw new ToolException("Not a file (or not found): " + file.getName());
+		int max = Util.clamp(integer(args, "max_results", 10), 1, 20);
+		ResultDocument doc = findDocument(file);
+		String text = text(doc, file, false);
+		List<File> folders = new ArrayList<File>();
+		List<String> matches = new ArrayList<String>();
+		try {
+			List<File> exclude = InboxFolders.getFolders();
+			exclude.add(file.getParentFile());
+			for (FolderSuggestion suggestion : registry.getSearcher().suggestFolders(
+					text + "\n" + doc.getFilename(), exclude, max)) {
+				if (Bin.contains(suggestion.getFolder()))
+					continue;
+				folders.add(resolve(suggestion.getFolder().getPath()));
+				matches.add(Math.round(suggestion.getRelevance() * 100) + " %");
+			}
+		}
+		catch (Exception e) {
+			throw new ToolException("No folders could be found: " + e.getMessage());
+		}
+		List<File> targets = new ArrayList<File>();
+		for (File target : MoveTargets.loadFolders())
+			targets.add(resolve(target.getPath()));
+		List<File> all = new ArrayList<File>(folders);
+		all.addAll(targets);
+		Map<File, FolderProfile> profiles = profiles(all);
+		List<Object> similar = new ArrayList<Object>();
+		for (int i = 0; i < folders.size(); i++) {
+			Map<String, Object> map = folderProfile(folders.get(i), profiles.get(folders.get(i)));
+			map.put("match", matches.get(i));
+			similar.add(map);
+		}
+		List<Object> fixed = new ArrayList<Object>();
+		for (File target : targets)
+			fixed.add(folderProfile(target, profiles.get(target)));
+		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		result.put("document", describe(doc));
+		result.put("similar_folders", similar);
+		if (!fixed.isEmpty())
+			result.put("fixed_targets", fixed);
+		return result;
 	}
 
 	/**
@@ -684,6 +872,26 @@ final class McpTools {
 			// Fixed targets only
 		}
 		return folders;
+	}
+
+	/**
+	 * The text of the document; PDF files in visual order unless
+	 * {@code streamOrder} (see the tool description of read_document).
+	 */
+	@NotNull
+	private static String text(@NotNull ResultDocument doc, @NotNull File file, boolean streamOrder)
+			throws ToolException {
+		String text = null;
+		if (!streamOrder && file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf"))
+			text = PdfVisualText.of(file);
+		try {
+			if (text == null)
+				text = doc.getText(); // Also recognizes scans whose text wasn't stored
+		}
+		catch (Throwable e) {
+			throw new ToolException("The text of the document could not be read: " + e.getMessage());
+		}
+		return text;
 	}
 
 	/**

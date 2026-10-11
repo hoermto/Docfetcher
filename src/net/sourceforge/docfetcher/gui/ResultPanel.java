@@ -1209,10 +1209,12 @@ public final class ResultPanel {
 	 * null if the user canceled or renaming failed.
 	 */
 	@Nullable
-	public File renameProposed(@NotNull ResultDocument doc, @NotNull String proposedName) {
+	public File renameProposed(	@NotNull ResultDocument doc,
+								@NotNull String proposedName,
+								@NotNull String summary) {
 		File file = doc.getPath().getCanonicalFile();
 		RenameDialog dialog = new RenameDialog(getControl().getShell(), file.getName(),
-			waitForSuggestion(doc), proposedName, Msg.mcp_rename_msg.get());
+			waitForSuggestion(doc), proposedName, proposalMessage(Msg.mcp_rename_msg, summary));
 		String newName = dialog.open();
 		return newName == null ? null : renameTo(doc, newName);
 	}
@@ -1447,8 +1449,15 @@ public final class ResultPanel {
 	@Nullable
 	public List<File> splitProposed(@NotNull ResultDocument doc,
 									@NotNull PdfPages.Role[] roles,
-									@NotNull List<String> names) {
-		return PdfOperations.splitProposed(pdfHost, doc, roles, names, Msg.mcp_split_msg.get());
+									@NotNull List<String> names,
+									@NotNull String summary) {
+		return PdfOperations.splitProposed(pdfHost, doc, roles, names, proposalMessage(Msg.mcp_split_msg, summary));
+	}
+
+	/** The message of a dialog for a proposal of an AI assistant, with its summary. */
+	@NotNull
+	private static String proposalMessage(@NotNull Msg message, @NotNull String summary) {
+		return Msg.mcp_summary.format(summary) + "\n\n" + message.get();
 	}
 
 	/**
@@ -1457,10 +1466,12 @@ public final class ResultPanel {
 	 * null if the user canceled.
 	 */
 	@Nullable
-	public List<File> moveProposed(@NotNull List<ResultDocument> docs, @NotNull File proposedFolder) {
+	public List<File> moveProposed(	@NotNull List<ResultDocument> docs,
+									@NotNull File proposedFolder,
+									@NotNull String summary) {
 		MoveToFolderDialog dialog = new MoveToFolderDialog(
 			getControl().getShell(), indexRegistry.getSearcher(), docs);
-		dialog.setProposal(proposedFolder, Msg.mcp_move_msg.get());
+		dialog.setProposal(proposedFolder, proposalMessage(Msg.mcp_move_msg, summary));
 		File targetDir = dialog.open();
 		return targetDir == null ? null : moveTo(docs, targetDir);
 	}
