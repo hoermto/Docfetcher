@@ -2744,6 +2744,16 @@ private static SashForm folderSash;
 						});
 						return renamed[0];
 					}
+					public List<File> move(final List<ResultDocument> docs, final File folder) {
+						final List<List<File>> moved = new ArrayList<List<File>>(1);
+						UtilGui.runSyncExec(shell, new Runnable() {
+							public void run() {
+								showDocuments(docs, true);
+								moved.add(resultPanel.moveProposed(docs, folder));
+							}
+						});
+						return moved.isEmpty() ? null : moved.get(0);
+					}
 				});
 				mcpServer.setFolderApprover(new McpServer.FolderApprover() {
 					public boolean approve(final File folder) {

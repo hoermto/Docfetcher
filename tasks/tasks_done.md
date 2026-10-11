@@ -528,3 +528,15 @@
     outside the inbox refused unless allowed; paths refused; cancel; confirmed with the extension kept). App test (dev
     build, MCP on 28836, verified 'Unspecified'): search -> read_document suggested_name -> rename_document: DocFetcher
     showed the document and the prefilled dialog; OK renamed it (new id returned), Cancel reported 'canceled'.
+- MCP story B (v3.0): move_document with DocFetcher's folder suggestions
+  - McpMoveAllowed ('AI assistants may propose moving documents to another folder'); move_document(ids, folder_id):
+    sources directly in an inbox folder (unless allowed outside; also for rename - subfolders of an inbox may be an
+    archive), target an indexed folder (checkAllowed, not the bin), not the folder it is in. read_document adds
+    suggested_folders (fixed move targets, then Searcher.suggestFolders like the move dialog, with folder location and
+    match). FileOrganizer.move: Application shows the documents and opens ResultPanel.moveProposed - the move dialog
+    with the proposal listed first, marked 'AI', preselected (MoveToFolderDialog.setProposal, wrapping message);
+    the result has the new ids and the folder, or 'canceled', and says when the user chose another folder.
+    McpTools.idList shared with show_document.
+  - Tests: McpServerTest.moveOnlyWhenAllowedAndConfirmed (off; suggestions; refused outside the inbox, same folder,
+    not a folder; cancel; confirmed with new ids). App test (dev build, MCP 28836): read_document suggested_folders
+    (Archiv, Belege), move_document to Archiv: dialog with 'Archiv' preselected, Move -> moved with new id.

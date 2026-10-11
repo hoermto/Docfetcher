@@ -24,6 +24,9 @@ import java.util.Map;
 import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.gui.Bin;
+import net.sourceforge.docfetcher.gui.InboxFolders;
+import net.sourceforge.docfetcher.gui.MoveTargets;
+import net.sourceforge.docfetcher.model.search.FolderSuggestion;
 import net.sourceforge.docfetcher.model.search.NameSuggester;
 import net.sourceforge.docfetcher.gui.FolderPanel;
 import net.sourceforge.docfetcher.model.IndexRegistry;
@@ -269,6 +272,8 @@ final class McpTools {
 			return McpFileFolder.call(folderApprover);
 		if (name.equals(McpFileChanges.RENAME))
 			return McpFileChanges.rename(this, args);
+		if (name.equals(McpFileChanges.MOVE))
+			return McpFileChanges.move(this, args);
 		throw new ToolException("Unknown tool: " + name);
 	}
 
@@ -635,12 +640,46 @@ final class McpTools {
 				// No suggestion
 			}
 		}
+		// Folders for move_document: the user's fixed targets and folders with similar documents
+		if (start == 0 && McpFileChanges.moveAllowed() && McpFileChanges.isChangeable(file, true))
+			meta.put("suggested_folders", suggestedFolders(doc, file, text));
 		meta.put("total_chars", text.length());
 		meta.put("offset", start);
 		meta.put("returned_chars", end - start);
 		if (end < text.length())
 			meta.put("next_offset", end);
 		return Arrays.<Object> asList(meta, text.substring(start, end));
+	}
+
+	/**
+	 * The folders the document might be moved to: the user's fixed move
+	 * targets first, then the folders whose documents are most similar
+	 * (DocFetcher's own suggestions, as in its move dialog).
+	 */
+	@NotNull
+	private List<Object> suggestedFolders(@NotNull ResultDocument doc, @NotNull File file, @NotNull String text) {
+		List<Object> folders = new ArrayList<Object>();
+		for (File target : MoveTargets.loadFolders()) {
+			Map<String, Object> map = folderEntry(target);
+			map.put("folder", location(target));
+			map.put("fixed_target", true);
+			folders.add(map);
+		}
+		try {
+			List<File> exclude = InboxFolders.getFolders();
+			exclude.add(file.getParentFile());
+			for (FolderSuggestion suggestion : registry.getSearcher().suggestFolders(
+					text + "\n" + doc.getFilename(), exclude, 5)) {
+				Map<String, Object> map = folderEntry(suggestion.getFolder());
+				map.put("folder", location(suggestion.getFolder()));
+				map.put("match", Math.round(suggestion.getRelevance() * 100) + " %");
+				folders.add(map);
+			}
+		}
+		catch (Exception e) {
+			// Fixed targets only
+		}
+		return folders;
 	}
 
 	/**
@@ -745,16 +784,7 @@ final class McpTools {
 	 */
 	@NotNull
 	private Map<String, Object> showDocuments(@NotNull Map<String, Object> args) throws ToolException {
-		List<String> wanted = new ArrayList<String>();
-		Object value = args.get("ids");
-		if (value instanceof List) {
-			for (Object id : (List<?>) value)
-				if (id != null && !id.toString().trim().isEmpty())
-					wanted.add(id.toString());
-		}
-		else if (value != null && !value.toString().trim().isEmpty()) {
-			wanted.add(value.toString()); // A single id instead of a list
-		}
+		List<String> wanted = idList(args, "ids");
 		boolean byPath = false;
 		if (wanted.isEmpty() && pathsVisible() && args.get("paths") != null) {
 			byPath = true;
@@ -876,7 +906,7 @@ final class McpTools {
 	}
 
 	/** Only the indexed folders (and the fixed move targets) are accessible. */
-	private void checkAllowed(@NotNull File file) throws ToolException {
+	void checkAllowed(@NotNull File file) throws ToolException {
 		// Deleted files in the DocFetcher bin are gone for assistants
 		if (Bin.contains(file))
 			throw new ToolException("Not found (deleted): " + file.getName());
@@ -922,7 +952,7 @@ final class McpTools {
 	 * folder and the subfolders, e.g. '05 Torsten/Immobilien' - no drive path.
 	 */
 	@NotNull
-	private String location(@Nullable File folder) {
+	String location(@Nullable File folder) {
 		if (folder == null)
 			return "";
 		for (File root : FolderPanel.getRootFolders(registry)) {
@@ -962,6 +992,22 @@ final class McpTools {
 	}
 
 	// ---- Helpers
+
+	/** The ids in the argument: a list, or a single id instead of one. */
+	@NotNull
+	static List<String> idList(@NotNull Map<String, Object> args, @NotNull String key) {
+		List<String> wanted = new ArrayList<String>();
+		Object value = args.get(key);
+		if (value instanceof List) {
+			for (Object id : (List<?>) value)
+				if (id != null && !id.toString().trim().isEmpty())
+					wanted.add(id.toString());
+		}
+		else if (value != null && !value.toString().trim().isEmpty()) {
+			wanted.add(value.toString());
+		}
+		return wanted;
+	}
 
 	/**
 	 * The absolute path with '..' and '.' resolved, so that a path can't

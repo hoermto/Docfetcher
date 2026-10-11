@@ -211,6 +211,9 @@ public final class McpServerTest {
 				File target = new File(file.getParentFile(), name);
 				return file.renameTo(target) ? target : null;
 			}
+			public List<File> move(List<ResultDocument> docs, File folder) {
+				return null;
+			}
 		});
 		List<String> saved = SettingsConf.StrList.InboxFolders.get();
 		SettingsConf.StrList.InboxFolders.set(java.util.Arrays.asList(inbox.getPath() + "|Scans"));
@@ -266,6 +269,77 @@ public final class McpServerTest {
 			server.setOrganizer(null);
 			scan.delete();
 			elsewhere.delete();
+		}
+	}
+
+	@Test
+	public void moveOnlyWhenAllowedAndConfirmed() throws Exception {
+		File inbox = new File(support.root, "Posteingang");
+		File letter = new File(inbox, "nachtrag_umzug.txt");
+		java.nio.file.Files.write(letter.toPath(), "Nachtrag zum Mietvertrag Rosenweg 12, Mieter Klaus Meier, Kaltmiete.".getBytes("UTF-8"));
+		File elsewhere = new File(support.root, "Mieter/lang.txt");
+		File mieter = new File(support.root, "Mieter");
+		final List<File> proposed = new java.util.ArrayList<File>();
+		final boolean[] accept = {false};
+		server.setOrganizer(new McpServer.FileOrganizer() {
+			public File rename(ResultDocument doc, String name) {
+				return null;
+			}
+			public List<File> move(List<ResultDocument> docs, File folder) {
+				proposed.add(folder);
+				if (!accept[0])
+					return null; // The user canceled
+				List<File> moved = new java.util.ArrayList<File>();
+				for (ResultDocument doc : docs) {
+					File file = doc.getPath().getCanonicalFile();
+					File target = new File(folder, file.getName());
+					if (file.renameTo(target))
+						moved.add(target);
+				}
+				return moved;
+			}
+		});
+		List<String> saved = SettingsConf.StrList.InboxFolders.get();
+		SettingsConf.StrList.InboxFolders.set(java.util.Arrays.asList(inbox.getPath() + "|Scans"));
+		File moved = new File(mieter, letter.getName());
+		try {
+			String move = "{\"ids\":[" + Json.write(id(letter)) + "],\"folder_id\":" + Json.write(id(mieter)) + "}";
+			assertFalse(Json.write(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}")).contains("move_document"));
+			assertTrue(text(call("move_document", move, true), 0).contains("switched off"));
+
+			SettingsConf.Bool.McpMoveAllowed.set(true);
+			assertTrue(Json.write(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}")).contains("move_document"));
+			Map<String, Object> read = json(call("read_document", "{\"id\":" + Json.write(id(letter)) + "}", false), 0);
+			assertTrue(Json.write(read), read.get("suggested_folders") instanceof List);
+			assertTrue(Json.write(read), Json.write(read).contains("Mieter"));
+
+			// Only from the inbox; not into the folder it is in; only into a folder
+			assertTrue(text(call("move_document", "{\"ids\":[" + Json.write(id(elsewhere)) + "],\"folder_id\":"
+				+ Json.write(id(inbox)) + "}", true), 0).startsWith("Only documents in the user's inbox folders"));
+			assertTrue(text(call("move_document", "{\"ids\":[" + Json.write(id(letter)) + "],\"folder_id\":"
+				+ Json.write(id(inbox)) + "}", true), 0).contains("in this folder already"));
+			assertTrue(text(call("move_document", "{\"ids\":[" + Json.write(id(letter)) + "],\"folder_id\":"
+				+ Json.write(id(elsewhere)) + "}", true), 0).startsWith("Not a folder"));
+			assertTrue(proposed.isEmpty());
+
+			// Canceled: stays; confirmed: moved, with the new id
+			Map<String, Object> result = json(call("move_document", move, false), 0);
+			assertEquals(Boolean.FALSE, result.get("moved"));
+			assertTrue(letter.isFile());
+			assertEquals(mieter, proposed.get(0));
+			accept[0] = true;
+			result = json(call("move_document", move, false), 0);
+			assertEquals(Json.write(result), Boolean.TRUE, result.get("moved"));
+			assertTrue(moved.isFile());
+			assertTrue(((String) result.get("folder")).endsWith("Mieter"));
+			assertTrue(Json.write(result), Json.write(result).contains(id(moved)));
+		}
+		finally {
+			SettingsConf.Bool.McpMoveAllowed.set(false);
+			SettingsConf.StrList.InboxFolders.set(saved);
+			server.setOrganizer(null);
+			letter.delete();
+			moved.delete();
 		}
 	}
 

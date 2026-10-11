@@ -36,12 +36,18 @@ import net.sourceforge.docfetcher.util.annotations.Nullable;
 final class McpFileChanges {
 
 	static final String RENAME = "rename_document";
+	static final String MOVE = "move_document";
+	private static final int MAX_MOVED = 100;
 
 	private McpFileChanges() {
 	}
 
 	static boolean renameAllowed() {
 		return SettingsConf.Bool.McpRenameAllowed.get();
+	}
+
+	static boolean moveAllowed() {
+		return SettingsConf.Bool.McpMoveAllowed.get();
 	}
 
 	/** The naming rules for assistants: the user's text, or DocFetcher's default. */
@@ -67,15 +73,38 @@ final class McpFileChanges {
 					"name", McpTools.prop("string", "The proposed file name, with or without the extension")),
 				"id", "name"));
 		}
+		if (moveAllowed()) {
+			Map<String, Object> idList = McpTools.prop("array", "Ids of the documents, as returned by "
+				+ "search or list_folder");
+			idList.put("items", McpTools.props("type", "string"));
+			tools.add(McpTools.changingTool(MOVE,
+				"Proposes moving documents" + scope() + " into another folder, e.g. to file "
+				+ "a new letter where similar documents are. DocFetcher shows the documents and its "
+				+ "move dialog with the folder preselected (next to its own suggestions); the user "
+				+ "may choose another folder, confirm or cancel - the result says what happened. To "
+				+ "find the most suiting folder, read_document returns suggested_folders (the user's "
+				+ "fixed targets and folders with similar documents); list_folder shows the others. "
+				+ "The target must be an indexed folder.",
+				McpTools.props(
+					"ids", idList,
+					"folder_id", McpTools.prop("string", "Id of the target folder, as returned by "
+						+ "read_document's suggested_folders or list_folder")),
+				"ids", "folder_id"));
+		}
 		return tools;
 	}
 
 	/** The part of the server instructions about changes, empty without any. */
 	@NotNull
 	static String rule() {
-		if (!renameAllowed())
+		List<String> names = new ArrayList<String>(2);
+		if (renameAllowed())
+			names.add(RENAME);
+		if (moveAllowed())
+			names.add(MOVE);
+		if (names.isEmpty())
 			return "";
-		return "The user lets you propose changes to files (" + RENAME + "): DocFetcher asks the user "
+		return "The user lets you propose changes to files (" + Util.join(", ", names) + "): DocFetcher asks the user "
 			+ "in its own dialog, prefilled with your proposal, and the user decides - propose, "
 			+ "don't insist; a cancel is the user's answer. You can never delete files or change "
 			+ "their content. ";
@@ -90,8 +119,8 @@ final class McpFileChanges {
 	}
 
 	/**
-	 * May an assistant propose changing this file: a plain file in an inbox
-	 * folder - or anywhere in the indexed folders if the user allows that
+	 * May an assistant propose changing this file: a plain file directly in an
+	 * inbox folder - or anywhere in the indexed folders if the user allows that
 	 * (not for every change) -, never in the DocFetcher bin.
 	 */
 	static void checkChangeable(@NotNull File file, boolean outsideAllowed) throws ToolException {
@@ -102,8 +131,9 @@ final class McpFileChanges {
 			throw new ToolException("Not found (deleted): " + file.getName());
 		if (outsideAllowed && SettingsConf.Bool.McpOutsideInbox.get())
 			return;
+		// Directly in the folder, as the inbox tab lists it (subfolders may be an archive)
 		for (File inbox : InboxFolders.getFolders())
-			if (Util.contains(inbox, file))
+			if (Util.isCanonicallyEqual(inbox, file.getParentFile()))
 				return;
 		throw new ToolException("Only documents in the user's inbox folders can be changed: "
 			+ file.getName() + " is elsewhere.");
@@ -135,6 +165,53 @@ final class McpFileChanges {
 		if (!extension.isEmpty() && !Util.splitFilename(name)[1].equalsIgnoreCase(extension))
 			name += "." + extension;
 		return name;
+	}
+
+	@NotNull
+	static Map<String, Object> move(@NotNull McpTools tools,
+									@NotNull Map<String, Object> args) throws ToolException {
+		if (!moveAllowed())
+			throw new ToolException("Moving is switched off in DocFetcher's preferences.");
+		List<String> wanted = McpTools.idList(args, "ids");
+		if (wanted.isEmpty())
+			throw new ToolException("The argument 'ids' is missing.");
+		if (wanted.size() > MAX_MOVED)
+			throw new ToolException("At most " + MAX_MOVED + " documents can be moved at once.");
+		File folder = tools.target(args, "folder_id");
+		if (!folder.isDirectory())
+			throw new ToolException("Not a folder (or not found): " + folder.getName());
+		List<ResultDocument> docs = new ArrayList<ResultDocument>();
+		for (String id : wanted) {
+			File file = tools.ids.fileOf(id);
+			tools.checkAllowed(file);
+			checkChangeable(file, true);
+			if (Util.isCanonicallyEqual(file.getParentFile(), folder))
+				throw new ToolException(file.getName() + " is in this folder already.");
+			docs.add(tools.findDocument(file));
+		}
+		McpServer.FileOrganizer organizer = tools.organizer;
+		if (organizer == null)
+			throw new ToolException("DocFetcher's window is not available.");
+		List<File> moved = organizer.move(docs, folder);
+		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		if (moved == null || moved.isEmpty()) {
+			result.put("moved", false);
+			result.put("message", "The user canceled: the documents stay where they are.");
+			return result;
+		}
+		File target = moved.get(0).getParentFile();
+		result.put("moved", true);
+		result.put("folder_id", tools.ids.idOf(target));
+		result.put("folder", tools.location(target));
+		List<Object> movedDocs = new ArrayList<Object>();
+		for (File file : moved)
+			movedDocs.add(McpTools.props("id", tools.ids.idOf(file), "name", file.getName()));
+		result.put("documents", movedDocs);
+		if (!Util.isCanonicallyEqual(target, folder))
+			result.put("message", "The user chose another folder than proposed.");
+		if (moved.size() < docs.size())
+			result.put("not_moved", docs.size() - moved.size());
+		return result;
 	}
 
 	@NotNull

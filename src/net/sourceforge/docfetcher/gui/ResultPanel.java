@@ -1438,21 +1438,37 @@ public final class ResultPanel {
 	 * Moves the given documents' files into the target folder, updating the
 	 * result rows and the affected indexes.
 	 */
-	private void moveTo(@NotNull List<ResultDocument> sel, @NotNull File targetDir) {
+	/**
+	 * Lets the user move the documents in the move dialog, with the proposed
+	 * folder (from an AI assistant) preselected; returns the moved files, or
+	 * null if the user canceled.
+	 */
+	@Nullable
+	public List<File> moveProposed(@NotNull List<ResultDocument> docs, @NotNull File proposedFolder) {
+		MoveToFolderDialog dialog = new MoveToFolderDialog(
+			getControl().getShell(), indexRegistry.getSearcher(), docs);
+		dialog.setProposal(proposedFolder, Msg.mcp_move_msg.get());
+		File targetDir = dialog.open();
+		return targetDir == null ? null : moveTo(docs, targetDir);
+	}
+
+	/** Moves the files of the documents into the folder; returns the moved files at their new place. */
+	@NotNull
+	private List<File> moveTo(@NotNull List<ResultDocument> sel, @NotNull File targetDir) {
+		List<File> movedTo = new ArrayList<File>();
 		for (ResultDocument doc : sel) {
 			if (!doc.isPlainFileOnDisk()) {
 				AppUtil.showError(Msg.only_plain_files.get(), true, true);
-				return;
+				return movedTo;
 			}
 		}
 		if (!targetDir.isDirectory() && !targetDir.mkdirs()) {
 			AppUtil.showError(Msg.file_operation_failed.format(targetDir.getPath()), true, true);
-			return;
+			return movedTo;
 		}
 		
 		List<File> affected = new ArrayList<File>();
 		List<File> movedFrom = new ArrayList<File>();
-		List<File> movedTo = new ArrayList<File>();
 		List<ResultDocument> moved = new ArrayList<ResultDocument>();
 		for (ResultDocument doc : sel) {
 			File file = doc.getPath().getCanonicalFile();
@@ -1469,8 +1485,8 @@ public final class ResultPanel {
 			moved.add(doc);
 		}
 		if (moved.isEmpty())
-			return;
-		
+			return movedTo;
+
 		// Documents moved outside of all indexed folders disappear from the
 		// results once the index is updated, so remove them right away
 		List<ResultDocument> outside = new ArrayList<ResultDocument>();
@@ -1484,6 +1500,7 @@ public final class ResultPanel {
 			FileOperationHistory.Kind.MOVE, movedFrom, movedTo);
 		evtDocumentsChanged.fire(null);
 		MoveTargets.addRecent(targetDir);
+		return movedTo;
 	}
 	
 	/**

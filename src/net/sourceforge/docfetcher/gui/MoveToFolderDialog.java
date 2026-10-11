@@ -50,11 +50,13 @@ final class MoveToFolderDialog {
 	private static final int MAX_SUGGESTIONS = 5;
 
 	private final Shell shell;
+	private final Label label;
 	private final Table table;
 	private final Label statusLabel;
 	private final Text targetField;
 	private final Button moveBt;
 	@Nullable private File answer;
+	@Nullable private File proposed; // By an AI assistant, listed first
 	private volatile boolean disposed = false;
 
 	/**
@@ -74,9 +76,11 @@ final class MoveToFolderDialog {
 		shell.setLayout(UtilGui.createGridLayout(1, false, 10, 5));
 		SettingsConf.ShellBounds.MoveToFolderDialog.bind(shell);
 
-		Label label = new Label(shell, SWT.NONE);
+		label = new Label(shell, SWT.WRAP);
 		label.setText(Msg.move_suggestions_label.get());
-		label.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+		GridData labelData = new GridData(SWT.FILL, SWT.CENTER, true, false);
+		labelData.widthHint = 300; // Wraps instead of widening the dialog
+		label.setLayoutData(labelData);
 
 		table = new Table(shell, SWT.BORDER | SWT.SINGLE | SWT.FULL_SELECTION | SWT.V_SCROLL | SWT.H_SCROLL);
 		table.setHeaderVisible(true);
@@ -173,6 +177,17 @@ final class MoveToFolderDialog {
 		computeSuggestions(searcher, docs);
 	}
 
+	/**
+	 * Preselects a folder proposed by an AI assistant, listed first, with a
+	 * message of its own; the user may choose another one.
+	 */
+	public void setProposal(@NotNull File folder, @NotNull String message) {
+		proposed = folder;
+		label.setText(message);
+		setTarget(folder);
+		shell.layout();
+	}
+
 	private void computeSuggestions(@NotNull final Searcher searcher,
 									@NotNull final List<ResultDocument> docs) {
 		Thread thread = new Thread(MoveToFolderDialog.class.getName() + " (suggestions)") {
@@ -228,6 +243,8 @@ final class MoveToFolderDialog {
 		// Fixed targets first, then the recently used folders, then the
 		// folders suggested by content
 		List<File> listed = new ArrayList<File>();
+		if (proposed != null)
+			addRow(proposed, Msg.move_target_assistant.get(), listed);
 		List<File> fixedTargets = MoveTargets.loadFolders();
 		for (File target : fixedTargets)
 			addRow(target, Msg.move_target_fixed.get(), listed);
@@ -244,6 +261,8 @@ final class MoveToFolderDialog {
 		}
 		else {
 			statusLabel.setText("");
+			if (proposed != null && Util.isCanonicallyEqual(getTarget(), proposed))
+				table.setSelection(0);
 			// Preselect the best match (or the first fixed target), unless
 			// the user already browsed
 			if (getTarget() == null) {

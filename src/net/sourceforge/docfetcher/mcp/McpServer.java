@@ -136,6 +136,9 @@ public final class McpServer {
 	public interface FileOrganizer {
 		/** The file after renaming it, or null if the user canceled. */
 		@Nullable java.io.File rename(@NotNull ResultDocument doc, @NotNull String name);
+
+		/** The moved files at their new place (maybe in another folder than proposed), or null if the user canceled. */
+		@Nullable List<java.io.File> move(@NotNull List<ResultDocument> docs, @NotNull java.io.File folder);
 	}
 
 	/** Sets who lets the user confirm changes to files; null: none possible. */

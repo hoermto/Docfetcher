@@ -35,7 +35,7 @@
   name suggestion per document. No delete tool, extensions never change, originals of a split per the existing
   setting (-> DocFetcher bin). Stories: A settings + rename_document (+ suggested_name in read_document);
   B move_document (+ suggested_folders); C analyze_pages + split_document (blank pages left out).
-  Done: A (see tasks_done.md).
+  Done: A, B (see tasks_done.md).
 
 ## new version
 

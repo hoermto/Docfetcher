@@ -240,6 +240,10 @@ new CheckOption(
 			mcpRenameOption,
 			new McpNamingRulesOption(mcpRenameOption),
 			new CheckOption(
+				Msg.pref_mcp_move.get(),
+				SettingsConf.Bool.McpMoveAllowed,
+				mcpServerOption),
+			new CheckOption(
 				Msg.pref_mcp_outside_inbox.get(),
 				SettingsConf.Bool.McpOutsideInbox,
 				mcpServerOption),
