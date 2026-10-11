@@ -36,6 +36,7 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.TabFolder;
 import org.eclipse.swt.widgets.TabItem;
 
+import net.sourceforge.docfetcher.gui.Application;
 import net.sourceforge.docfetcher.gui.ManualLocator;
 import net.sourceforge.docfetcher.gui.filter.IndexPanel;
 import net.sourceforge.docfetcher.model.ocr.OcrEngine;
@@ -522,8 +523,7 @@ new DropdownOption(
 	}
 
 	private static String getAppNameAndVersion() {
-		return SystemConf.Str.ProgramName.get() + " " +
-				SystemConf.Str.ProgramVersion.get();
+		return Application.withVersion(SystemConf.Str.ProgramName.get());
 	}
 
 	private static String getMemLimitString() {

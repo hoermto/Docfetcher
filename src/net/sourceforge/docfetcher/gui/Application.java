@@ -364,7 +364,7 @@ private static SashForm folderSash;
 		SettingsConf.ShellBounds.MainWindow.bind(shell);
 		SettingsConf.Bool.MainShellMaximized.bindMaximized(shell);
 		shell.setLayout(new FormLayout());
-		shell.setText(shellTitle);
+		shell.setText(withVersion(shellTitle));
 
 		configureWebView2DataDir();
 		initCocoaMenu(display);
@@ -2094,9 +2094,7 @@ private static SashForm folderSash;
 		}, new Runnable() {
 			public void run() {
 				// TODO post-release-1.1: Show an about dialog? Or maybe open a manual page?
-				String name = SystemConf.Str.ProgramName.get();
-				String version = SystemConf.Str.ProgramVersion.get();
-				AppUtil.showInfo(name + " " + version);
+				AppUtil.showInfo(withVersion(SystemConf.Str.ProgramName.get()));
 			}
 		}, new Runnable() {
 			public void run() {
@@ -2220,9 +2218,22 @@ private static SashForm folderSash;
 		final String appName = SystemConf.Str.ProgramName.get();
 		createMenuItem(helpMenu, Msg.menu_about.format(appName), null, new Runnable() {
 			public void run() {
-				AppUtil.showInfo(appName + " " + SystemConf.Str.ProgramVersion.get());
+				AppUtil.showInfo(withVersion(appName));
 			}
 		});
+	}
+
+	/**
+	 * Returns the given program name with the version, e.g. 'DocFetcher 3.0',
+	 * for the window title and the About box; a build without a version (the
+	 * development version) gets a label instead.
+	 */
+	@NotNull
+	public static String withVersion(@NotNull String name) {
+		String version = SystemConf.Str.ProgramVersion.get();
+		if (version.equals("Unspecified") || SystemConf.Bool.IsDevelopmentVersion.get())
+			version = Msg.development_version.get();
+		return name + " " + version;
 	}
 
 	@NotNull

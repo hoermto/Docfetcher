@@ -277,6 +277,8 @@ public enum Msg {
 	menu_manual ("&Manual\tF1",
 		"Menu entry that opens the manual. The '\tF1' is the keyboard " +
 		"shortcut."),
+	development_version ("(development version)",
+		"Shown instead of the version number in the window title and the About box of a development build without a version."),
 	menu_about ("&About {0}",
 		"Menu entry that shows the program name and version. The program " +
 		"name is inserted in the {0} slot."),

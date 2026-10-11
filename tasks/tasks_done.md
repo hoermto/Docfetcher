@@ -504,3 +504,5 @@
     'Global (all indexes)' (disabled and on without a folder), status names the folder, changes restart the search.
     Tests: DuplicatesTest.folderAndNameAndSize; app: dev build - folder of the browser without duplicates, Global
     finds the workbooks, unchecked 'only by content' adds two same-named notes; the option is remembered.
+- add version number to app in title / info so its visible to the user (v3.0)
+  - The window title shows the version ('DocFetcher 3.0'); Help > About and the preferences already showed it. A build without a version (development) shows '(development version)' instead of 'Unspecified'.

@@ -1,5 +1,8 @@
 ==== 2026-10-11 - DocFetcher 3.0 ====
 
+=== Features ===
+  * The window title shows the version, e.g. 'DocFetcher 3.0' (also in Help > About and the preferences).
+
 ==== 2026-10-09 - DocFetcher 2.10 ====
 
 === Bugfixes ===
