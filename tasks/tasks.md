@@ -23,9 +23,19 @@
 
 [] add support for encrypted containers like cryptomator (follow you 1a) 1b) suggestions)
 
+## new version
+[] bin support: all files deleted shall land in bin folder. in settings the bin folder shall be defined as folder
+[] bin folder apears in left panel next to search
+
+[] removal from bin is possible, but user has to explicit confirm. removal from docfetcher bin moves it to OS bin, so there is a 2nd safety net
+
+[] add a toggle in search panel to include bin, default off
 
 
-## features/stories
+## future features/stories
+
+
+
 [] any ideas about document encryption?
   Analysis (v2.7, answer: encrypted folder + protect the index, write-up only for now):
   - What leaks today: the documents themselves, and in the app data folder the index (full text of every
