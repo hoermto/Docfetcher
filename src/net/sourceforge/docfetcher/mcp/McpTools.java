@@ -274,6 +274,10 @@ final class McpTools {
 			return McpFileChanges.rename(this, args);
 		if (name.equals(McpFileChanges.MOVE))
 			return McpFileChanges.move(this, args);
+		if (name.equals(McpFileChanges.ANALYZE))
+			return McpFileChanges.analyzePages(this, args);
+		if (name.equals(McpFileChanges.SPLIT))
+			return McpFileChanges.split(this, args);
 		throw new ToolException("Unknown tool: " + name);
 	}
 

@@ -244,6 +244,10 @@ new CheckOption(
 				SettingsConf.Bool.McpMoveAllowed,
 				mcpServerOption),
 			new CheckOption(
+				Msg.pref_mcp_split.get(),
+				SettingsConf.Bool.McpSplitAllowed,
+				mcpServerOption),
+			new CheckOption(
 				Msg.pref_mcp_outside_inbox.get(),
 				SettingsConf.Bool.McpOutsideInbox,
 				mcpServerOption),

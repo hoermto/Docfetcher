@@ -101,6 +101,7 @@ import net.sourceforge.docfetcher.model.index.Task.CancelHandler;
 import net.sourceforge.docfetcher.model.index.Task.IndexAction;
 import net.sourceforge.docfetcher.model.index.Task.TaskState;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
+import net.sourceforge.docfetcher.model.pdf.PdfPages;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.CharsetDetectorHelper;
 import net.sourceforge.docfetcher.util.ConfLoader;
@@ -2753,6 +2754,17 @@ private static SashForm folderSash;
 							}
 						});
 						return moved.isEmpty() ? null : moved.get(0);
+					}
+					public List<File> split(final ResultDocument doc, final PdfPages.Role[] roles,
+							final List<String> names) {
+						final List<List<File>> parts = new ArrayList<List<File>>(1);
+						UtilGui.runSyncExec(shell, new Runnable() {
+							public void run() {
+								showDocuments(Collections.singletonList(doc), true);
+								parts.add(resultPanel.splitProposed(doc, roles, names));
+							}
+						});
+						return parts.isEmpty() ? null : parts.get(0);
 					}
 				});
 				mcpServer.setFolderApprover(new McpServer.FolderApprover() {

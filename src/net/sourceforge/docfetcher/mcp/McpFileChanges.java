@@ -19,6 +19,10 @@ import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.gui.Bin;
 import net.sourceforge.docfetcher.gui.InboxFolders;
 import net.sourceforge.docfetcher.mcp.McpTools.ToolException;
+import net.sourceforge.docfetcher.model.pdf.DocumentStarts;
+import net.sourceforge.docfetcher.model.pdf.PdfPages;
+import net.sourceforge.docfetcher.model.pdf.PdfPages.PageInfo;
+import net.sourceforge.docfetcher.model.pdf.PdfPages.Role;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
@@ -37,6 +41,10 @@ final class McpFileChanges {
 
 	static final String RENAME = "rename_document";
 	static final String MOVE = "move_document";
+	static final String ANALYZE = "analyze_pages";
+	static final String SPLIT = "split_document";
+	/** Characters of each page's text that analyze_pages returns. */
+	private static final int PAGE_CHARS = 600;
 	private static final int MAX_MOVED = 100;
 
 	private McpFileChanges() {
@@ -48,6 +56,10 @@ final class McpFileChanges {
 
 	static boolean moveAllowed() {
 		return SettingsConf.Bool.McpMoveAllowed.get();
+	}
+
+	static boolean splitAllowed() {
+		return SettingsConf.Bool.McpSplitAllowed.get();
 	}
 
 	/** The naming rules for assistants: the user's text, or DocFetcher's default. */
@@ -91,6 +103,37 @@ final class McpFileChanges {
 						+ "read_document's suggested_folders or list_folder")),
 				"ids", "folder_id"));
 		}
+		if (splitAllowed()) {
+			Map<String, Object> id = McpTools.prop("string", "Id of a PDF document in an inbox folder, as "
+				+ "returned by search or list_folder");
+			Map<String, Object> analyze = McpTools.changingTool(ANALYZE,
+				"Returns the pages of a PDF file in one of the user's inbox folders (e.g. a stack of "
+				+ "scanned letters), to plan a split: the beginning of each page's text, whether it is "
+				+ "blank or a separator sheet, and DocFetcher's own suggestion where a document starts "
+				+ "(start, continue or leave_out, with the reason: page numbers, salutation, shared "
+				+ "numbers, different text). Changes nothing.",
+				McpTools.props("id", id), "id");
+			analyze.put("annotations", McpTools.props("readOnlyHint", Boolean.TRUE));
+			tools.add(analyze);
+			Map<String, Object> pageList = McpTools.prop("array", "Page numbers of the part, 1-based, ascending");
+			pageList.put("items", McpTools.props("type", "integer"));
+			Map<String, Object> part = McpTools.props("type", "object", "properties", McpTools.props(
+				"pages", pageList,
+				"name", McpTools.prop("string", "File name of the part, following the naming rules")));
+			part.put("required", java.util.Arrays.asList("pages"));
+			Map<String, Object> parts = McpTools.prop("array", "The new documents in page order; pages in no "
+				+ "part are left out (blank pages, separator sheets, empty back sides)");
+			parts.put("items", part);
+			tools.add(McpTools.changingTool(SPLIT,
+				"Proposes splitting a PDF file in one of the user's inbox folders into several "
+				+ "documents, e.g. a scanned stack of letters; use analyze_pages first. DocFetcher "
+				+ "shows the document and its split dialog with your parts; the user may correct "
+				+ "them, confirm or cancel - the result says what happened. Leave out blank pages. "
+				+ "Name the parts following the user's naming rules: " + namingRules() + " If the "
+				+ "user changes the parts, DocFetcher names them itself. DocFetcher asks the user "
+				+ "what happens to the original (by default into the bin).",
+				McpTools.props("id", id, "parts", parts), "id", "parts"));
+		}
 		return tools;
 	}
 
@@ -102,6 +145,8 @@ final class McpFileChanges {
 			names.add(RENAME);
 		if (moveAllowed())
 			names.add(MOVE);
+		if (splitAllowed())
+			names.add(SPLIT);
 		if (names.isEmpty())
 			return "";
 		return "The user lets you propose changes to files (" + Util.join(", ", names) + "): DocFetcher asks the user "
@@ -165,6 +210,144 @@ final class McpFileChanges {
 		if (!extension.isEmpty() && !Util.splitFilename(name)[1].equalsIgnoreCase(extension))
 			name += "." + extension;
 		return name;
+	}
+
+	/** A PDF file directly in an inbox folder, for analyze_pages and split_document. */
+	@NotNull
+	private static File splittable(@NotNull McpTools tools, @NotNull Map<String, Object> args) throws ToolException {
+		if (!splitAllowed())
+			throw new ToolException("Splitting is switched off in DocFetcher's preferences.");
+		File file = tools.target(args, "id");
+		checkChangeable(file, false);
+		if (!Util.getExtension(file.getName()).equalsIgnoreCase("pdf"))
+			throw new ToolException("Only PDF files can be split: " + file.getName());
+		return file;
+	}
+
+	@NotNull
+	static Map<String, Object> analyzePages(@NotNull McpTools tools,
+											@NotNull Map<String, Object> args) throws ToolException {
+		File file = splittable(tools, args);
+		List<PageInfo> pages = pages(file);
+		List<DocumentStarts.Suggestion> suggestions = DocumentStarts.suggest(pages);
+		List<Object> list = new ArrayList<Object>(pages.size());
+		for (int i = 0; i < pages.size(); i++) {
+			PageInfo page = pages.get(i);
+			Map<String, Object> map = new LinkedHashMap<String, Object>();
+			map.put("page", i + 1);
+			String text = page.text.replaceAll("\\s+", " ").trim();
+			map.put("text", text.length() > PAGE_CHARS ? text.substring(0, PAGE_CHARS) + "..." : text);
+			if (page.blank)
+				map.put("blank", true);
+			if (page.separatorSheet)
+				map.put("separator_sheet", true);
+			DocumentStarts.Suggestion suggestion = suggestions.get(i);
+			map.put("suggestion", suggestion.role == Role.START ? "start"
+				: suggestion.role == Role.OMIT ? "leave_out" : "continue");
+			map.put("reason", suggestion.reason.name().toLowerCase(java.util.Locale.ROOT)
+				+ (suggestion.detail == null ? "" : " (" + suggestion.detail + ")"));
+			list.add(map);
+		}
+		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		result.put("id", tools.ids.idOf(file));
+		result.put("filename", file.getName());
+		result.put("total_pages", pages.size());
+		result.put("pages", list);
+		return result;
+	}
+
+	@NotNull
+	private static List<PageInfo> pages(@NotNull File file) throws ToolException {
+		try {
+			return PdfPages.analyzePages(file);
+		}
+		catch (Exception e) {
+			throw new ToolException("The pages could not be read: " + e.getMessage());
+		}
+	}
+
+	/**
+	 * The role of each page for the proposed parts: the first page of a part
+	 * starts a document, its other pages continue it, pages in no part are
+	 * left out. The parts must be in page order and not overlap, and a part
+	 * may only skip pages that are left out.
+	 */
+	@NotNull
+	static Role[] roles(@NotNull List<List<Integer>> parts, int pageCount) throws ToolException {
+		if (parts.size() < 2)
+			throw new ToolException("A split needs at least two parts.");
+		Role[] roles = new Role[pageCount];
+		java.util.Arrays.fill(roles, Role.OMIT);
+		List<PdfPages.Range> proposed = new ArrayList<PdfPages.Range>();
+		int last = 0;
+		for (List<Integer> part : parts) {
+			if (part.isEmpty())
+				throw new ToolException("A part without pages.");
+			for (int i = 0; i < part.size(); i++) {
+				int page = part.get(i);
+				if (page < 1 || page > pageCount)
+					throw new ToolException("No page " + page + ": the document has " + pageCount + " pages.");
+				if (page <= last)
+					throw new ToolException("The parts must be in page order, each page in at most one part.");
+				roles[page - 1] = i == 0 ? Role.START : Role.CONTINUE;
+				last = page;
+			}
+			List<Integer> zeroBased = new ArrayList<Integer>(part.size());
+			for (int page : part)
+				zeroBased.add(page - 1);
+			proposed.add(new PdfPages.Range(zeroBased));
+		}
+		// Pages between the pages of a part must be left out, or they would belong to it
+		if (!PdfPages.fromRoles(roles).equals(proposed))
+			throw new ToolException("A part can only skip pages that are in no part (left out).");
+		return roles;
+	}
+
+	@NotNull
+	static Map<String, Object> split(@NotNull McpTools tools,
+									@NotNull Map<String, Object> args) throws ToolException {
+		File file = splittable(tools, args);
+		Object value = args.get("parts");
+		if (!(value instanceof List))
+			throw new ToolException("The argument 'parts' is missing.");
+		List<List<Integer>> parts = new ArrayList<List<Integer>>();
+		List<String> names = new ArrayList<String>();
+		for (Object element : (List<?>) value) {
+			if (!(element instanceof Map))
+				throw new ToolException("Each part is an object with 'pages' and 'name'.");
+			Map<?, ?> part = (Map<?, ?>) element;
+			List<Integer> pages = new ArrayList<Integer>();
+			Object pageValue = part.get("pages");
+			for (Object page : pageValue instanceof List ? (List<?>) pageValue : java.util.Arrays.asList(pageValue)) {
+				if (!(page instanceof Number))
+					throw new ToolException("Page numbers are integers: " + page);
+				pages.add(((Number) page).intValue());
+			}
+			parts.add(pages);
+			Object name = part.get("name");
+			if (name != null && !name.toString().trim().isEmpty())
+				names.add(newName(file, name.toString()));
+		}
+		Role[] roles = roles(parts, pages(file).size());
+		if (names.size() != parts.size())
+			names.clear(); // Names for all parts or none: DocFetcher names them
+		McpServer.FileOrganizer organizer = tools.organizer;
+		if (organizer == null)
+			throw new ToolException("DocFetcher's window is not available.");
+		List<File> created = organizer.split(tools.findDocument(file), roles, names);
+		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		if (created == null || created.isEmpty()) {
+			result.put("split", false);
+			result.put("message", "The user canceled: the document stays as it is.");
+			return result;
+		}
+		result.put("split", true);
+		List<Object> docs = new ArrayList<Object>();
+		for (File part : created)
+			docs.add(McpTools.props("id", tools.ids.idOf(part), "name", part.getName()));
+		result.put("documents", docs);
+		result.put("original", file.exists() ? "kept" : "removed (into the bin)");
+		return result;
 	}
 
 	@NotNull

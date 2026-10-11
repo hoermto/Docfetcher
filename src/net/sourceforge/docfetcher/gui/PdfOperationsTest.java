@@ -10,6 +10,7 @@ package net.sourceforge.docfetcher.gui;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -290,6 +291,17 @@ public final class PdfOperationsTest {
 		assertEquals(SplitDialog.Choice.TEXT, noSeparators.getChoice());
 		assertFalse(noSeparators.isChoiceEnabled(SplitDialog.Choice.SEPARATORS));
 		noSeparators.close();
+
+		// The proposal of an AI assistant: its roles, and its names while the parts stay as proposed
+		SplitDialog proposal = new SplitDialog(shell, file("stack.pdf"), pages);
+		proposal.setProposal(new Role[] {Role.START, Role.START, Role.OMIT, Role.START, Role.CONTINUE},
+			Arrays.asList("2026-01-05_Rechnung.pdf", "2026-01-06_Mahnung.pdf", "2026-02-01_Vertrag.pdf"), "Vorschlag");
+		assertNull(proposal.getChoice());
+		assertEquals(Arrays.asList(new Range(0, 1), new Range(1, 2), new Range(3, 5)), proposal.getRanges());
+		assertTrue(proposal.getResultText(), proposal.getResultText().contains("2026-01-05_Rechnung.pdf"));
+		proposal.setRole(1, Role.CONTINUE);
+		assertFalse(proposal.getResultText(), proposal.getResultText().contains("2026-01-05_Rechnung.pdf"));
+		proposal.close();
 	}
 
 }

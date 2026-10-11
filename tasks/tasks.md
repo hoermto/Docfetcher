@@ -23,19 +23,6 @@
 
 [] add support for encrypted containers like cryptomator (follow you 1a) 1b) suggestions)
 
-[] MCP: add support for: split and rename files in inbox(es): LLm shall be able to tell how to split (pages), remove empty and suggest name following the rules (MCP to tell LLM the naming rules). original file might be moved to docfetcher bin
-[] MCP to move files to most suiting folder
-[] in no way LLM can delete a file, or modify file content in any folder except the inbox.
-[] MCP endpoint to allow renaming files after suer confirmation, and move files to another folder after user autorization and request
-[] all new MCP features to enable/disable by setting, off by default
-  Analysis (v3.0, answers 2026-10-11): confirmation in DocFetcher's own dialogs, prefilled with the assistant's
-  proposal (rename dialog, move dialog, split dialog; the document is shown first; Cancel = declined); one checkbox
-  per feature (rename, move, split; off) plus 'also outside the inbox folders' for rename and move (split: inbox
-  only); naming rules as an editable text on the MCP tab (default: DocFetcher's rule), sent with DocFetcher's own
-  name suggestion per document. No delete tool, extensions never change, originals of a split per the existing
-  setting (-> DocFetcher bin). Stories: A settings + rename_document (+ suggested_name in read_document);
-  B move_document (+ suggested_folders); C analyze_pages + split_document (blank pages left out).
-  Done: A, B (see tasks_done.md).
 
 ## new version
 

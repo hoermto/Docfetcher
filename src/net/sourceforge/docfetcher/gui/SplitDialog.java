@@ -62,6 +62,7 @@ final class SplitDialog {
 	private static final int PREVIEW_CHARS = 70;
 
 	private final Shell shell;
+	private final Label intro;
 	private final File file;
 	private final List<PageInfo> pages;
 	private final Role[] roles;
@@ -71,6 +72,9 @@ final class SplitDialog {
 	private final Button okBt;
 	private final Map<Choice, Button> choiceButtons = new EnumMap<Choice, Button>(Choice.class);
 	@Nullable private List<Range> answer;
+	/** The parts and their names an AI assistant proposed; null without a proposal. */
+	@Nullable private List<Range> proposedRanges;
+	@Nullable private List<String> proposedNames;
 
 	public SplitDialog(@NotNull Shell parent, @NotNull File file, @NotNull List<PageInfo> pages) {
 		Util.checkNotNull(parent, file, pages);
@@ -84,7 +88,7 @@ final class SplitDialog {
 		shell.setImage(Img.TB_SPLIT.get());
 		shell.setLayout(UtilGui.createGridLayout(1, false, 10, 6));
 
-		Label intro = new Label(shell, SWT.WRAP);
+		intro = new Label(shell, SWT.WRAP);
 		intro.setText(Msg.split_intro.format(file.getName(), pages.size()));
 		intro.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
@@ -258,6 +262,25 @@ final class SplitDialog {
 		update();
 	}
 
+	/**
+	 * Fills in the roles an AI assistant proposes (one per page), with a
+	 * message above the page list; the user may correct them as usual.
+	 */
+	void setProposal(@NotNull Role[] proposed, @NotNull List<String> names, @NotNull String message) {
+		Util.checkThat(proposed.length == roles.length);
+		proposedRanges = PdfPages.fromRoles(proposed);
+		proposedNames = names.isEmpty() ? null : names;
+		for (Button button : choiceButtons.values())
+			button.setSelection(false);
+		for (int i = 0; i < roles.length; i++) {
+			roles[i] = proposed[i];
+			reasons[i] = proposed[i] == Role.CONTINUE ? "" : Msg.split_reason_assistant.get();
+		}
+		intro.setText(message + "\n" + intro.getText());
+		update();
+		shell.pack();
+	}
+
 	/** Changes the role of one page, e.g. after a click on its checkbox. */
 	void setRole(int index, @NotNull Role role) {
 		roles[index] = role;
@@ -321,9 +344,12 @@ final class SplitDialog {
 					pagesText.append("; "); // A document may itself be "1, 3"
 				pagesText.append(range);
 			}
-			String firstName = SettingsConf.Bool.SplitAutoRename.get()
-				? Msg.split_names_by_content.get()
-				: PdfPages.getPartFiles(file, ranges.size()).get(0).getName();
+			// The proposed names as long as the parts are as proposed
+			String firstName = proposedNames != null && ranges.equals(proposedRanges)
+				? proposedNames.get(0)
+				: SettingsConf.Bool.SplitAutoRename.get()
+					? Msg.split_names_by_content.get()
+					: PdfPages.getPartFiles(file, ranges.size()).get(0).getName();
 			String text = Msg.split_result.format(ranges.size(), pagesText, firstName);
 			if (leftOut > 0)
 				text += " " + Msg.split_left_out.format(leftOut);

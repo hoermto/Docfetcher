@@ -52,7 +52,7 @@ public final class PdfPagesTest {
 	}
 
 	/** A PDF whose pages carry the given texts as text. */
-	static File createTextPdf(File file, String... pageTexts) throws Exception {
+	public static File createTextPdf(File file, String... pageTexts) throws Exception {
 		PDDocument pdf = new PDDocument();
 		try {
 			for (String text : pageTexts) {

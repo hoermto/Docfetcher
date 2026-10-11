@@ -45,6 +45,7 @@ import net.sourceforge.docfetcher.model.search.NameSuggester;
 import net.sourceforge.docfetcher.model.search.NameSuggester.Suggestion;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.model.search.Searcher;
+import net.sourceforge.docfetcher.model.pdf.PdfPages;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.MailSender;
@@ -1438,6 +1439,18 @@ public final class ResultPanel {
 	 * Moves the given documents' files into the target folder, updating the
 	 * result rows and the affected indexes.
 	 */
+	/**
+	 * Lets the user split the PDF file in the split dialog, prefilled with
+	 * the roles of the pages an AI assistant proposes (see
+	 * PdfOperations.splitProposed); returns the created files, or null.
+	 */
+	@Nullable
+	public List<File> splitProposed(@NotNull ResultDocument doc,
+									@NotNull PdfPages.Role[] roles,
+									@NotNull List<String> names) {
+		return PdfOperations.splitProposed(pdfHost, doc, roles, names, Msg.mcp_split_msg.get());
+	}
+
 	/**
 	 * Lets the user move the documents in the move dialog, with the proposed
 	 * folder (from an AI assistant) preselected; returns the moved files, or

@@ -540,3 +540,34 @@
   - Tests: McpServerTest.moveOnlyWhenAllowedAndConfirmed (off; suggestions; refused outside the inbox, same folder,
     not a folder; cancel; confirmed with new ids). App test (dev build, MCP 28836): read_document suggested_folders
     (Archiv, Belege), move_document to Archiv: dialog with 'Archiv' preselected, Move -> moved with new id.
+- MCP changes proposed by AI assistants (v3.0), the task items:
+  [] MCP: add support for: split and rename files in inbox(es): LLm shall be able to tell how to split (pages), remove empty and suggest name following the rules (MCP to tell LLM the naming rules). original file might be moved to docfetcher bin
+  [] MCP to move files to most suiting folder
+  [] in no way LLM can delete a file, or modify file content in any folder except the inbox.
+  [] MCP endpoint to allow renaming files after suer confirmation, and move files to another folder after user autorization and request
+  [] all new MCP features to enable/disable by setting, off by default
+    Analysis (v3.0, answers 2026-10-11): confirmation in DocFetcher's own dialogs, prefilled with the assistant's
+    proposal (rename dialog, move dialog, split dialog; the document is shown first; Cancel = declined); one checkbox
+    per feature (rename, move, split; off) plus 'also outside the inbox folders' for rename and move (split: inbox
+    only); naming rules as an editable text on the MCP tab (default: DocFetcher's rule), sent with DocFetcher's own
+    name suggestion per document. No delete tool, extensions never change, originals of a split per the existing
+    setting (-> DocFetcher bin). Stories: A settings + rename_document (+ suggested_name in read_document);
+    B move_document (+ suggested_folders); C analyze_pages + split_document (blank pages left out).
+- MCP story C (v3.0): analyze_pages + split_document
+  - McpSplitAllowed ('AI assistants may propose splitting PDF files in the inbox folders'); only PDF files directly in
+    an inbox folder (never outside). analyze_pages (read-only): PdfPages.analyzePages + DocumentStarts.suggest per page
+    (text beginning 600 chars, blank, separator_sheet, start/continue/leave_out with the reason). split_document(id,
+    parts[{pages, name}]): McpFileChanges.roles turns the parts into page roles (pages in no part left out; parts in
+    page order, at least two, a part may only skip left-out pages - checked against PdfPages.fromRoles), names via
+    newName (.pdf kept), all or none. FileOrganizer.split -> ResultPanel.splitProposed -> PdfOperations.splitProposed:
+    the SplitDialog with setProposal (reason 'AI assistant', the proposed names shown while the parts stay as
+    proposed); proposed names used only if the user kept the parts, else DocFetcher's naming (partFiles, shared with
+    split; analyzePages extracted). Result: new ids, original kept/removed.
+  - Originals question after merge/split names the DocFetcher bin when one is set (merge/split_done_question_bin,
+    originals_remove_bt_bin). Server instructions: never rename, move, change or delete documents yourself, even with
+    file access.
+  - Tests: McpServerTest.splitOnlyWhenAllowedAndConfirmed (off; analysis with blank page left out; refused outside
+    the inbox, wrong order, one part, page 9; roles and names; cancel; confirmed), PdfOperationsTest (SplitDialog
+    proposal: roles, names while unchanged). App test (dev build, MCP 28836): 4-page PDF in the inbox; analyze_pages:
+    1 start, 2 continue (2/2), 3 blank leave_out, 4 start; split_document -> split dialog prefilled, OK, originals
+    question, Keep -> two parts with the proposed names, ids returned.

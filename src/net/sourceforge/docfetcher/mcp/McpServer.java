@@ -36,6 +36,7 @@ import net.sourceforge.docfetcher.enums.SystemConf;
 import net.sourceforge.docfetcher.mcp.McpTools.ToolException;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
+import net.sourceforge.docfetcher.model.pdf.PdfPages;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
@@ -95,7 +96,8 @@ public final class McpServer {
 		+ "need the files themselves. When the user wants to see a document, use "
 		+ "'show_document', which shows it in DocFetcher's window. Use 'get_original_document' "
 		+ "only when the original file itself is needed (explicitly asked for, or its layout as "
-		+ "a template); for the content always 'read_document'. ";
+		+ "a template); for the content always 'read_document'. Never rename, move, change or "
+		+ "delete the user's documents yourself, even if you can access the files. ";
 
 	/** The instructions with the rule for giving the user files, which the preferences set. */
 	@NotNull
@@ -139,6 +141,15 @@ public final class McpServer {
 
 		/** The moved files at their new place (maybe in another folder than proposed), or null if the user canceled. */
 		@Nullable List<java.io.File> move(@NotNull List<ResultDocument> docs, @NotNull java.io.File folder);
+
+		/**
+		 * The parts created from the PDF file, with the proposed role of each
+		 * page and the names of the parts (used if the user keeps the parts),
+		 * or null if the user canceled.
+		 */
+		@Nullable List<java.io.File> split(	@NotNull ResultDocument doc,
+											@NotNull PdfPages.Role[] roles,
+											@NotNull List<String> names);
 	}
 
 	/** Sets who lets the user confirm changes to files; null: none possible. */

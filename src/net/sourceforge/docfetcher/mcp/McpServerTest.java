@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import net.sourceforge.docfetcher.enums.SettingsConf;
 
+import net.sourceforge.docfetcher.model.pdf.PdfPages;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.model.search.SearchTestSupport;
 
@@ -214,6 +215,9 @@ public final class McpServerTest {
 			public List<File> move(List<ResultDocument> docs, File folder) {
 				return null;
 			}
+			public List<File> split(ResultDocument doc, PdfPages.Role[] roles, List<String> names) {
+				return null;
+			}
 		});
 		List<String> saved = SettingsConf.StrList.InboxFolders.get();
 		SettingsConf.StrList.InboxFolders.set(java.util.Arrays.asList(inbox.getPath() + "|Scans"));
@@ -298,6 +302,9 @@ public final class McpServerTest {
 				}
 				return moved;
 			}
+			public List<File> split(ResultDocument doc, PdfPages.Role[] roles, List<String> names) {
+				return null;
+			}
 		});
 		List<String> saved = SettingsConf.StrList.InboxFolders.get();
 		SettingsConf.StrList.InboxFolders.set(java.util.Arrays.asList(inbox.getPath() + "|Scans"));
@@ -340,6 +347,89 @@ public final class McpServerTest {
 			server.setOrganizer(null);
 			letter.delete();
 			moved.delete();
+		}
+	}
+
+	@Test
+	public void splitOnlyWhenAllowedAndConfirmed() throws Exception {
+		File inbox = new File(support.root, "Posteingang");
+		File stack = net.sourceforge.docfetcher.model.pdf.PdfPagesTest.createTextPdf(new File(inbox, "stapel.pdf"),
+			"Stadtwerke Bonn. Sehr geehrter Herr Meier, Ihre Rechnung Strom Oktober. Seite 1 von 2",
+			"Stadtwerke Bonn. Abschlag 85,00 Euro. Seite 2 von 2",
+			"",
+			"Finanzamt Bonn. Sehr geehrte Frau Schmidt, Ihr Bescheid zur Einkommensteuer 2025.");
+		File elsewhere = net.sourceforge.docfetcher.model.pdf.PdfPagesTest.createTextPdf(
+			new File(support.root, "Mieter/zwei-seiten.pdf"), "Eins", "Zwei");
+		final List<PdfPages.Role[]> roles = new java.util.ArrayList<PdfPages.Role[]>();
+		final List<List<String>> names = new java.util.ArrayList<List<String>>();
+		final boolean[] accept = {false};
+		final File part1 = new File(inbox, "2026-10-01_Stadtwerke-Rechnung.pdf");
+		final File part2 = new File(inbox, "2026-10-02_Finanzamt-Bescheid.pdf");
+		server.setOrganizer(new McpServer.FileOrganizer() {
+			public File rename(ResultDocument doc, String name) {
+				return null;
+			}
+			public List<File> move(List<ResultDocument> docs, File folder) {
+				return null;
+			}
+			public List<File> split(ResultDocument doc, PdfPages.Role[] proposed, List<String> partNames) {
+				roles.add(proposed);
+				names.add(partNames);
+				return accept[0] ? java.util.Arrays.asList(part1, part2) : null;
+			}
+		});
+		List<String> saved = SettingsConf.StrList.InboxFolders.get();
+		SettingsConf.StrList.InboxFolders.set(java.util.Arrays.asList(inbox.getPath() + "|Scans"));
+		try {
+			String idArg = "\"id\":" + Json.write(id(stack));
+			assertFalse(Json.write(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}")).contains("split_document"));
+			assertTrue(text(call("analyze_pages", "{" + idArg + "}", true), 0).contains("switched off"));
+
+			SettingsConf.Bool.McpSplitAllowed.set(true);
+			String tools = Json.write(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}"));
+			assertTrue(tools.contains("split_document") && tools.contains("analyze_pages"));
+			Map<String, Object> analysis = json(call("analyze_pages", "{" + idArg + "}", false), 0);
+			assertEquals(4L, ((Number) analysis.get("total_pages")).longValue());
+			List<Object> pages = (List<Object>) analysis.get("pages");
+			Map<String, Object> blank = (Map<String, Object>) pages.get(2);
+			assertEquals(Json.write(blank), Boolean.TRUE, blank.get("blank"));
+			assertEquals("leave_out", blank.get("suggestion"));
+			assertEquals("start", ((Map<String, Object>) pages.get(3)).get("suggestion"));
+
+			// Only PDF files in the inbox; parts in page order, at least two
+			assertTrue(text(call("analyze_pages", "{\"id\":" + Json.write(id(elsewhere)) + "}", true), 0)
+				.startsWith("Only documents in the user's inbox folders"));
+			assertTrue(text(call("split_document", "{" + idArg + ",\"parts\":[{\"pages\":[1,2]},{\"pages\":[2,4]}]}", true), 0)
+				.contains("page order"));
+			assertTrue(text(call("split_document", "{" + idArg + ",\"parts\":[{\"pages\":[1,2,4]}]}", true), 0)
+				.contains("at least two"));
+			assertTrue(text(call("split_document", "{" + idArg + ",\"parts\":[{\"pages\":[1,3]},{\"pages\":[2,4]}]}", true), 0)
+				.contains("page order"));
+			assertTrue(text(call("split_document", "{" + idArg + ",\"parts\":[{\"pages\":[1]},{\"pages\":[9]}]}", true), 0)
+				.startsWith("No page 9"));
+			assertTrue(roles.isEmpty());
+
+			// The blank page left out; names with the extension; canceled, then confirmed
+			String split = "{" + idArg + ",\"parts\":[{\"pages\":[1,2],\"name\":\"2026-10-01_Stadtwerke-Rechnung\"},"
+				+ "{\"pages\":[4],\"name\":\"2026-10-02_Finanzamt-Bescheid.pdf\"}]}";
+			Map<String, Object> result = json(call("split_document", split, false), 0);
+			assertEquals(Boolean.FALSE, result.get("split"));
+			assertEquals(java.util.Arrays.asList(PdfPages.Role.START, PdfPages.Role.CONTINUE, PdfPages.Role.OMIT,
+				PdfPages.Role.START), java.util.Arrays.asList(roles.get(0)));
+			assertEquals(java.util.Arrays.asList("2026-10-01_Stadtwerke-Rechnung.pdf", "2026-10-02_Finanzamt-Bescheid.pdf"),
+				names.get(0));
+			accept[0] = true;
+			result = json(call("split_document", split, false), 0);
+			assertEquals(Boolean.TRUE, result.get("split"));
+			assertTrue(Json.write(result), Json.write(result).contains(id(part2)));
+			assertEquals("kept", result.get("original"));
+		}
+		finally {
+			SettingsConf.Bool.McpSplitAllowed.set(false);
+			SettingsConf.StrList.InboxFolders.set(saved);
+			server.setOrganizer(null);
+			stack.delete();
+			elsewhere.delete();
 		}
 	}
 
