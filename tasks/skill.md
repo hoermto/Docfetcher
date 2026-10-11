@@ -129,3 +129,10 @@
 - DocFetcher bin: `BinFolder = <scratch>/guidata/bin` in bin/settings-conf.txt (outside the inbox, so it gets its own
   index bin_<n> in bin/indexes; remove it with the test data afterwards). Deleting in the bin tab and 'Empty Bin...'
   use the real recycle bin of Windows (unit tests switch it off with UtilFile.setTrashDisabled).
+- MCP calls against the dev build: a small Python client that POSTs JSON-RPC to http://localhost:28836/mcp and
+  refuses unless initialize returns serverInfo version 'Unspecified' (the dev build). Tool calls that open a dialog
+  (rename/move/split) block until the dialog closes: run them in the background, then drive the dialog with win.py.
+- Hand-written test PDFs: '%' starts a PDF comment - a leftover placeholder like '%PAGES%' in a page dictionary
+  silently empties the pages (and DocFetcher's OCR then rewrites the file as blank pages).
+- Network drives: check the detection read-only (UtilFile.isNetworkDrive on the drive root via a tiny java launcher
+  with the dev classpath); never create test indexes or files on the user's shares.
