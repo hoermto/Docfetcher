@@ -1,3 +1,5 @@
+==== 2026-10-11 - DocFetcher 3.1 ====
+
 ==== 2026-10-11 - DocFetcher 3.0 ====
 
 === Bugfixes ===
