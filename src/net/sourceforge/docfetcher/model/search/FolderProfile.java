@@ -240,9 +240,12 @@ public final class FolderProfile {
 		return profiles;
 	}
 
-	/** Words of at least 3 letters, without digits (numbers, codes and dates say little about a folder). */
+	/**
+	 * Words of at least 3 letters, without digits (numbers, codes and dates
+	 * say little about a folder), file extensions and filler words.
+	 */
 	private static boolean isWord(@NotNull String word) {
-		if (word.length() < 3 || EXTENSIONS.contains(word))
+		if (word.length() < 3 || EXTENSIONS.contains(word) || NameSuggester.STOPWORDS.contains(word))
 			return false;
 		for (int i = 0; i < word.length(); i++)
 			if (!Character.isLetter(word.charAt(i)))
