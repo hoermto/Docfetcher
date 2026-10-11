@@ -1034,7 +1034,7 @@ public enum Msg {
 		"Button on the 'Bin' tab that moves everything in the DocFetcher bin to the recycle bin of the system."),
 	restore_title ("Restore",
 		"Title of the question where files from the DocFetcher bin should go, and of the folder chooser for them."),
-	restore_question ("Where should {0,choice,1#the selected entry|1<the {0} selected entries} go?\n\nOriginal location: back where they were deleted (entries put into the bin otherwise go into the inbox folder).\nInbox: into the inbox folder {1}.",
+	restore_question ("Where should {0,choice,1#the selected entry|1<the {0} selected entries} go?\n\nOriginal location: each entry back to where it was deleted (entries that came into the bin otherwise go into the inbox folder).\nInbox: into the inbox folder {1}.",
 		"Question before restoring files from the DocFetcher bin. The number of entries is inserted in the {0} slot, the inbox folder in the {1} slot."),
 	restore_origin_bt ("&Original Location",
 		"Button: restore the files from the DocFetcher bin where they were deleted."),

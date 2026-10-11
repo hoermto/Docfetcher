@@ -53,6 +53,7 @@ public final class InboxPanel {
 	private final ResultPanel resultPanel;
 	private final IndexRegistry indexRegistry;
 	private final boolean bin;
+	@Nullable private Composite buttonRow; // Created by addButton
 	@Nullable private volatile File folder;
 	private volatile int refreshCount = 0;
 
@@ -118,18 +119,26 @@ public final class InboxPanel {
 		return resultPanel;
 	}
 
-	/** Adds a button to the header, right of the others. */
+	/**
+	 * Adds a button to a row of its own below the header, right of the
+	 * buttons added before (the header has no room for more in a narrow pane).
+	 */
 	@NotNull
 	public Button addButton(@NotNull String label, @NotNull final Runnable action) {
-		Composite header = countLabel.getParent();
-		((GridLayout) header.getLayout()).numColumns++;
-		Button bt = UtilGui.createPushButton(header, label, new SelectionAdapter() {
+		if (buttonRow == null) {
+			buttonRow = new Composite(comp, SWT.NONE);
+			buttonRow.setLayout(UtilGui.createGridLayout(0, false, 3, 8));
+			buttonRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+			buttonRow.moveBelow(countLabel.getParent());
+		}
+		((GridLayout) buttonRow.getLayout()).numColumns++;
+		Button bt = UtilGui.createPushButton(buttonRow, label, new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
 				action.run();
 			}
 		});
-		bt.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
-		header.layout();
+		bt.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
+		comp.layout(true, true);
 		return bt;
 	}
 
