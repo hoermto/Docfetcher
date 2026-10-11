@@ -898,11 +898,30 @@ public enum Msg {
 		"Show the folder of a document as a column in the result tables",
 		Comments.prefOption + "If unchecked, the folder is only shown as a " +
 		"tooltip and in the status bar."),
-	pref_daily_index_update (
-		"Update all indexes once a day in the background",
-		Comments.prefOption + "If checked, all indexes are updated once a " +
-		"day while the program runs, so that deleted or changed files are " +
-		"picked up even in folders that aren't watched."),
+	pref_daily_sync ("Sync indexes daily at",
+		Comments.prefOption + "Followed by a time field and the choice which indexes are synced."),
+	pref_daily_sync_for ("for",
+		"Between the time and the choice of indexes in the option for the daily sync."),
+	pref_daily_sync_needed ("indexes that need it (network drives, folders not watched)",
+		"Choice in the option for the daily sync."),
+	pref_daily_sync_all ("all indexes",
+		"Choice in the option for the daily sync."),
+	pref_daily_sync_hint ("Changes on network drives and in folders that aren't watched aren't noticed by themselves: the daily sync updates these indexes. If DocFetcher isn't running at that time, the sync runs at the next start.",
+		"Tooltip of the option for the daily sync."),
+	index_col_updates ("Kept up to date",
+		"Column header of the index table on the preferences dialog: how the index is kept up to date."),
+	index_sync_watched ("Folder watching",
+		"Index table: the folders are watched for changes."),
+	index_sync_watched_daily ("Folder watching, daily sync at {0}",
+		"Index table: watched, and the daily sync covers all indexes. The time is inserted in the {0} slot."),
+	index_sync_network ("Network drive",
+		"Index table: the folder is on a network drive, whose changes aren't reported reliably."),
+	index_sync_unwatched ("Not watched",
+		"Index table: folder watching is off for the index."),
+	index_sync_daily ("{0}: daily sync at {1}",
+		"Index table: why the index needs syncing ({0}, e.g. 'Network drive') and the time of the daily sync ({1})."),
+	index_sync_manual ("{0}: no daily sync (update it yourself)",
+		"Index table: the index needs syncing ({0}), but the daily sync is off."),
 	pref_ocr (
 		"Recognize text in images and scanned PDFs (OCR, German and English)",
 		Comments.prefOption + "If checked, the text of image files and " +

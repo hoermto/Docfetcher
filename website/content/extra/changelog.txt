@@ -4,6 +4,7 @@
   * After a drag copy, removing the original didn't update the index.
 
 === Features ===
+  * Indexes on network drives: DocFetcher recognizes folders on a network drive (Windows: mapped drive or UNC path via GetDriveType; elsewhere NFS/SMB/AFP/... mounts), whose changes usually aren't reported. The index list (preferences, Indexes) has a column 'Kept up to date': folder watching, or 'Network drive' / 'Not watched' with the daily sync. The option 'Update all indexes once a day' became 'Sync indexes daily at [03:00] for [indexes that need it | all indexes]' (on by default): at a fixed time instead of 24 hours after the start, caught up at the next start if DocFetcher wasn't running.
   * After DocFetcher renames, moves, deletes, restores, splits or merges files, only the folders involved are read again - the files there and which subfolders they have (a folder moved in completely) -, instead of walking the whole folder tree: seconds instead of minutes on a large network drive, whether the folders are watched or not. Requests for the same index join a waiting update; a complete update includes them.
 
 ==== 2026-10-11 - DocFetcher 3.0 ====

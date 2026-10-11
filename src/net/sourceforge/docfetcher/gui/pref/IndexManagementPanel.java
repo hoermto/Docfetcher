@@ -46,6 +46,7 @@ import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.enums.SystemConf;
 import net.sourceforge.docfetcher.gui.Application;
+import net.sourceforge.docfetcher.gui.IndexSync;
 import net.sourceforge.docfetcher.gui.filter.IndexPanel;
 import net.sourceforge.docfetcher.model.IndexRegistry.ExistingIndexesHandler;
 import net.sourceforge.docfetcher.model.IndexRegistry;
@@ -171,6 +172,9 @@ final class IndexManagementPanel {
 		TableColumn statusCol = new TableColumn(table, SWT.LEFT);
 		statusCol.setText(Msg.index_col_status.get());
 		statusCol.setWidth(150);
+		TableColumn updatesCol = new TableColumn(table, SWT.LEFT);
+		updatesCol.setText(Msg.index_col_updates.get());
+		updatesCol.setWidth(300);
 
 		table.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
@@ -412,6 +416,7 @@ final class IndexManagementPanel {
 			item.setText(0, index.getRootFolder().getDisplayName());
 			item.setText(1, index.getRootFolder().getPath().getPath());
 			item.setText(2, getStatusText(index));
+			item.setText(3, IndexSync.describe(index));
 			item.setImage(0, (index.isEmailIndex() ? Img.EMAIL : Img.FOLDER).get());
 			item.setData(index);
 		}

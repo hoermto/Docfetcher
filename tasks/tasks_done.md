@@ -601,3 +601,25 @@
   - Tests: PartialUpdateTest (moved, renamed, folder moved in with a subfolder; unrelated folder and existing
     subfolder untouched until a complete update; nearest ancestor), TaskMergeTest. App test: move via MCP, the search
     finds the document in the new folder 2 s later.
+- v3.1 network drives, the task items:
+  situation: documents are on a network drive; file changes are most likely not notified to DocFetcher.
+  [] whenever a file rename or move happens within DocFetcher, make sure the affected indexes are updated in any case
+  [] for network drives, consider a nightly refresh (option setting)
+  [] determine per index whether the source path/drive supports fs based notifications or needs manual syncs
+    Answers (v3.1): only the affected folders are read again after DocFetcher's own operations; automatic
+    detection (network drive / UNC = sync needed, watching stays on too), shown per index; daily sync at a fixed
+    time (default 03:00, on, caught up at the next start), merged with 'update all indexes once a day' into one
+    option with 'only indexes that need it' / 'all indexes'.
+- v3.1: network detection, sync column, daily sync at a fixed time
+  - UtilFile.isNetworkDrive: Windows UNC prefix or Kernel32.GetDriveType == DRIVE_REMOTE (JNA, already shipped);
+    elsewhere FileStore.type() in nfs/cifs/smb*/afpfs/webdav/davfs/sshfs/9p. Verified on this machine: Z: (\\wurbis\tmp)
+    true, C:/D: false (read-only check, nothing on the share read or written).
+  - IndexSync (gui): needsSync = not watched or network drive; isSynced = daily on and (scope all or needsSync);
+    describe for the new column 'Kept up to date' on the Indexes tab; parseTime/format; lastScheduled/isDue for the
+    catch-up. Settings: DailyIndexUpdate stays the on/off switch (default on), new Str DailySyncTime '03:00',
+    Int DailySyncScope (0 needed, 1 all), Str DailySyncLast. Application's thread checks every minute; a missed sync
+    runs right after the start; the first start without a record waits for the next time.
+  - DailySyncOption: 'Sync indexes daily at [03:00] for [indexes that need it | all indexes]' on the General tab.
+  - Tests: IndexSyncTest (times, due/catch-up, UNC, watched vs not watched texts, scope). App test (dev): with
+    the startup update off, scope all and the last sync two days ago, the sync ran at the start and DailySyncLast
+    was renewed; General tab option and Indexes column shown.

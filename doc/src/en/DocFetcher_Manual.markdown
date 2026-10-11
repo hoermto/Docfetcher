@@ -65,6 +65,8 @@ Files in the result table can be renamed (`F2` or `Rename...` in the context men
 Some caveats: If you are using the portable version of DocFetcher and want the daemon to be run, you must install it manually by adding the daemon executable to your operating system's list of startup programs. Also, neither DocFetcher nor the daemon can detect changes on network shares.<!-- this line should end with two spaces -->  
 So, in those cases where the indexes can't be updated automatically, you'll have to do it yourself: Open the preferences, switch to the `Indexes` tab, select one or more indexes to be updated and click on `Update`.
 
+**Network drives and the daily sync**: DocFetcher recognizes indexes whose folders are on a network drive (a mapped drive or a `\\server\share` path on Windows, an NFS/SMB mount elsewhere) - changes there are usually not reported. The column `Kept up to date` on the `Indexes` tab shows for each index whether folder watching is enough or which indexes need the daily sync: those on network drives and those whose folder watching is off. `Sync indexes daily at` (preferences, `General` tab, on by default at 03:00) updates them every day at that time; if DocFetcher isn't running then, the sync runs at the next start. Instead of only the indexes that need it, the sync can also cover `all indexes`. Changes DocFetcher makes itself - renaming, moving, deleting, restoring from the bin, merging and splitting - always update the index right away, also on network drives: only the folders involved are read again, which takes seconds instead of walking the whole folder tree.
+
 * * *
 
 <a name="Advanced_Usage"></a> <!-- Do not translate this line, just copy it verbatim. -->

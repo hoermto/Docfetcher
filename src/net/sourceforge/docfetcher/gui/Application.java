@@ -1051,30 +1051,40 @@ private static SashForm folderSash;
 			queue.addTask(index, IndexAction.UPDATE); // Rejected if already queued
 		}
 	}
-	
+
 	/**
-	 * Updates all indexes once a day while the program is running, so that
-	 * files deleted or changed outside the watched folders don't linger in
-	 * the indexes. The startup update counts as the first run.
+	 * Runs the daily sync (see IndexSync) at its time while the program is
+	 * running, and right away if it was missed while the program was closed.
+	 * The first start without a recorded sync waits for the next time.
 	 */
 	private static void startDailyIndexUpdates() {
-		Thread thread = new Thread(Application.class.getName() + " (daily index updates)") {
+		Thread thread = new Thread(Application.class.getName() + " (daily index sync)") {
 			public void run() {
-				long lastUpdate = System.currentTimeMillis();
+				long lastSync = 0;
+				try {
+					lastSync = Long.parseLong(SettingsConf.Str.DailySyncLast.get().trim());
+				}
+				catch (NumberFormatException e) {
+					lastSync = System.currentTimeMillis();
+					SettingsConf.Str.DailySyncLast.set(String.valueOf(lastSync));
+				}
 				while (true) {
+					long now = System.currentTimeMillis();
+					if (SettingsConf.Bool.DailyIndexUpdate.get()
+							&& IndexSync.isDue(now, lastSync, IndexSync.getMinute())) {
+						lastSync = now;
+						SettingsConf.Str.DailySyncLast.set(String.valueOf(now));
+						IndexingQueue queue = indexRegistry.getQueue();
+						for (LuceneIndex index : indexRegistry.getIndexes())
+							if (IndexSync.isSynced(index) && index.getCanonicalRootFile().exists())
+								queue.addTask(index, IndexAction.UPDATE); // Rejected if already queued
+					}
 					try {
-						Thread.sleep(60 * 60 * 1000); // Check hourly
+						Thread.sleep(60 * 1000); // Checks every minute
 					}
 					catch (InterruptedException e) {
 						return;
 					}
-					if (!SettingsConf.Bool.DailyIndexUpdate.get())
-						continue;
-					long now = System.currentTimeMillis();
-					if (now - lastUpdate < 24L * 60 * 60 * 1000)
-						continue;
-					lastUpdate = now;
-					enqueueIndexUpdates(false);
 				}
 			}
 		};

@@ -25,14 +25,6 @@
 
 
 ## new version
-situation: documents are on a network drive; file changes are most likely not notified to DocFetcher.
-[] whenever a file rename or move happens within DocFetcher, make sure the affected indexes are updated in any case
-[] for network drives, consider a nightly refresh (option setting)
-[] determine per index whether the source path/drive supports fs based notifications or needs manual syncs
-  Answers (v3.1): only the affected folders are read again after DocFetcher's own operations; automatic
-  detection (network drive / UNC = sync needed, watching stays on too), shown per index; daily sync at a fixed
-  time (default 03:00, on, caught up at the next start), merged with 'update all indexes once a day' into one
-  option with 'only indexes that need it' / 'all indexes'.
 
 
 ## future features/stories
