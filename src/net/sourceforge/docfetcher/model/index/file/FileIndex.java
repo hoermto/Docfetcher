@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -196,6 +197,87 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 		}
 	}
 	
+	/** While not null, doUpdate visits only these folders (see updateFolders). */
+	@Nullable private transient List<File> onlyFolders;
+
+	/**
+	 * Updates only the given folders of this index - their files, and which
+	 * subfolders they have (new ones completely, existing ones are left as
+	 * they are) -, e.g. after DocFetcher renamed, moved or deleted files
+	 * there: much faster than walking the whole folder tree, which takes long
+	 * on a network drive. A folder that isn't in the tree yet is updated
+	 * through its nearest ancestor that is. Falls back to a complete update
+	 * if the root is an archive or a folder lies inside an archive. Doesn't
+	 * count as the last complete update.
+	 */
+	@NotNull
+	public IndexingResult updateFolders(@NotNull Collection<File> folders,
+										@Nullable IndexingReporter reporter,
+										@Nullable Cancelable cancelable) {
+		if (reporter == null)
+			reporter = IndexingReporter.nullReporter;
+		if (cancelable == null)
+			cancelable = Cancelable.nullCancelable;
+		List<File> visited = getVisitedFolders(folders);
+		if (visited == null)
+			return update(reporter, cancelable);
+		if (visited.isEmpty() || cancelable.isCanceled())
+			return IndexingResult.SUCCESS_UNCHANGED;
+		onlyFolders = visited;
+		try {
+			return doUpdate(reporter, cancelable);
+		}
+		finally {
+			onlyFolders = null;
+		}
+	}
+
+	/**
+	 * The folders inside this index to visit for the given folders: each one
+	 * or its nearest ancestor in the tree;
+	 * null if a complete update is needed (archives).
+	 */
+	@Nullable
+	List<File> getVisitedFolders(@NotNull Collection<File> folders) {
+		File root = getCanonicalRootFile();
+		if (!root.isDirectory())
+			return null;
+		List<File> visited = new ArrayList<File>();
+		for (File folder : folders) {
+			folder = Util.getCanonicalFile(folder);
+			if (!folder.equals(root) && !Util.contains(root, folder))
+				continue; // Not in this index
+			// The nearest folder that is in the tree
+			FileFolder node = getRootFolder();
+			File dir = root;
+			for (java.nio.file.Path name : root.toPath().relativize(folder.toPath())) {
+				if (name.toString().isEmpty())
+					continue; // The root itself
+				FileFolder child = node.getSubFolder(name.toString());
+				if (child == null)
+					break;
+				if (child.getLastModified() != null)
+					return null; // An archive
+				node = child;
+				dir = new File(dir, name.toString());
+			}
+			// Also a folder inside another one: that one is visited shallow
+			if (!visited.contains(dir))
+				visited.add(dir);
+		}
+		return visited;
+	}
+
+	/** The tree node of the folder, which must be in the tree. */
+	@NotNull
+	private FileFolder getFolderNode(@NotNull File dir) {
+		FileFolder node = getRootFolder();
+		for (java.nio.file.Path name : getCanonicalRootFile().toPath().relativize(dir.toPath()))
+			if (!name.toString().isEmpty())
+				node = node.getSubFolder(name.toString());
+		return node;
+	}
+
 	public IndexingResult doUpdate(	@NotNull IndexingReporter reporter,
 									@NotNull Cancelable cancelable) {
 		reporter.setStartTime(System.currentTimeMillis());
@@ -236,9 +318,23 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 					config, zipDetector, writer, reporter, null, cancelable,
 					new MutableInt(0), getIndexParentDir());
 				
+				List<File> folders = onlyFolders;
+				if (folders != null) {
+					// Only these folders, each without its existing subfolders
+					context.setDeferOcr(true);
+					for (File dir : folders) {
+						if (cancelable.isCanceled())
+							break;
+						visitDirOrZip(context, getFolderNode(dir), new TFile(dir, zipDetector), true);
+					}
+					context.setDeferOcr(false);
+					processDeferredOcr(context, cancelable);
+					return IndexingResult.SUCCESS_CHANGED;
+				}
+
 				// Count the files first so that progress can be shown
 				context.setProgressTotal(countFiles(getCanonicalRootFile(), cancelable));
-				
+
 				// Excel files and PDF forms of an older text format are parsed again, once
 				boolean reparseExcel = isExcelTextOutdated();
 				boolean reparsePdfForms = isPdfFormsOutdated();
@@ -364,6 +460,21 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 	private static void visitDirOrZip(	@NotNull final FileContext context,
 										@NotNull final FileFolder folder,
 										@NotNull final File dirOrZip)
+			throws IndexingException {
+		visitDirOrZip(context, folder, dirOrZip, false);
+	}
+
+	/**
+	 * Like {@link #visitDirOrZip(FileContext, FileFolder, File)}; if
+	 * {@code shallow} is true, only the files of the folder and which
+	 * subfolders it has are updated: subfolders that are in the tree already
+	 * are left as they are, new ones are visited completely.
+	 */
+	@RecursiveMethod
+	private static void visitDirOrZip(	@NotNull final FileContext context,
+										@NotNull final FileFolder folder,
+										@NotNull final File dirOrZip,
+										final boolean shallow)
 			throws IndexingException {
 		assert !folder.hasErrors();
 		
@@ -522,6 +633,9 @@ public final class FileIndex extends TreeIndex<FileDocument, FileFolder> {
 					context.getConfig(), dir);
 				if (subFolder == null) { // Folder added
 					subFolder = new FileFolder(folder, dir.getName(), newLastModified);
+				}
+				else if (shallow) { // Left as it is
+					return;
 				}
 				else { // Folder already registered, check modification state
 					if (UtilModel.isUnmodifiedArchive(subFolder, newLastModified))

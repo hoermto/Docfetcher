@@ -1766,7 +1766,7 @@ private static SashForm folderSash;
 			AppUtil.showError(Msg.file_operation_failed.format(Util.join("\n", failed)), true, true);
 		LuceneIndex index = indexRegistry.findIndexFor(bin);
 		if (index != null)
-			indexRegistry.getQueue().addTask(index, IndexAction.UPDATE);
+			indexRegistry.getQueue().addUpdate(index, Collections.singletonList(bin));
 		previewPanel.clear();
 		refreshInboxTabs();
 		refreshFolderPanels();

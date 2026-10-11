@@ -589,3 +589,15 @@
     'finanzamt (2)' and not 'bonn', newest name; depth 0; find_folders), summary missing refused, tool list 7.
     App test (dev build, MCP 28836): describe_folder depth 2 (inbox, Archiv with 2025/2026, Belege), find_folders,
     rename_document with summary -> shown at the top of the rename dialog; Cancel -> renamed false.
+- v3.1: after DocFetcher's own file operations, update only the affected folders
+  - FileIndex.updateFolders(folders): doUpdate visits only those folders shallow (visitDirOrZip(..., shallow): files
+    added/changed/removed, new subfolders completely, existing subfolders left as they are); a folder not in the tree
+    yet goes through its nearest ancestor that is (getVisitedFolders), archives fall back to a complete update; no
+    'last updated' change, no one-time reparse flags. Task carries the folders (null = whole index), mergeFolders
+    when a request meets a ready update of the same index (complete wins); IndexingQueue.addUpdate.
+  - ResultPanel.updateIndexesFor: the parents of all affected files per index (rename, move, delete, folder
+    operations, undo, bin restore, merge/split via the host, drop moves); emptyBin updates the bin folder only;
+    fix: removing the original after a drag copy now updates the indexes.
+  - Tests: PartialUpdateTest (moved, renamed, folder moved in with a subfolder; unrelated folder and existing
+    subfolder untouched until a complete update; nearest ancestor), TaskMergeTest. App test: move via MCP, the search
+    finds the document in the new folder 2 s later.

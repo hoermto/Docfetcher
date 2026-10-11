@@ -11,7 +11,13 @@
 
 package net.sourceforge.docfetcher.model.index;
 
+import java.io.File;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 import net.sourceforge.docfetcher.model.Cancelable;
+import net.sourceforge.docfetcher.model.index.file.FileIndex;
 import net.sourceforge.docfetcher.model.LuceneIndex;
 import net.sourceforge.docfetcher.model.PendingDeletion;
 import net.sourceforge.docfetcher.model.TreeIndex.IndexingResult;
@@ -62,11 +68,25 @@ public final class Task {
 	@Nullable private volatile PendingDeletion deletion;
 	private final DelegatingReporter reporter;
 	@Nullable volatile CancelAction cancelAction;
+	/**
+	 * For an update: only these folders (see FileIndex.updateFolders); null:
+	 * the whole index. Changed under the lock of the queue while the task
+	 * is ready.
+	 */
+	@Nullable private volatile Set<File> folders;
 
 	Task(	@NotNull IndexingQueue queue,
 			@NotNull LuceneIndex index,
 			@NotNull IndexAction indexAction) {
+		this(queue, index, indexAction, null);
+	}
+
+	Task(	@NotNull IndexingQueue queue,
+			@NotNull LuceneIndex index,
+			@NotNull IndexAction indexAction,
+			@Nullable Collection<File> folders) {
 		Util.checkNotNull(queue, index, indexAction);
+		this.folders = folders == null ? null : new LinkedHashSet<File>(folders);
 		this.queue = queue;
 		this.index = index;
 		this.indexAction = indexAction;
@@ -121,11 +141,38 @@ public final class Task {
 
 	@NotNull
 	IndexingResult update() {
-		return index.update(reporter, new Cancelable() {
+		Cancelable cancelable = new Cancelable() {
 			public boolean isCanceled() {
 				return cancelAction != null;
 			}
-		});
+		};
+		Set<File> only = folders;
+		if (only != null && index instanceof FileIndex)
+			return ((FileIndex) index).updateFolders(only, reporter, cancelable);
+		return index.update(reporter, cancelable);
+	}
+
+	/**
+	 * Adds the folders of another update request for the same index; null
+	 * (the whole index) makes this a complete update.
+	 */
+	void mergeFolders(@Nullable Set<File> more) {
+		Set<File> current = folders;
+		if (current == null)
+			return; // Complete already
+		if (more == null) {
+			folders = null;
+			return;
+		}
+		Set<File> merged = new LinkedHashSet<File>(current);
+		merged.addAll(more);
+		folders = merged;
+	}
+
+	/** The folders of a partial update, or null for the whole index. */
+	@Nullable
+	Set<File> getFolders() {
+		return folders;
 	}
 
 	@NotNull

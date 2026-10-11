@@ -1,5 +1,11 @@
 ==== 2026-10-11 - DocFetcher 3.1 ====
 
+=== Bugfixes ===
+  * After a drag copy, removing the original didn't update the index.
+
+=== Features ===
+  * After DocFetcher renames, moves, deletes, restores, splits or merges files, only the folders involved are read again - the files there and which subfolders they have (a folder moved in completely) -, instead of walking the whole folder tree: seconds instead of minutes on a large network drive, whether the folders are watched or not. Requests for the same index join a waiting update; a complete update includes them.
+
 ==== 2026-10-11 - DocFetcher 3.0 ====
 
 === Bugfixes ===

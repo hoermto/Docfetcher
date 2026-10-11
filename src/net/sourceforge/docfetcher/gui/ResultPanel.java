@@ -25,6 +25,7 @@ import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1858,14 +1859,24 @@ public final class ResultPanel {
 	
 	private static void updateIndexesFor(	@NotNull IndexRegistry indexRegistry,
 											@NotNull Collection<File> files) {
-		Set<LuceneIndex> indexes = new HashSet<LuceneIndex>();
+		/*
+		 * Only the folders the files were in or came into are read again,
+		 * whether the folders are watched or not: a complete update takes
+		 * long on a network drive, where changes often aren't reported.
+		 */
+		Map<LuceneIndex, Set<File>> folders = new LinkedHashMap<LuceneIndex, Set<File>>();
 		for (File file : files) {
 			LuceneIndex index = indexRegistry.findIndexFor(file);
-			if (index != null)
-				indexes.add(index);
+			File parent = file.getParentFile();
+			if (index == null || parent == null)
+				continue;
+			Set<File> set = folders.get(index);
+			if (set == null)
+				folders.put(index, set = new LinkedHashSet<File>());
+			set.add(parent);
 		}
-		for (LuceneIndex index : indexes)
-			indexRegistry.getQueue().addTask(index, IndexAction.UPDATE);
+		for (Map.Entry<LuceneIndex, Set<File>> entry : folders.entrySet())
+			indexRegistry.getQueue().addUpdate(entry.getKey(), entry.getValue());
 	}
 	
 	/*
@@ -2178,11 +2189,17 @@ public final class ResultPanel {
 		if (remove == null || !remove)
 			return;
 		List<String> failed = new ArrayList<String>();
+		List<File> affected = new ArrayList<File>();
 		for (File file : files) {
 			// The copy may still be in progress; retry a few times
 			boolean deleted = false;
 			for (int attempt = 0; attempt < 10 && !deleted; attempt++) {
-				deleted = !file.exists() || Bin.delete(file) != null;
+				File now = file.exists() ? Bin.delete(file) : file;
+				deleted = now != null;
+				if (deleted) {
+					affected.add(file);
+					affected.add(now); // In the bin
+				}
 				if (!deleted) {
 					try {
 						Thread.sleep(300);
@@ -2195,6 +2212,7 @@ public final class ResultPanel {
 			if (!deleted)
 				failed.add(file.getPath());
 		}
+		updateIndexesFor(affected);
 		if (!failed.isEmpty())
 			AppUtil.showError(Msg.remove_original_failed.format(Util.join("\n", failed)), true, true);
 	}

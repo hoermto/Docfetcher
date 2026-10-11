@@ -12,6 +12,7 @@
 package net.sourceforge.docfetcher.model.index;
 
 import java.io.File;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -331,11 +332,31 @@ public final class IndexingQueue {
 	public Rejection addTask(	@NotNull LuceneIndex index,
 								@NotNull IndexAction action,
 								boolean ready) {
+		return addTask(index, action, ready, null);
+	}
+
+	/**
+	 * Enqueues an update of only the given folders of the index, e.g. after
+	 * DocFetcher renamed or moved files there (see FileIndex.updateFolders).
+	 * Requests for an index merge with a waiting update of it; an update of
+	 * the whole index includes them.
+	 */
+	@Nullable
+	@ThreadSafe
+	public Rejection addUpdate(@NotNull LuceneIndex index, @NotNull Collection<File> folders) {
+		return addTask(index, IndexAction.UPDATE, false, folders);
+	}
+
+	@Nullable
+	private Rejection addTask(	@NotNull LuceneIndex index,
+								@NotNull IndexAction action,
+								boolean ready,
+								@Nullable Collection<File> folders) {
 		Util.checkNotNull(index, action);
 		Util.checkThat(index instanceof FileIndex
 				|| index instanceof OutlookIndex);
-		
-		Task task = new Task(this, index, action);
+
+		Task task = new Task(this, index, action, index instanceof FileIndex ? folders : null);
 
 		/*
 		 * Bug #2417: Removed overly strict index directory check. This check
@@ -390,10 +411,15 @@ public final class IndexingQueue {
 				 * should work well enough, assuming that it is very unlikely
 				 * that the user will cancel ready tasks.
 				 */
-				for (Task queueTask : tasks)
+				for (Task queueTask : tasks) {
 					if (queueTask.is(TaskState.READY)
-							&& sameTarget(queueTask, task))
+							&& sameTarget(queueTask, task)) {
+						// Its folders join the waiting update (all of them if this one is complete)
+						if (queueTask.is(IndexAction.UPDATE))
+							queueTask.mergeFolders(task.getFolders());
 						return Rejection.REDUNDANT_UPDATE;
+					}
+				}
 			}
 			else if (index instanceof OutlookIndex) {
 				/*
