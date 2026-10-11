@@ -302,3 +302,290 @@
   - Inbox documents no longer call followInFolderPanel: the inbox is the source for filing, the browsers keep the target folder (with sync, the right pane jumped back to the inbox folder).
   - Keys renamed to SearchKey/InboxKey/FoldersKey, so settings files that saved the old defaults F5/F6/F7 get the new ones. Tab titles 'Search (F7)', 'Inbox (F8)', 'Folders (F5)' via Application.withKey, updated when a key changes in the preferences.
     Tests: KeysTest (new defaults, tab titles with key / without key); GUI: inbox click keeps the right browser, search result syncs it, F8 cycles the inboxes, F5 Folders tab, F7 search, key changed to F9 renames the tab at once.
+- change (v2.9): MCP protocol versions for clients of the last year (Claude Desktop without version warnings)
+  - Found: the server spoke 2025-03-26..2025-11-25 (initialize) but answered unknown versions with 2025-06-18; the current
+    SDK (client 2.x, in mcp-remote@latest) already knows the stateless revision 2026-07-28. resources/list and prompts/list
+    gave 'Method not found'. Claude Desktop had no DocFetcher entry yet, so no logged warning to compare.
+  - McpServer is dual-era: _meta version or a modern MCP-Protocol-Version header -> 2026-07-28 (server/discover,
+    resultType, serverInfo in _meta, ttlMs/cacheScope, header checks -32020, unsupported version -32022 with the list,
+    missing _meta fields -32602, HTTP 400/404); otherwise initialize (unknown -> 2025-11-25), batches, unknown version
+    header -> 400. Empty resources/prompts lists. Claude Desktop config with 'npx -y'.
+    Tests: McpServerTest.modernRevision (discover, lists, call, Base64 Mcp-Name, header mismatches, future version,
+    missing _meta, removed methods, legacy headers), initializeAndListTools, httpTransport (modern over HTTP: 200/404);
+    real clients: SDK 2.3.1 legacy -> 2025-11-25, auto and pin -> 2026-07-28, SDK 1.32.1 -> 2025-11-25,
+    mcp-remote with the help's configuration - all without warnings.
+- change (v2.10): MCP: claude desktop wants per default https connection only - easier integration for a normal user
+  - Found: https would not help - Claude Desktop connects custom connectors (https addresses) from Anthropic's servers,
+    which can't reach localhost. Claude Desktop starts local servers on stdio; .mcpb files are not associated with it on
+    Windows (MSIX package), they are installed under Settings > Extensions.
+  - New: 'Create Claude Desktop Extension...' in the help on connecting Claude saves docfetcher.mcpb (default: Downloads)
+    and shows it in the Explorer. Manifest 0.3 (McpExtension) with the port of the help, the tools and the icon; the
+    bridge (server/index.js, no dependencies) passes stdio lines to http://localhost:<port>/mcp, adds the headers of
+    revision 2026-07-28 and answers with a clear error when DocFetcher isn't running. Runs with Claude Desktop's own
+    Node.js. The JSON configuration stays as '2c' for other apps. Util.winOpenDir works with spaces in paths.
+    Tests: McpExtensionTest (version, zip contents, manifest, bridge with Node against a server in both eras, server
+    stopped); mcpb validate (schema OK, unsigned); app: help dialog button -> save -> Explorer with the file selected,
+    SDK 2.3.1 over stdio through the saved extension: legacy 2025-11-25 and auto 2026-07-28 with search results.
+    Not installed in the user's Claude Desktop (no test entries in the user's Claude configuration).
+- change (v2.10): MCP: add endpoint for returning the original document (not only the full text)
+  - Answer to 'base64 - no native file access to source ever. 10MB limit why? can be 50?': 50 MB default
+    (program-conf.txt McpMaxOriginalMB). The 10 MB came from the clients: the MCP SDK (1.x and 2.x) reads at most
+    10 MiB per stdio message and closes the connection on a larger one - that is Claude Desktop's connection.
+  - Tool get_original_document (read-only, same access check as read_document): a text part with path, name,
+    MIME type, size, date, then the file - PNG/JPEG/GIF/WebP as 'image', all others as an embedded 'resource' with
+    a base64 blob and the identifier docfetcher:/<path> (no file: link). The Claude Desktop bridge turns answers
+    over 10 MiB into an error message (with resultType for 2026-07-28) and keeps the connection.
+    Tests: McpServerTest.originalDocuments (text file, PNG as image, TIFF as resource, too large, missing, outside,
+    MIME types), McpExtensionTest.bridge (9 MB file: error in both eras, next request answered); app: SDK 2.3.1 over
+    stdio through the extension (PDF and PNG byte-identical, 30 MB file -> error, connection stays) and over HTTP
+    (30 MB byte-identical in < 1 s), legacy and 2026-07-28.
+- change (v2.10): MCP: add endpoint to place a file in ScanBox folder for LLM (new files only, no deletion, no modifications)
+  - 'ScanBox' = DocFetcher's inbox (Postbox) folders. Opt-in 'AI assistants may add new files to the inbox' below the
+    MCP option (SettingsConf McpInboxWrite, off). Tool add_to_inbox (McpInbox), only listed while allowed; name + text
+    (UTF-8) or content_base64 (strict, line breaks allowed), optional inbox (tab name or path, default the first).
+    Files are created with CREATE_NEW directly in the inbox folder: a taken name (also in another case) gets
+    'name (2).ext'; nothing is ever replaced or deleted. Refused: folders and invalid characters, leading/trailing dot,
+    Windows device names, programs/scripts/shortcuts/Office macro files, more than 20 MB. Request limit raised from
+    1 MB to 28 MB for this; tool list cache (ttlMs) 1 min instead of 1 h.
+    Tests: McpInboxTest (listing and annotations, switched off, new files and numbering, case, base64 with line breaks,
+    second inbox by name, unknown inbox, refused names/contents, no inbox, size limit, 5 MB over HTTP); app: option in
+    the preferences -> tool listed; SDK 2.3.1 through the Claude Desktop extension in both eras: text, same name
+    (numbered), PDF as base64, .exe refused; the inbox tab shows the files, search finds the new offer.
+- change (v2.10): documentation for non-Claude users (ChatGPT desktop app and others)
+  - Help dialog 'Connect AI Assistants to DocFetcher' (link 'How to connect AI assistants (Claude, ChatGPT)...'):
+    2c ChatGPT desktop / Codex (shared ~/.codex/config.toml, streamable HTTP, no bridge; or 'codex mcp add docfetcher
+    --url ...'), 2d other assistants (HTTP address, or the JSON configuration for apps that start local programs), why
+    web assistants can't connect; button 'Copy ChatGPT / Codex Configuration'; buttons in two rows. Manual EN/DE, README.
+    The config entry is exactly what Codex CLI 0.162 writes with 'codex mcp add --url' (checked with a scratch
+    CODEX_HOME); not tested in the ChatGPT app itself (not installed here, needs an OpenAI login).
+    Tests: McpHelpOptionTest (configurations, English and German help with all parts); app: help dialog in the dev build.
+- change (v2.10): MCP: add task to show a particular document in DocFetcher, including folder sync
+  - Answers: Search tab + sync, window to the front, several documents at once.
+  - Tool show_document (paths: list, or a single path): same access check as read_document; indexed documents only
+    (others reported as not_found; none found -> error), at most 100. McpServer.DocumentViewer, set by Application;
+    showDocuments on the GUI thread: activateMainWindow (minimized/tray), Search tab, ResultPanel.showResults (first
+    selected), then the folder sync (showInRightmostFolderPanel, also with the sync button off), then the preview -
+    in this order, as a folder browser changing folders clears the preview (found in the app test: blank preview).
+    Tests: McpServerTest.showDocuments (no window, several in order, single path, not found, empty, outside);
+    app: dev build minimized, sync button off -> curl show_document: window in front, Search tab with both documents,
+    text preview of the first, folder browser on the inbox with the document selected.
+- change (v2.10): to send files to the inbox, MCP routes them via DocFetcher - no direct file access for the LLM
+  - The result of add_to_inbox had the host path of the new file (guiding the assistant to the inbox folder), and the
+    inbox could be chosen by path. Now: result = name, renamed, size_bytes, inbox (tab name); inbox only by tab name,
+    the names listed in the tool description; errors without paths (missing folder -> 'inbox X is not available',
+    write errors only with the exception type). Description and server instructions: give the user files with
+    add_to_inbox, never write into the user's folders yourself.
+    Tests: McpInboxTest (no path in result/definition, inbox by path refused, missing folder error without path);
+    app: SDK through the Claude Desktop extension - results without paths, description with the inbox names.
+- change (v2.10): add_to_inbox for Office files (Claude: 'base64 at 69 KB is error-prone', cut 300 rows to 60)
+  - Answers: DocFetcher creates xlsx, docx and pdf; no templates; base64 stays.
+  - McpDocuments: xlsx (POI) from sheets [{name, rows, column_formats, header}] - numbers/booleans typed, '=...'
+    formulas (results stored with XSSFFormulaEvaluator, recalculated by Excel on opening), ISO dates as dd.mm.yyyy
+    dates, unique safe sheet names, bold frozen header, fitted columns; docx (POI) and pdf (PDFBox, A4, Helvetica,
+    wrapping, page breaks, '?' for missing glyphs) from text with '#'/'##'/'###' headings and '- '/'* ' bullets.
+    add_to_inbox takes exactly one of sheets / text / content_base64, chosen by the extension; the tool description
+    steers assistants away from base64 for Office files.
+    Tests: McpDocumentsTest (300-row workbook read back: types, formats, header, stored formula result, sheet
+    names, errors; docx paragraphs/headings/bullets; pdf text, page breaks, '?'), McpInboxTest.officeFilesFromContent;
+    app: SDK through the extension (dev build on port 28836) in both eras: 300-row xlsx (10 KB request), docx, pdf;
+    read_document shows dates, amounts and the sum.
+  - Test mishap: a sed edit left the extension on port 28835 (the user's running DocFetcher), four 139-byte test
+    files landed in the user's inbox '00 Eingang'; moved to the recycle bin right away. skill.md: test on 28836 and
+    check the target first.
+- change (v2.10): base64 for pictures? + toggle a) only via MCP to the postbox (default) b) inbox path for the LLM
+  - base64: no limit on DocFetcher's side (20 MB), but the assistant must type every byte - only small files work
+    (a 100 KB PNG is ~100k tokens); a photo shown in the chat or a chart made in the cloud sandbox isn't available as
+    bytes on this computer. SVG works as 'text'. Pictures: assistants with own file access, i.e. option b).
+  - SettingsConf McpInboxPathVisible (off), checkbox below the inbox option, effective only together with it.
+    McpInbox.fileRule() - one text for the server instructions (now built per request) and the tool: a) only
+    add_to_inbox, never write yourself; b) inbox names with paths, 'only add new files there, never change,
+    overwrite, rename, move or delete'; add_to_inbox then returns the path again.
+    Tests: McpInboxTest.inboxPathOnlyWhenAllowed (default, allowed, only with adding files); app: dev build on port
+    28836, checkbox in the preferences -> instructions and result with the path.
+- change (v2.10): base64 effectively useless? -> download via URL into the inbox, with the user's consent
+  - base64 only for small files. URLs of files an LLM made in its sandbox are not public (Claude: needs the browser
+    session, ChatGPT: sandbox:/...), so the download helps for public files (forms, notices). No charts for now.
+  - Answers: restricted, modal 'store file <> in folder <>', in no way allow execution.
+  - McpDownload: https, port 443, all resolved addresses public (no loopback/private/link-local/CGNAT/ULA/mapped),
+    redirects followed by hand and checked (max 5), 20 MB, 30 s; content: program magic (MZ, ELF, Mach-O, #!, .lnk)
+    refused, known types must match their magic (web page as .pdf refused); Zone.Identifier ZoneId=3 + HostUrl.
+    add_to_inbox 'url' only with SettingsConf McpInboxDownload (off, checkbox below the inbox option); address
+    checked before asking; McpServer.DownloadApprover -> Application.askDownload (window to the front, question
+    with file, folder, address; the request waits).
+    Tests: McpDownloadTest (addresses, contents), McpInboxTest.downloadsOnlyWithTheUsersConsent (off, no approver,
+    declined, private/blocked before asking, tool text); app (dev, port 28836): w3.org test PDF approved -> stored,
+    %PDF, Zone.Identifier; declined -> nothing; web page as .pdf -> refused; 192.168.178.1 -> refused, no dialog.
+- bug (v2.10): fresh package reported an inbox index folder as 'incompatible with this program version - delete?'
+  - Cause (first guess 'index being built' was wrong): the folder inbox_1791542179954 was an empty leftover of the
+    previous build's index - build.py emptied build/, Windows deleted the files but not yet the folder (an open
+    handle). IndexRegistry.load takes a folder without tree-index.ser and with a name ending in a number for an
+    index of DocFetcher 1.0.3.
+  - Fix in IndexRegistry.load: folders created during this run (index being built) are skipped; empty folders are
+    removed quietly; only folders with content are reported as before.
+    Tests: ObsoleteIndexFilesTest (old index reported, empty leftover removed, new empty folder kept); app: dev build
+    with an empty old inbox_<number> folder -> no question, folder gone.
+- change (v2.10): MCP options in their own section/tab; what does 'allow placing files' do; remove base64
+  - 'AI assistants may add new files to the inbox' was already the master switch of add_to_inbox (download and
+    inbox path only work with it, McpInbox.isDownloadEnabled/isPathVisible), but the dialog didn't show it.
+  - Preferences tab 'AI Assistants (MCP)' (intro text, server, add files, download, inbox path, port, help);
+    CheckOption with an optional parent: indented and disabled while the parent is off or disabled, value kept.
+  - content_base64 removed from add_to_inbox (user: not really useful); content is sheets, text or url.
+    get_original_document (DocFetcher -> assistant) stays base64.
+    Tests: McpInboxTest without base64 (base64 refused, 21 MB text too large, 5 MB text over HTTP); app: dev
+    preferences - tab, indentation, greying on two levels, values kept, OK saves; schema without content_base64.
+- change (v2.10): direct folder access is the only usable way - remove all others; the user chooses the folder
+  - Answers: remove all (add_to_inbox with sheets/text/url, McpDocuments, McpDownload, download dialog, inbox-path
+    option); folder = dropdown of the inbox folders; how the LLM learns it (my question was unclear): tool + rules.
+  - McpFileFolder: SettingsConf.Str McpFileFolder (empty = none; must still be an inbox folder); rule() for the
+    server instructions and the read-only tool get_file_folder (only listed with a folder; description = folder +
+    'only add new files, never change, overwrite, rename, move or delete'). Request limit back to 1 MB.
+    Preferences: McpFolderOption (dropdown '(none)' + inbox folders, fixed width) below the MCP checkbox, disabled
+    while it is off (CheckOption passes its state to any dependent PrefOption).
+    Caveat told to the user: Claude Desktop has no file access (the Filesystem extension writes text only), so it
+    can't deliver Excel/Word files any more; Claude Code can.
+    Tests: McpFileFolderTest (none, chosen, no longer an inbox); app: dev preferences - dropdown, greying, OK saves;
+    tools/list with get_file_folder and the rule, add_to_inbox gone.
+- change (v2.10): get_file_folder should make the LLM ask for permission to the folder
+  - The assistant can't grant itself access; the rule now tells it to ask the user for access to exactly this folder
+    (Claude Code: permission prompt or /add-dir <folder>; Claude Desktop: allowed folders of the Filesystem
+    extension) and never to save elsewhere instead. Test: McpFileFolderTest.
+- change (v2.10): MCP - LLMs went for the original documents (permission request per path in every conversation,
+  rejecting it stopped Claude Desktop); full text by default, the original only when needed
+  - Answers: ids + option for paths (next item); get_original_document only on explicit need; folder only on
+    request with 'Remember my choice', covered by 'Reset Remembered Answers'.
+  - McpIds: 12-hex SHA-256 ids of paths, map of the handed-out ids (LRU 200000); results carry id + folder inside
+    the indexed folders (index folder name + subfolders; a drive root as 'Drive D'); read_document/
+    get_original_document/list_folder take id, show_document ids, search folder_id; overview top folders with
+    id + folder; no paths in errors. Instructions: ids, show_document to show, get_original_document only for
+    the original itself.
+  - get_file_folder: no folder in its description or the instructions; on a call DocFetcher asks (Application.
+    askFileFolder, MultipleChoiceDialog with 'Remember my choice'), SettingsConf Int McpFileFolderAnswer (ask/
+    allow/deny), reset by 'Reset Remembered Answers' and when another folder is chosen.
+  - Found in the app test: the new constants between @Description and enum Str broke saving the settings (NPE);
+    moved; SettingsConfTest saves the settings.
+    Tests: McpServerTest (ids everywhere, no paths in results, unknown ids, folder_id filter), McpFileFolderTest
+    (no folder in advance, asked, refused, remembered), SettingsConfTest; app (dev, port 28836): search without
+    paths, dialog -> Allow + remember -> no second question, reset -> question again, Don't Allow respected.
+- change (v2.10): MCP option to completely prevent returning document paths, except for the postbox
+  - Paths are off by default (previous item); SettingsConf McpPathsVisible + checkbox below the MCP server: results
+    also carry 'path' (documents, folders, listing, overview), the tools take path/folder/paths instead of
+    id/folder_id/ids (schemas list them only then, ids then not required), the instructions mention it. The
+    postbox folder (get_file_folder) is told either way after the user agreed.
+    Tests: McpServerTest.pathsOnlyWhenAllowed (off: no paths, path refused; on: paths, path arguments, access
+    check); app: dev preferences checkbox -> search result with path.
+- change (v2.10): by default also add csv to index
+  - Answer: new and existing indexes. IndexingConfig default text extensions txt csv java cpp py; TreeIndex
+    csvVersion (0 in older indexes): FileIndex.update adds 'csv' to the text extensions once and parses the CSV
+    files even if unchanged (FileContext.setReparseCsv), then setCsvCurrent; removed by hand it stays removed.
+    Tests: ReparseOnceTest.outdatedIndexesAddCsvFilesOnce; app: dev build with its September inbox index - a CSV
+    with an old date is found after the startup update.
+- change (v2.10): menu tool to identify duplicate documents, by the document index (not the file name)
+  - Answers: identical + nearly identical text; show + recycle bin. The index doesn't store the text (only for
+    highlighting): DuplicateFinder works on the words of the index with their counts - identical: same words and
+    counts (64-bit hash); nearly identical: MinHash over the word sets (64 values, LSH 16 bands x 4), >= 0.9
+    (high, as invoices of the same kind share most words); fewer than 20 different words are ignored.
+    Searcher.findDuplicates reads the postings of the content field per leaf, subtracts the words of the file name
+    (the content field contains them; analyzer on 'name basename'), merges one file in two indexes, oldest first;
+    cancelable, with progress.
+  - DuplicatesDialog (File > Find Duplicates...): background search, tree of groups, group check = all but the
+    oldest, Show in DocFetcher (Application.showDocuments without bringing the window up), Open in Explorer, Move
+    Checked to Recycle Bin via ResultPanel.deleteDocuments (extracted from deleteSelection: confirmation, recycle
+    bin, index update, undo history); every group keeps one document.
+    Tests: DuplicatesTest (finder, through the index incl. copies under other names, cancel, singular/plural texts);
+    app: dev build - groups (identical xlsx, letter + copy + second scan), group check, deletion to the recycle bin
+    with confirmation, show in the main window, 'keep one' refused.
+- change (v2.10): duplicates refer to the active folder; option 'only by content'
+  - Answers: always the folder of the folder browser (rightmost; none: all indexes); only within that folder (with
+    subfolders), 'Global' includes all; unchecked 'only by content' adds same file name + size (also without text);
+    'only by content' on by default, remembered (SettingsConf DuplicatesContentOnly).
+  - Searcher.findDuplicates(folder, contentOnly): documents outside the folder are skipped (UID -> path,
+    normalized); name+size groups (lower-case name + stored size) unless a text group has them all; DuplicateGroup
+    .Kind IDENTICAL_TEXT / NEARLY_IDENTICAL_TEXT / SAME_NAME_AND_SIZE. Dialog: checkboxes 'Only by content' and
+    'Global (all indexes)' (disabled and on without a folder), status names the folder, changes restart the search.
+    Tests: DuplicatesTest.folderAndNameAndSize; app: dev build - folder of the browser without duplicates, Global
+    finds the workbooks, unchecked 'only by content' adds two same-named notes; the option is remembered.
+- add version number to app in title / info so its visible to the user (v3.0)
+  - The window title shows the version ('DocFetcher 3.0'); Help > About and the preferences already showed it. A build without a version (development) shows '(development version)' instead of 'Unspecified'.
+- bin support (v3.0): all files deleted land in a bin folder defined in the settings; the bin appears in the left panel next to search; removal from the bin only after an explicit confirmation, into the OS bin (2nd safety net); toggle in the search panel to include the bin, default off
+  - Answers: flat, with a list of origins (no entry: restore into the first inbox; with entry: ask original location or inbox); without a bin folder the OS recycle bin as before; checkbox right of the search field, off at every start; extras: restore, empty bin, bin hidden elsewhere.
+  - Bin (gui): SettingsConf.Str.BinFolder; delete() moves into the bin under a free name (UtilFile.getFreeFile) and records the origin in the hidden .docfetcher-bin.properties (UTF-8, dos:hidden; written without replacing the file, which Windows refuses for hidden files); what is in the bin already goes to the OS recycle bin (UtilFile.delete). getOrigin (also for files inside a deleted folder), find (original after a merge), restore (to the origin or a folder, parents created, free name), empty, getEntries/getSize; stale entries are pruned.
+  - All deletions go through Bin.delete: result tables and duplicates (ResultPanel.deleteDocuments: documents in the bin get their own confirmation), folders, merge/split originals, files created by an undone merge/split (the originals come back from the bin rather than the backup), the original after a drag copy. Into the bin the history gets a MOVE entry, so Ctrl+Z moves them back ('Move N file(s) back?'). UtilFile.move (from Application.moveFileOrDir) also moves folders to another drive; ResultPanel.moveFile uses it.
+  - Bin tab: an InboxPanel in bin mode (listFolderEntries with folder rows, 'One entry, 1 KB', addButton for 'Restore...' and 'Empty Bin...') after the search tab, created/removed with the inbox folders (applyBin), indexed like an inbox (ensureIndexed). Restore: ResultPanel.restoreSelection/restoreFromBin, also in the context menu when all selected rows are in the bin.
+  - Search: checkbox 'Bin' in the SearchBar (visible only with a bin, off at start); SearchQueue filters bin documents and folders out unless checked (as a location filter change). Duplicates: findDuplicates(..., excluded, ...) leaves the bin out unless the search is inside it. MCP: checkAllowed refuses bin files ('Not found (deleted)'), search and list_folder leave them out. The sync button doesn't follow into the bin.
+  - Preferences, tab Folders: 'DocFetcher bin' with Choose.../Remove and a hint; the bin can't overlap an inbox folder; it is created on OK.
+  - Fixes found on the way: the preview kept showing a deleted document (PreviewPanel.refresh(selected)); doubled apostrophes in 10 messages (Msg.format doubles them itself; MsgTest guards it).
+  - Tests: BinTest (7), DuplicatesTest.theBinIsLeftOut, McpServerTest.theBinIsGoneForAssistants, MsgTest; full suite 220 tests, only the 4 known environment failures. App test (dev build): bin tab and checkbox, delete from search ('Move 1 file(s) to the DocFetcher bin?'), results 2 without / 3 with the checkbox, restore to the original location, Ctrl+Z via File > Undo, folder deleted from the folder browser into the bin, removed from the bin (OS recycle bin), Empty Bin, preferences section, removing the folder hides tab and checkbox.
+- MCP story A (v3.0): settings for changes proposed by AI assistants + rename_document with naming rules
+  - Settings (tab AI Assistants (MCP), below the server checkbox, off): McpRenameAllowed with the naming rules text
+    (McpNamingRulesOption, Str.McpNamingRules, empty = localized default Msg.mcp_naming_rules_default), McpOutsideInbox
+    ('Renaming and moving also outside the inbox folders'); McpMoveAllowed/McpSplitAllowed prepared for B and C.
+  - McpFileChanges: tool definitions only when switched on (changingTool: readOnlyHint false, destructiveHint false),
+    instructions rule, checkChangeable (plain file, inbox unless allowed outside, never the bin), newName (no paths,
+    extension kept). McpServer.FileOrganizer: Application shows the document (showDocuments) and opens
+    ResultPanel.renameProposed - the RenameDialog prefilled with the proposal and DocFetcher's keywords; the result
+    (renamed + new id, or canceled) goes back to the assistant. read_document adds suggested_name (NameSuggester).
+  - Tests: McpServerTest.renameOnlyWhenAllowedAndConfirmed (off: no tool; on: annotations, rules, suggested_name;
+    outside the inbox refused unless allowed; paths refused; cancel; confirmed with the extension kept). App test (dev
+    build, MCP on 28836, verified 'Unspecified'): search -> read_document suggested_name -> rename_document: DocFetcher
+    showed the document and the prefilled dialog; OK renamed it (new id returned), Cancel reported 'canceled'.
+- MCP story B (v3.0): move_document with DocFetcher's folder suggestions
+  - McpMoveAllowed ('AI assistants may propose moving documents to another folder'); move_document(ids, folder_id):
+    sources directly in an inbox folder (unless allowed outside; also for rename - subfolders of an inbox may be an
+    archive), target an indexed folder (checkAllowed, not the bin), not the folder it is in. read_document adds
+    suggested_folders (fixed move targets, then Searcher.suggestFolders like the move dialog, with folder location and
+    match). FileOrganizer.move: Application shows the documents and opens ResultPanel.moveProposed - the move dialog
+    with the proposal listed first, marked 'AI', preselected (MoveToFolderDialog.setProposal, wrapping message);
+    the result has the new ids and the folder, or 'canceled', and says when the user chose another folder.
+    McpTools.idList shared with show_document.
+  - Tests: McpServerTest.moveOnlyWhenAllowedAndConfirmed (off; suggestions; refused outside the inbox, same folder,
+    not a folder; cancel; confirmed with new ids). App test (dev build, MCP 28836): read_document suggested_folders
+    (Archiv, Belege), move_document to Archiv: dialog with 'Archiv' preselected, Move -> moved with new id.
+- MCP changes proposed by AI assistants (v3.0), the task items:
+  [] MCP: add support for: split and rename files in inbox(es): LLm shall be able to tell how to split (pages), remove empty and suggest name following the rules (MCP to tell LLM the naming rules). original file might be moved to docfetcher bin
+  [] MCP to move files to most suiting folder
+  [] in no way LLM can delete a file, or modify file content in any folder except the inbox.
+  [] MCP endpoint to allow renaming files after suer confirmation, and move files to another folder after user autorization and request
+  [] all new MCP features to enable/disable by setting, off by default
+    Analysis (v3.0, answers 2026-10-11): confirmation in DocFetcher's own dialogs, prefilled with the assistant's
+    proposal (rename dialog, move dialog, split dialog; the document is shown first; Cancel = declined); one checkbox
+    per feature (rename, move, split; off) plus 'also outside the inbox folders' for rename and move (split: inbox
+    only); naming rules as an editable text on the MCP tab (default: DocFetcher's rule), sent with DocFetcher's own
+    name suggestion per document. No delete tool, extensions never change, originals of a split per the existing
+    setting (-> DocFetcher bin). Stories: A settings + rename_document (+ suggested_name in read_document);
+    B move_document (+ suggested_folders); C analyze_pages + split_document (blank pages left out).
+- MCP story C (v3.0): analyze_pages + split_document
+  - McpSplitAllowed ('AI assistants may propose splitting PDF files in the inbox folders'); only PDF files directly in
+    an inbox folder (never outside). analyze_pages (read-only): PdfPages.analyzePages + DocumentStarts.suggest per page
+    (text beginning 600 chars, blank, separator_sheet, start/continue/leave_out with the reason). split_document(id,
+    parts[{pages, name}]): McpFileChanges.roles turns the parts into page roles (pages in no part left out; parts in
+    page order, at least two, a part may only skip left-out pages - checked against PdfPages.fromRoles), names via
+    newName (.pdf kept), all or none. FileOrganizer.split -> ResultPanel.splitProposed -> PdfOperations.splitProposed:
+    the SplitDialog with setProposal (reason 'AI assistant', the proposed names shown while the parts stay as
+    proposed); proposed names used only if the user kept the parts, else DocFetcher's naming (partFiles, shared with
+    split; analyzePages extracted). Result: new ids, original kept/removed.
+  - Originals question after merge/split names the DocFetcher bin when one is set (merge/split_done_question_bin,
+    originals_remove_bt_bin). Server instructions: never rename, move, change or delete documents yourself, even with
+    file access.
+  - Tests: McpServerTest.splitOnlyWhenAllowedAndConfirmed (off; analysis with blank page left out; refused outside
+    the inbox, wrong order, one part, page 9; roles and names; cancel; confirmed), PdfOperationsTest (SplitDialog
+    proposal: roles, names while unchanged). App test (dev build, MCP 28836): 4-page PDF in the inbox; analyze_pages:
+    1 start, 2 continue (2/2), 3 blank leave_out, 4 start; split_document -> split dialog prefilled, OK, originals
+    question, Keep -> two parts with the proposed names, ids returned.
+- MCP: describe_folder, find_folders, summary of proposals (v3.0; 'use the LLM's power over DocFetcher's statistics')
+  - Answers: rename and move stay separate; a summary text in the dialog; describe_folder with folder + subfolders,
+    selectable depth; own tool find_folders.
+  - FolderProfile (model.search, Searcher.profileFolders): one pass over the postings of the content field for the
+    requested folders (each counts its subtree, bin excluded): documents, period (LAST_MODIFIED), newest 3 names,
+    keywords = folder document count x log(N/df) among the 300 most frequent words, words in more than half of all
+    documents, numbers, short words and file extensions left out; df via reader.docFreq only for candidates.
+  - describe_folder(id?, depth 0-3, default 1): breadth first, at most 150 folders (note when cut),
+    subfolders_not_listed below the depth; without id the root folders (not the bin). find_folders(id, max 10/20):
+    Searcher.suggestFolders on the document text (inbox folders and its own folder excluded) with profiles and
+    match, plus fixed targets with profiles. McpTools.text shared with read_document. Instructions mention both.
+  - rename/move/split_document require 'summary' (shown as 'AI assistant: ...' above the message in the rename,
+    move and split dialogs); descriptions: compose names / choose folders from the content, suggested_name and
+    matches are only statistics. Rename dialog wider (600) with a wrapping message.
+  - Tests: McpServerTest.foldersDescribedAndFoundByContent (root 5 documents, Mieter 2, Posteingang 3 with
+    'finanzamt (2)' and not 'bonn', newest name; depth 0; find_folders), summary missing refused, tool list 7.
+    App test (dev build, MCP 28836): describe_folder depth 2 (inbox, Archiv with 2025/2026, Belege), find_folders,
+    rename_document with summary -> shown at the top of the rename dialog; Cancel -> renamed false.

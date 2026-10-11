@@ -19,10 +19,6 @@ import java.io.InputStream;
 import java.io.StringReader;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.net.URL;
-import java.nio.file.FileVisitResult;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -105,6 +101,7 @@ import net.sourceforge.docfetcher.model.index.Task.CancelHandler;
 import net.sourceforge.docfetcher.model.index.Task.IndexAction;
 import net.sourceforge.docfetcher.model.index.Task.TaskState;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
+import net.sourceforge.docfetcher.model.pdf.PdfPages;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.CharsetDetectorHelper;
 import net.sourceforge.docfetcher.util.ConfLoader;
@@ -112,6 +109,7 @@ import net.sourceforge.docfetcher.util.ConfLoader.Loadable;
 import net.sourceforge.docfetcher.util.Event;
 import net.sourceforge.docfetcher.util.SettingsLocation;
 import net.sourceforge.docfetcher.util.Util;
+import net.sourceforge.docfetcher.util.UtilFile;
 import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
@@ -156,6 +154,8 @@ public final class Application {
 	@Nullable private static FolderPanel folderTabPanel; // On the 'Folders' tab
 	@Nullable private static TabItem foldersTab;
 	@NotNull private static TabItem searchTab;
+	@Nullable private static TabItem binTab; // After the search tab, if there is a bin folder
+	@Nullable private static InboxPanel binPanel;
 private static SashForm folderSash;
 	private static Composite folderPanelHolder;
 	private static Composite firstFolderHolder;
@@ -364,7 +364,7 @@ private static SashForm folderSash;
 		SettingsConf.ShellBounds.MainWindow.bind(shell);
 		SettingsConf.Bool.MainShellMaximized.bindMaximized(shell);
 		shell.setLayout(new FormLayout());
-		shell.setText(shellTitle);
+		shell.setText(withVersion(shellTitle));
 
 		configureWebView2DataDir();
 		initCocoaMenu(display);
@@ -713,7 +713,7 @@ private static SashForm folderSash;
 			try {
 				if (target.exists())
 					throw new IOException("Target already exists: " + target);
-				moveFileOrDir(source, target);
+				UtilFile.move(source, target);
 			}
 			catch (IOException e) {
 				Util.printErr(e);
@@ -727,43 +727,6 @@ private static SashForm folderSash;
 		}
 	}
 	
-	/**
-	 * Moves the given file or directory to the given target. If a simple
-	 * rename is not possible (e.g. because source and target are on different
-	 * drives), the source is copied recursively and then deleted.
-	 */
-	private static void moveFileOrDir(@NotNull File source, @NotNull File target)
-			throws IOException {
-		java.nio.file.Path srcPath = source.toPath();
-		final java.nio.file.Path dstPath = target.toPath();
-		try {
-			java.nio.file.Files.move(srcPath, dstPath, StandardCopyOption.ATOMIC_MOVE);
-			return;
-		}
-		catch (IOException e) {
-			// Fall through to copy + delete
-		}
-		if (source.isFile()) {
-			java.nio.file.Files.copy(srcPath, dstPath);
-		}
-		else {
-			final java.nio.file.Path srcRoot = srcPath;
-			java.nio.file.Files.walkFileTree(srcRoot, new SimpleFileVisitor<java.nio.file.Path>() {
-				public FileVisitResult preVisitDirectory(java.nio.file.Path dir, BasicFileAttributes attrs)
-						throws IOException {
-					java.nio.file.Files.createDirectories(dstPath.resolve(srcRoot.relativize(dir)));
-					return FileVisitResult.CONTINUE;
-				}
-				public FileVisitResult visitFile(java.nio.file.Path file, BasicFileAttributes attrs)
-						throws IOException {
-					java.nio.file.Files.copy(file, dstPath.resolve(srcRoot.relativize(file)));
-					return FileVisitResult.CONTINUE;
-				}
-			});
-		}
-		Util.deleteRecursively(source);
-	}
-
 	private static void loadIndexRegistry(@NotNull final Shell mainShell, @NotNull File indexParentDir) {
 		UtilGui.assertSwtThread();
 		final Display display = mainShell.getDisplay();
@@ -1680,6 +1643,9 @@ private static SashForm folderSash;
 	private static void refreshInboxTabs() {
 		for (InboxTab inboxTab : inboxTabs)
 			inboxTab.panel.refresh();
+		InboxPanel bin = binPanel;
+		if (bin != null)
+			bin.refresh();
 	}
 
 	/**
@@ -1727,6 +1693,83 @@ private static SashForm folderSash;
 		// The folders tab belongs after the inbox tabs
 		if (foldersTab != null && mainTabFolder.indexOf(foldersTab) != inboxTabs.size())
 			applyPaneMode();
+		applyBin();
+	}
+
+	/**
+	 * Shows the tab of the DocFetcher bin after the search tab if a bin folder
+	 * is set, and makes sure the folder exists and is indexed; removes the
+	 * tab otherwise. The search bar offers to include the bin.
+	 */
+	private static void applyBin() {
+		File bin = Bin.getFolder();
+		searchBar.setBinVisible(bin != null);
+		if (bin == null) {
+			if (binTab != null) {
+				binTab.dispose();
+				binPanel.getControl().dispose();
+				binTab = null;
+				binPanel = null;
+			}
+			return;
+		}
+		if (!bin.isDirectory() && !bin.mkdirs())
+			AppUtil.showError(Msg.file_operation_failed.format(bin.getPath()), true, true);
+		if (binTab == null) {
+			final InboxPanel panel = new InboxPanel(mainTabFolder, indexRegistry, true);
+			binPanel = panel;
+			binTab = new TabItem(mainTabFolder, SWT.NONE);
+			binTab.setText(Msg.bin_tab.get());
+			binTab.setControl(panel.getControl());
+			initInboxResults(panel.getResultPanel());
+			// The folders in the bin open in the folder browser
+			panel.getResultPanel().evtFolderOpened.add(new Event.Listener<File>() {
+				public void update(File eventData) {
+					showInFolderView(eventData);
+				}
+			});
+			panel.addButton(Msg.restore_bt.get(), new Runnable() {
+				public void run() {
+					if (panel.getResultPanel().restoreSelection())
+						refreshFolderPanels();
+				}
+			});
+			panel.addButton(Msg.empty_bin_bt.get(), new Runnable() {
+				public void run() {
+					emptyBin();
+				}
+			});
+		}
+		binPanel.setFolder(bin);
+		ensureIndexed(bin);
+	}
+
+	/**
+	 * Moves everything in the DocFetcher bin to the recycle bin of the system,
+	 * after a confirmation.
+	 */
+	private static void emptyBin() {
+		File bin = Bin.getFolder();
+		if (bin == null)
+			return;
+		int count = Bin.getEntries(bin).size();
+		if (count == 0)
+			return;
+		String size = UtilFile.formatSize(Bin.getSize(bin));
+		String msg = UtilFile.isTrashSupported()
+			? Msg.confirm_empty_bin.format(count, size)
+			: Msg.confirm_empty_bin_permanently.format(count, size);
+		if (!AppUtil.showConfirmation(msg, true))
+			return;
+		List<File> failed = Bin.empty(bin);
+		if (!failed.isEmpty())
+			AppUtil.showError(Msg.file_operation_failed.format(Util.join("\n", failed)), true, true);
+		LuceneIndex index = indexRegistry.findIndexFor(bin);
+		if (index != null)
+			indexRegistry.getQueue().addTask(index, IndexAction.UPDATE);
+		previewPanel.clear();
+		refreshInboxTabs();
+		refreshFolderPanels();
 	}
 
 	@NotNull
@@ -1736,8 +1779,12 @@ private static SashForm folderSash;
 		TabItem tab = new TabItem(mainTabFolder, SWT.NONE, index);
 		tab.setText(withKey(entry.getTabName(), SettingsConf.IntArray.InboxKey));
 		tab.setControl(inboxPanel.getControl());
+		initInboxResults(inboxPanel.getResultPanel());
+		return new InboxTab(entry, tab, inboxPanel);
+	}
 
-		final ResultPanel inboxResults = inboxPanel.getResultPanel();
+	/** Lets the result table of an inbox tab (or the bin tab) show its documents. */
+	private static void initInboxResults(@NotNull final ResultPanel inboxResults) {
 		inboxResults.evtSelection.add(new Event.Listener<List<ResultDocument>>() {
 			public void update(List<ResultDocument> eventData) {
 				if (!eventData.isEmpty())
@@ -1752,13 +1799,14 @@ private static SashForm folderSash;
 		});
 		inboxResults.evtDocumentsChanged.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
-				if (inboxResults.getSelection().isEmpty())
+				List<ResultDocument> sel = inboxResults.getSelection();
+				if (sel.isEmpty())
 					previewPanel.clear();
 				else
-					previewPanel.refresh();
+					previewPanel.refresh(sel.get(0));
+				showSelectedPath(sel);
 			}
 		});
-		return new InboxTab(entry, tab, inboxPanel);
 	}
 
 	/**
@@ -1845,10 +1893,13 @@ private static SashForm folderSash;
 	 * the source for filing documents, and the browsers keep the target.
 	 */
 	private static void followInFolderPanel(@NotNull List<ResultDocument> selection) {
-		if (!SettingsConf.Bool.SyncFolderPanels.get() || selection.size() != 1)
-			return;
-		ResultDocument doc = selection.get(0);
-		if (!doc.isPlainFileOnDisk())
+		if (SettingsConf.Bool.SyncFolderPanels.get() && selection.size() == 1)
+			showInRightmostFolderPanel(selection.get(0));
+	}
+
+	/** The sync of the sync button, for one document. */
+	private static void showInRightmostFolderPanel(@NotNull ResultDocument doc) {
+		if (!doc.isPlainFileOnDisk() || Bin.contains(doc.getPath().getCanonicalFile()))
 			return;
 		FolderPanel rightmost = folderPanel != null ? folderPanel : folderTabPanel;
 		if (rightmost != null)
@@ -1861,6 +1912,11 @@ private static SashForm folderSash;
 		if (selected != null) {
 			selected.panel.refresh();
 			selected.panel.getResultPanel().activate();
+		}
+		else if (binPanel != null && mainTabFolder.getSelection().length > 0
+				&& mainTabFolder.getSelection()[0] == binTab) {
+			binPanel.refresh();
+			binPanel.getResultPanel().activate();
 		}
 		else if (folderTabPanel != null
 				&& mainTabFolder.getSelection().length > 0
@@ -2021,10 +2077,11 @@ private static SashForm folderSash;
 		resultPanel.evtDocumentsChanged.add(new Event.Listener<Void>() {
 			public void update(Void eventData) {
 				// Rows of moved-away documents are removed, clearing the selection
-				if (resultPanel.getSelection().isEmpty())
+				List<ResultDocument> sel = resultPanel.getSelection();
+				if (sel.isEmpty())
 					previewPanel.clear();
 				else
-					previewPanel.refresh();
+					previewPanel.refresh(sel.get(0));
 			}
 		});
 
@@ -2091,9 +2148,7 @@ private static SashForm folderSash;
 		}, new Runnable() {
 			public void run() {
 				// TODO post-release-1.1: Show an about dialog? Or maybe open a manual page?
-				String name = SystemConf.Str.ProgramName.get();
-				String version = SystemConf.Str.ProgramVersion.get();
-				AppUtil.showInfo(name + " " + version);
+				AppUtil.showInfo(withVersion(SystemConf.Str.ProgramName.get()));
 			}
 		}, new Runnable() {
 			public void run() {
@@ -2127,6 +2182,20 @@ private static SashForm folderSash;
 		createMenuItem(fileMenu, Msg.print_separator_sheet.get(), Img.TB_SPLIT.get(), new Runnable() {
 			public void run() {
 				DocumentPrinter.printSeparatorSheet(shell);
+			}
+		});
+		createMenuItem(fileMenu, Msg.menu_find_duplicates.get(), null, new Runnable() {
+			public void run() {
+				// The folder the folder browser shows (the rightmost one); none: all indexes
+				FolderPanel browser = folderPanel != null ? folderPanel : folderTabPanel;
+				DuplicatesDialog dialog = new DuplicatesDialog(shell, indexRegistry,
+					browser == null ? null : browser.getFolder());
+				dialog.evtShow.add(new Event.Listener<List<ResultDocument>>() {
+					public void update(List<ResultDocument> docs) {
+						showDocuments(docs, false); // The dialog stays in front
+					}
+				});
+				dialog.open();
 			}
 		});
 		createMenuItem(fileMenu, Msg.menu_indexes.get(), Img.FOLDER.get(), new Runnable() {
@@ -2203,9 +2272,22 @@ private static SashForm folderSash;
 		final String appName = SystemConf.Str.ProgramName.get();
 		createMenuItem(helpMenu, Msg.menu_about.format(appName), null, new Runnable() {
 			public void run() {
-				AppUtil.showInfo(appName + " " + SystemConf.Str.ProgramVersion.get());
+				AppUtil.showInfo(withVersion(appName));
 			}
 		});
+	}
+
+	/**
+	 * Returns the given program name with the version, e.g. 'DocFetcher 3.0',
+	 * for the window title and the About box; a build without a version (the
+	 * development version) gets a label instead.
+	 */
+	@NotNull
+	public static String withVersion(@NotNull String name) {
+		String version = SystemConf.Str.ProgramVersion.get();
+		if (version.equals("Unspecified") || SystemConf.Bool.IsDevelopmentVersion.get())
+			version = Msg.development_version.get();
+		return name + " " + version;
 	}
 
 	@NotNull
@@ -2640,8 +2722,63 @@ private static SashForm folderSash;
 		}
 		int port = SettingsConf.Int.McpServerPort.get();
 		try {
-			if (mcpServer == null)
+			if (mcpServer == null) {
 				mcpServer = new McpServer(indexRegistry);
+				mcpServer.setViewer(new McpServer.DocumentViewer() {
+					public void show(final List<ResultDocument> docs) {
+						UtilGui.runAsyncExec(shell, new Runnable() {
+							public void run() {
+								showDocuments(docs, true);
+							}
+						});
+					}
+				});
+				mcpServer.setOrganizer(new McpServer.FileOrganizer() {
+					public File rename(final ResultDocument doc, final String name, final String summary) {
+						final File[] renamed = {null};
+						UtilGui.runSyncExec(shell, new Runnable() {
+							public void run() {
+								// The user sees the document while deciding
+								showDocuments(Collections.singletonList(doc), true);
+								renamed[0] = resultPanel.renameProposed(doc, name, summary);
+							}
+						});
+						return renamed[0];
+					}
+					public List<File> move(final List<ResultDocument> docs, final File folder, final String summary) {
+						final List<List<File>> moved = new ArrayList<List<File>>(1);
+						UtilGui.runSyncExec(shell, new Runnable() {
+							public void run() {
+								showDocuments(docs, true);
+								moved.add(resultPanel.moveProposed(docs, folder, summary));
+							}
+						});
+						return moved.isEmpty() ? null : moved.get(0);
+					}
+					public List<File> split(final ResultDocument doc, final PdfPages.Role[] roles,
+							final List<String> names, final String summary) {
+						final List<List<File>> parts = new ArrayList<List<File>>(1);
+						UtilGui.runSyncExec(shell, new Runnable() {
+							public void run() {
+								showDocuments(Collections.singletonList(doc), true);
+								parts.add(resultPanel.splitProposed(doc, roles, names, summary));
+							}
+						});
+						return parts.isEmpty() ? null : parts.get(0);
+					}
+				});
+				mcpServer.setFolderApprover(new McpServer.FolderApprover() {
+					public boolean approve(final File folder) {
+						final boolean[] allowed = {false};
+						UtilGui.runSyncExec(shell, new Runnable() {
+							public void run() {
+								allowed[0] = askFileFolder(folder);
+							}
+						});
+						return allowed[0];
+					}
+				});
+}
 			mcpServer.start(port);
 		}
 		catch (Throwable e) {
@@ -2649,6 +2786,48 @@ private static SashForm folderSash;
 			Util.printErr(e);
 			AppUtil.showError(Msg.mcp_server_failed.format(port, e.toString()), true, true);
 		}
+	}
+
+	/**
+	 * Shows documents for an AI assistant (MCP show_document) or from the
+	 * duplicates dialog: the window comes to the front if wanted, the Search
+	 * tab lists them, the first one is previewed and the folder browsers sync
+	 * to it, even with the sync button off - the user asked for this document.
+	 */
+	private static void showDocuments(@NotNull List<ResultDocument> docs, boolean activate) {
+		if (activate)
+			activateMainWindow();
+		mainTabFolder.setSelection(searchTab);
+		onTabSelected();
+		resultPanel.showResults(docs);
+		// Sync first: a folder browser changing its folder clears the preview
+		showInRightmostFolderPanel(docs.get(0));
+		previewPanel.setPreview(docs.get(0));
+	}
+
+	/**
+	 * Asks whether an AI assistant may learn the folder for the files it
+	 * created (MCP get_file_folder); the answer can be remembered, and 'Reset
+	 * Remembered Answers' in the preferences brings the question back. The
+	 * window comes to the front first, as it may be in the tray.
+	 */
+	private static boolean askFileFolder(@NotNull File folder) {
+		activateMainWindow();
+		MultipleChoiceDialog<Boolean> dialog = new MultipleChoiceDialog<Boolean>(shell);
+		dialog.setTitle(Msg.mcp_folder_title.get());
+		dialog.setImage(SWT.ICON_QUESTION);
+		dialog.setText(Msg.mcp_folder_question.format(folder.getPath()));
+		dialog.setCheckBox(Msg.remember_choice.get());
+		dialog.addButton(Msg.mcp_folder_allow.get(), Boolean.TRUE);
+		dialog.addButton(Msg.mcp_folder_deny.get(), Boolean.FALSE);
+		Boolean answer = dialog.open();
+		if (answer == null)
+			return false; // Closed: not allowed
+		if (dialog.isChecked())
+			SettingsConf.Int.McpFileFolderAnswer.set(answer
+				? SettingsConf.MCP_FOLDER_ALLOW
+				: SettingsConf.MCP_FOLDER_DENY);
+		return answer;
 	}
 
 	private static void showManual() {

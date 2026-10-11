@@ -16,10 +16,19 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import net.sourceforge.docfetcher.enums.ProgramConf;
+import net.sourceforge.docfetcher.enums.SettingsConf;
+import net.sourceforge.docfetcher.gui.Bin;
+import net.sourceforge.docfetcher.gui.InboxFolders;
+import net.sourceforge.docfetcher.gui.MoveTargets;
+import net.sourceforge.docfetcher.model.search.FolderProfile;
+import net.sourceforge.docfetcher.model.search.FolderSuggestion;
+import net.sourceforge.docfetcher.model.search.NameSuggester;
 import net.sourceforge.docfetcher.gui.FolderPanel;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.parse.PdfVisualText;
@@ -33,9 +42,11 @@ import net.sourceforge.docfetcher.util.collect.AlphanumComparator;
  * The tools of the MCP server: read-only access to the indexed documents.
  * {@code search} finds documents like the search field, {@code read_document}
  * returns the text of a document (in pages of at most
- * {@link #MAX_CHARS_LIMIT} characters), {@code list_folder} lists the indexed
- * folders and their contents. Only files inside the indexed folders (and the
- * fixed move targets) can be read or listed.
+ * {@link #MAX_CHARS_LIMIT} characters), {@code get_original_document} a copy
+ * of the file itself (base64, up to {@code McpMaxOriginalMB}),
+ * {@code list_folder} lists the indexed folders and their contents. Only files
+ * inside the indexed folders (and the fixed move targets) can be read or
+ * listed.
  */
 final class McpTools {
 
@@ -54,6 +65,9 @@ final class McpTools {
 	private static final int MAX_FOLDER_ENTRIES = 500;
 	private static final int OVERVIEW_FOLDERS = 10;
 	private static final int OVERVIEW_WORDS = 15;
+	/** describe_folder: levels of subfolders and folders in one answer, at most. */
+	private static final int MAX_DEPTH = 3;
+	private static final int MAX_DESCRIBED = 150;
 	private static final int OVERVIEW_PERIODS = 24;
 	/** Content words: the text of at most this many documents is read, within the time limit. */
 	private static final int SAMPLE_SIZE = 20;
@@ -75,6 +89,14 @@ final class McpTools {
 	}
 
 	private final IndexRegistry registry;
+	/** DocFetcher's window for show_document; null without one (tests). */
+	@Nullable volatile McpServer.DocumentViewer viewer;
+	/** Asks the user before get_file_folder tells the folder; null: refused. */
+	@Nullable volatile McpServer.FolderApprover folderApprover;
+	/** Lets the user confirm proposed changes to files; null: no changes (tests). */
+	@Nullable volatile McpServer.FileOrganizer organizer;
+	/** The ids of documents and folders handed out instead of their paths. */
+	final McpIds ids = new McpIds();
 
 	McpTools(@NotNull IndexRegistry registry) {
 		this.registry = registry;
@@ -83,7 +105,7 @@ final class McpTools {
 	// ---- Tool definitions
 
 	@NotNull
-	List<Object> definitions() {
+	static List<Object> definitions() {
 		List<Object> tools = new ArrayList<Object>();
 		tools.add(tool("search",
 			"Full-text search in the user's documents indexed by DocFetcher (letters, invoices, "
@@ -92,7 +114,8 @@ final class McpTools {
 			+ "steuer*. German compound words need a wildcard in front: *steuer* also finds "
 			+ "Einkommensteuer, *miete* finds Kaltmiete. Umlauts and OCR errors are tolerated "
 			+ "(Muller finds Müller). Returns the "
-			+ "path, name, date and a text snippet of each document. For 'latest' or 'newest' "
+			+ "id, name, folder, date and a text snippet of each document (no file paths: use the "
+			+ "id with the other tools). For 'latest' or 'newest' "
 			+ "questions use sort=newest; for a period use modified_after/modified_before. Words "
 			+ "also match file and folder names ('Rosenweg' finds documents in the folder "
 			+ "'Rosenweg 12'). If more documents are found than returned, the newest come first "
@@ -105,14 +128,19 @@ final class McpTools {
 				"sort", enumProp("Order of the results (default: relevance)", "relevance", "newest", "oldest"),
 				"modified_after", prop("string", "Only documents modified on or after this date (YYYY-MM-DD)"),
 				"modified_before", prop("string", "Only documents modified before this date (YYYY-MM-DD)"),
-				"folder", prop("string", "Only documents in this folder or its subfolders (absolute path)")),
+				"folder_id", prop("string", "Only documents in this folder or its subfolders: the id of a "
+					+ "folder from list_folder or from the overview's top_folders"),
+				"folder", pathProp("folder")),
 			"query"));
 		tools.add(tool("read_document",
 			"Returns the text of a document found with search or list_folder, to answer questions "
 			+ "about its content. Long documents are returned in parts: continue with the returned "
-			+ "next_offset. If the user asks for the document itself, give them its path instead.",
+			+ "next_offset. This is the way to learn what a document says. If the user wants to "
+			+ "see the document itself, use show_document.",
 			props(
-				"path", prop("string", "Absolute path of the document, as returned by search or list_folder"),
+				"id", prop("string", "Id of the document, as returned by search or list_folder"
+					+ (pathsVisible() ? " (or give 'path' instead)" : "")),
+				"path", pathProp("document"),
 				"offset", prop("integer", "Character offset to start at (default 0)"),
 				"max_chars", prop("integer", "Maximum number of characters (default " + DEFAULT_MAX_CHARS
 					+ ", at most " + MAX_CHARS_LIMIT + ")"),
@@ -120,13 +148,91 @@ final class McpTools {
 					+ "appears on the page, which keeps labels and values of forms and tables together "
 					+ "('Grundmiete 620,00 Euro'); 'stream' gives the order in which the text was drawn - "
 					+ "use it if columns of a multi-column page appear mixed", "visual", "stream")),
-			"path"));
+			pathsVisible() ? null : "id"));
+		tools.add(tool("get_original_document",
+			"Returns the original file of a document (base64, with its MIME type; images that can "
+			+ "be shown come as an image). Only when the original itself is needed: the user "
+			+ "explicitly asks for the original file, or its layout matters, e.g. as a template for "
+			+ "a new document in the same style, or to look at a scan. For anything about the "
+			+ "content - questions, summaries, figures - always use read_document instead. Files "
+			+ "of at most " + maxOriginalMB() + " MB.",
+			props("id", prop("string", "Id of the document, as returned by search or list_folder"
+				+ (pathsVisible() ? " (or give 'path' instead)" : "")),
+				"path", pathProp("document")),
+			pathsVisible() ? null : "id"));
 		tools.add(tool("list_folder",
-			"Lists a folder: subfolders first, then the files, newest first, with dates. Without a "
-			+ "path, lists the indexed folders (e.g. the inbox and the archive folders).",
-			props("path", prop("string", "Absolute path of a folder; omit for the indexed folders")),
+			"Lists a folder: subfolders first, then the files, newest first, with dates and ids. "
+			+ "Without an id, lists the indexed folders (e.g. the inbox and the archive folders).",
+			props("id", prop("string", "Id of a folder, as returned by list_folder or search; omit for "
+				+ "the indexed folders"), "path", pathProp("folder")),
 			null));
+		tools.add(tool("describe_folder",
+			"Describes what folders contain, to understand the user's filing system (e.g. to decide "
+			+ "where a document belongs): for the folder and its subfolders down to 'depth' levels, the "
+			+ "number of documents, their period, the newest names and the words that characterize "
+			+ "them (frequent there, rare elsewhere; from DocFetcher's index, with the number of "
+			+ "documents containing each word). Without an id: the indexed folders. Judge the meaning "
+			+ "yourself - the words are statistics, the folder names and the hierarchy tell a lot too.",
+			props("id", prop("string", "Id of a folder, as returned by list_folder, find_folders or "
+					+ "describe_folder; omit for the indexed folders"),
+				"depth", prop("integer", "Levels of subfolders, 0 to " + MAX_DEPTH + " (default 1)")),
+			null));
+		tools.add(tool("find_folders",
+			"Finds the folders whose documents are most similar to a document (DocFetcher compares "
+			+ "the words with all indexed documents), each with its place in the hierarchy, the match "
+			+ "and its profile as in describe_folder - candidates for where the document belongs. "
+			+ "Also lists the user's fixed move targets. A statistical starting point: read the "
+			+ "document and decide by its meaning, also considering other folders (describe_folder).",
+			props("id", prop("string", "Id of the document, as returned by search or list_folder"),
+				"max_results", prop("integer", "Maximum number of similar folders (default 10, at most 20)")),
+			"id"));
+		Map<String, Object> idList = prop("array", "Ids of the documents, as returned by search or "
+			+ "list_folder; the first one is selected");
+		idList.put("items", props("type", "string"));
+		tools.add(tool("show_document",
+			"Shows documents to the user in DocFetcher's window, e.g. when the user wants to see, open "
+			+ "or find a document ('show me the rental contract'): DocFetcher comes to the front and "
+			+ "lists them on its Search tab, the first one selected with its preview, and the folder "
+			+ "browser shows its folder. Changes nothing but the view.",
+			props("ids", idList, "paths", pathsVisible() ? pathListProp() : null),
+			pathsVisible() ? null : "ids"));
+		Map<String, Object> fileFolder = McpFileFolder.definition();
+		if (fileFolder != null)
+			tools.add(fileFolder);
+		tools.addAll(McpFileChanges.definitions());
 		return tools;
+	}
+
+
+	/** An absolute path as alternative to the id, only if the user allows paths; null: none. */
+	private static Map<String, Object> pathProp(@NotNull String what) {
+		return pathsVisible() ? prop("string", "Absolute path of the " + what + ", instead of the id") : null;
+	}
+
+	private static Map<String, Object> pathListProp() {
+		Map<String, Object> list = prop("array", "Absolute paths of the documents, instead of the ids");
+		list.put("items", props("type", "string"));
+		return list;
+	}
+
+	/**
+	 * A tool that proposes a change to files, which the user confirms in
+	 * DocFetcher: not read-only, but nothing is destroyed.
+	 */
+	@NotNull
+	static Map<String, Object> changingTool(@NotNull String name, @NotNull String description,
+			@NotNull Map<String, Object> properties, @NotNull String... required) {
+		Map<String, Object> tool = tool(name, description, properties, null);
+		@SuppressWarnings("unchecked")
+		Map<String, Object> schema = (Map<String, Object>) tool.get("inputSchema");
+		schema.put("required", Arrays.asList(required));
+		Map<String, Object> annotations = new LinkedHashMap<String, Object>();
+		annotations.put("readOnlyHint", Boolean.FALSE);
+		annotations.put("destructiveHint", Boolean.FALSE);
+		annotations.put("idempotentHint", Boolean.FALSE);
+		annotations.put("openWorldHint", Boolean.FALSE);
+		tool.put("annotations", annotations);
+		return tool;
 	}
 
 	@NotNull
@@ -148,15 +254,16 @@ final class McpTools {
 	}
 
 	@NotNull
-	private static Map<String, Object> props(@NotNull Object... namesAndProps) {
+	static Map<String, Object> props(@NotNull Object... namesAndProps) {
 		Map<String, Object> map = new LinkedHashMap<String, Object>();
 		for (int i = 0; i + 1 < namesAndProps.length; i += 2)
-			map.put((String) namesAndProps[i], namesAndProps[i + 1]);
+			if (namesAndProps[i + 1] != null) // Optional properties
+				map.put((String) namesAndProps[i], namesAndProps[i + 1]);
 		return map;
 	}
 
 	@NotNull
-	private static Map<String, Object> prop(@NotNull String type, @NotNull String description) {
+	static Map<String, Object> prop(@NotNull String type, @NotNull String description) {
 		return props("type", type, "description", description);
 	}
 
@@ -179,8 +286,26 @@ final class McpTools {
 			return search(args);
 		if (name.equals("read_document"))
 			return readDocument(args);
+		if (name.equals("get_original_document"))
+			return originalDocument(args);
 		if (name.equals("list_folder"))
 			return listFolder(args);
+		if (name.equals("show_document"))
+			return showDocuments(args);
+		if (name.equals(McpFileFolder.TOOL))
+			return McpFileFolder.call(folderApprover);
+		if (name.equals("describe_folder"))
+			return describeFolder(args);
+		if (name.equals("find_folders"))
+			return findFolders(args);
+		if (name.equals(McpFileChanges.RENAME))
+			return McpFileChanges.rename(this, args);
+		if (name.equals(McpFileChanges.MOVE))
+			return McpFileChanges.move(this, args);
+		if (name.equals(McpFileChanges.ANALYZE))
+			return McpFileChanges.analyzePages(this, args);
+		if (name.equals(McpFileChanges.SPLIT))
+			return McpFileChanges.split(this, args);
 		throw new ToolException("Unknown tool: " + name);
 	}
 
@@ -193,8 +318,8 @@ final class McpTools {
 		String sort = string(args, "sort");
 		Date after = date(args, "modified_after");
 		Date before = date(args, "modified_before");
-		String folderArg = string(args, "folder");
-		File folder = folderArg == null ? null : resolve(folderArg);
+		boolean folderGiven = string(args, "folder_id") != null || (pathsVisible() && string(args, "folder") != null);
+		File folder = folderGiven ? target(args, "folder_id") : null;
 
 		List<ResultDocument> found;
 		try {
@@ -211,6 +336,8 @@ final class McpTools {
 			if (before != null && (date == null || !date.before(before)))
 				continue;
 			if (folder != null && !Util.contains(folder, resolve(doc.getPathStr())))
+				continue;
+			if (Bin.contains(resolve(doc.getPathStr())))
 				continue;
 			docs.add(doc);
 		}
@@ -258,7 +385,7 @@ final class McpTools {
 	 * that the assistant can ask a more specific question.
 	 */
 	@NotNull
-	private static Map<String, Object> overview(@NotNull List<ResultDocument> docs, @NotNull String query,
+	private Map<String, Object> overview(@NotNull List<ResultDocument> docs, @NotNull String query,
 			int returned, @Nullable String sort, @NotNull Map<String, Object> contentWords) {
 		Date oldest = null;
 		Date newest = null;
@@ -304,8 +431,11 @@ final class McpTools {
 		for (Map.Entry<String, Integer> entry : sortByCount(folders)) {
 			if (topFolders.size() >= OVERVIEW_FOLDERS)
 				break;
+			File folderFile = new File(entry.getKey());
 			Map<String, Object> folder = new LinkedHashMap<String, Object>();
-			folder.put("path", entry.getKey());
+			folder.put("id", ids.idOf(folderFile));
+			folder.put("folder", location(folderFile));
+			putPath(folder, folderFile);
 			folder.put("count", entry.getValue());
 			topFolders.add(folder);
 		}
@@ -439,7 +569,7 @@ final class McpTools {
 	@NotNull
 	private Map<String, Object> describe(@NotNull ResultDocument doc) {
 		Map<String, Object> map = new LinkedHashMap<String, Object>();
-		map.put("path", display(resolve(doc.getPathStr())));
+		putReference(map, resolve(doc.getPathStr()));
 		map.put("filename", doc.getFilename());
 		String title = doc.getTitle();
 		if (!title.isEmpty() && !title.equals(doc.getFilename()))
@@ -509,32 +639,32 @@ final class McpTools {
 
 	@NotNull
 	private List<Object> readDocument(@NotNull Map<String, Object> args) throws ToolException {
-		String path = string(args, "path");
-		if (path == null || path.trim().isEmpty())
-			throw new ToolException("The argument 'path' is missing.");
-		File file = resolve(path);
-		checkAllowed(file);
+		File file = target(args, "id");
 		if (!file.isFile())
-			throw new ToolException("Not a file (or not found): " + file.getPath());
+			throw new ToolException("Not a file (or not found): " + file.getName());
 		int offset = Math.max(0, integer(args, "offset", 0));
 		int maxChars = Util.clamp(integer(args, "max_chars", DEFAULT_MAX_CHARS), 1, MAX_CHARS_LIMIT);
 
 		ResultDocument doc = findDocument(file);
-		String text = null;
-		// PDF files in visual order, unless asked otherwise (see the tool description)
-		if (!"stream".equals(string(args, "order")) && file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf"))
-			text = PdfVisualText.of(file);
-		try {
-			if (text == null)
-				text = doc.getText(); // Also recognizes scans whose text wasn't stored
-		}
-		catch (Throwable e) {
-			throw new ToolException("The text of the document could not be read: " + e.getMessage());
-		}
+		String text = text(doc, file, "stream".equals(string(args, "order")));
 		int start = Math.min(offset, text.length());
 		int end = Math.min(text.length(), start + maxChars);
 
 		Map<String, Object> meta = describe(doc);
+		// DocFetcher's own name suggestion, for rename_document
+		if (start == 0 && McpFileChanges.renameAllowed() && McpFileChanges.isChangeable(file, true)) {
+			try {
+				String extension = Util.splitFilename(file.getName())[1];
+				meta.put("suggested_name", NameSuggester.suggest(doc, registry.getSearcher(), text)
+					.buildName(NameSuggester.DEFAULT_WORDS, extension));
+			}
+			catch (Exception e) {
+				// No suggestion
+			}
+		}
+		// Folders for move_document: the user's fixed targets and folders with similar documents
+		if (start == 0 && McpFileChanges.moveAllowed() && McpFileChanges.isChangeable(file, true))
+			meta.put("suggested_folders", suggestedFolders(doc, file, text));
 		meta.put("total_chars", text.length());
 		meta.put("offset", start);
 		meta.put("returned_chars", end - start);
@@ -543,9 +673,375 @@ final class McpTools {
 		return Arrays.<Object> asList(meta, text.substring(start, end));
 	}
 
+	@NotNull
+	private Map<String, Object> describeFolder(@NotNull Map<String, Object> args) throws ToolException {
+		int depth = Util.clamp(integer(args, "depth", 1), 0, MAX_DEPTH);
+		List<File> starts = new ArrayList<File>();
+		if (string(args, "id") != null || (pathsVisible() && string(args, "path") != null)) {
+			File folder = target(args, "id");
+			if (!folder.isDirectory())
+				throw new ToolException("Not a folder (or not found): " + folder.getName());
+			starts.add(folder);
+		}
+		else {
+			for (File root : FolderPanel.getRootFolders(registry))
+				if (!Bin.contains(root))
+					starts.add(resolve(root.getPath()));
+		}
+		// The folders to describe, breadth first, so that a limit cuts the deepest levels
+		List<File> all = new ArrayList<File>(starts);
+		Map<File, List<File>> children = new java.util.HashMap<File, List<File>>();
+		List<File> level = starts;
+		boolean truncated = false;
+		for (int d = 0; d < depth && !level.isEmpty(); d++) {
+			List<File> next = new ArrayList<File>();
+			for (File folder : level) {
+				List<File> subfolders = subfolders(folder);
+				if (all.size() + subfolders.size() > MAX_DESCRIBED) {
+					truncated = true;
+					continue;
+				}
+				children.put(folder, subfolders);
+				all.addAll(subfolders);
+				next.addAll(subfolders);
+			}
+			level = next;
+		}
+		Map<File, FolderProfile> profiles = profiles(all);
+		List<Object> described = new ArrayList<Object>();
+		for (File folder : starts)
+			described.add(folderTree(folder, profiles, children));
+		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		result.put("folders", described);
+		if (truncated)
+			result.put("note", "Not all subfolders are listed (at most " + MAX_DESCRIBED + " folders): "
+				+ "describe a subfolder by its id for more.");
+		return result;
+	}
+
+	/** The subfolders on disk, by name, without hidden ones and the bin. */
+	@NotNull
+	private static List<File> subfolders(@NotNull File folder) {
+		List<File> subfolders = new ArrayList<File>();
+		File[] files = folder.listFiles();
+		if (files == null)
+			return subfolders;
+		for (File file : files)
+			if (file.isDirectory() && !file.isHidden() && !Bin.contains(file))
+				subfolders.add(file);
+		Collections.sort(subfolders, new Comparator<File>() {
+			public int compare(File f1, File f2) {
+				return AlphanumComparator.ignoreCaseInstance.compare(f1.getName(), f2.getName());
+			}
+		});
+		return subfolders;
+	}
+
+	/** The profiles of the folders, from the index. */
+	@NotNull
+	private Map<File, FolderProfile> profiles(@NotNull List<File> folders) throws ToolException {
+		Map<File, FolderProfile> profiles = new java.util.HashMap<File, FolderProfile>();
+		try {
+			for (FolderProfile profile : registry.getSearcher().profileFolders(folders, Bin.getFolder()))
+				profiles.put(profile.folder, profile);
+		}
+		catch (Exception e) {
+			throw new ToolException("The folders could not be described: " + e.getMessage());
+		}
+		return profiles;
+	}
+
+	/** A folder with its profile and, if listed, its subfolders. */
+	@NotNull
+	private Map<String, Object> folderTree(	@NotNull File folder,
+											@NotNull Map<File, FolderProfile> profiles,
+											@NotNull Map<File, List<File>> children) {
+		Map<String, Object> map = folderProfile(folder, profiles.get(folder));
+		List<File> subfolders = children.get(folder);
+		if (subfolders != null) {
+			if (!subfolders.isEmpty()) {
+				List<Object> list = new ArrayList<Object>();
+				for (File subfolder : subfolders)
+					list.add(folderTree(subfolder, profiles, children));
+				map.put("subfolders", list);
+			}
+		}
+		else {
+			int count = subfolders(folder).size();
+			if (count > 0)
+				map.put("subfolders_not_listed", count);
+		}
+		return map;
+	}
+
+	/** A folder with its place in the hierarchy and its profile. */
+	@NotNull
+	private Map<String, Object> folderProfile(@NotNull File folder, @Nullable FolderProfile profile) {
+		Map<String, Object> map = new LinkedHashMap<String, Object>();
+		map.put("id", ids.idOf(folder));
+		map.put("folder", location(folder));
+		putPath(map, folder);
+		if (profile == null || profile.getDocuments() == 0) {
+			map.put("documents", 0);
+			return map;
+		}
+		map.put("documents", profile.getDocuments());
+		if (profile.getOldest() > 0) {
+			map.put("oldest", format(new Date(profile.getOldest())).substring(0, 10));
+			map.put("newest", format(new Date(profile.getNewest())).substring(0, 10));
+		}
+		if (!profile.getKeywords().isEmpty())
+			map.put("keywords", profile.getKeywords());
+		map.put("newest_documents", profile.getExamples());
+		return map;
+	}
+
+	@NotNull
+	private Map<String, Object> findFolders(@NotNull Map<String, Object> args) throws ToolException {
+		File file = target(args, "id");
+		if (!file.isFile())
+			throw new ToolException("Not a file (or not found): " + file.getName());
+		int max = Util.clamp(integer(args, "max_results", 10), 1, 20);
+		ResultDocument doc = findDocument(file);
+		String text = text(doc, file, false);
+		List<File> folders = new ArrayList<File>();
+		List<String> matches = new ArrayList<String>();
+		try {
+			List<File> exclude = InboxFolders.getFolders();
+			exclude.add(file.getParentFile());
+			for (FolderSuggestion suggestion : registry.getSearcher().suggestFolders(
+					text + "\n" + doc.getFilename(), exclude, max)) {
+				if (Bin.contains(suggestion.getFolder()))
+					continue;
+				folders.add(resolve(suggestion.getFolder().getPath()));
+				matches.add(Math.round(suggestion.getRelevance() * 100) + " %");
+			}
+		}
+		catch (Exception e) {
+			throw new ToolException("No folders could be found: " + e.getMessage());
+		}
+		List<File> targets = new ArrayList<File>();
+		for (File target : MoveTargets.loadFolders())
+			targets.add(resolve(target.getPath()));
+		List<File> all = new ArrayList<File>(folders);
+		all.addAll(targets);
+		Map<File, FolderProfile> profiles = profiles(all);
+		List<Object> similar = new ArrayList<Object>();
+		for (int i = 0; i < folders.size(); i++) {
+			Map<String, Object> map = folderProfile(folders.get(i), profiles.get(folders.get(i)));
+			map.put("match", matches.get(i));
+			similar.add(map);
+		}
+		List<Object> fixed = new ArrayList<Object>();
+		for (File target : targets)
+			fixed.add(folderProfile(target, profiles.get(target)));
+		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		result.put("document", describe(doc));
+		result.put("similar_folders", similar);
+		if (!fixed.isEmpty())
+			result.put("fixed_targets", fixed);
+		return result;
+	}
+
+	/**
+	 * The folders the document might be moved to: the user's fixed move
+	 * targets first, then the folders whose documents are most similar
+	 * (DocFetcher's own suggestions, as in its move dialog).
+	 */
+	@NotNull
+	private List<Object> suggestedFolders(@NotNull ResultDocument doc, @NotNull File file, @NotNull String text) {
+		List<Object> folders = new ArrayList<Object>();
+		for (File target : MoveTargets.loadFolders()) {
+			Map<String, Object> map = folderEntry(target);
+			map.put("folder", location(target));
+			map.put("fixed_target", true);
+			folders.add(map);
+		}
+		try {
+			List<File> exclude = InboxFolders.getFolders();
+			exclude.add(file.getParentFile());
+			for (FolderSuggestion suggestion : registry.getSearcher().suggestFolders(
+					text + "\n" + doc.getFilename(), exclude, 5)) {
+				Map<String, Object> map = folderEntry(suggestion.getFolder());
+				map.put("folder", location(suggestion.getFolder()));
+				map.put("match", Math.round(suggestion.getRelevance() * 100) + " %");
+				folders.add(map);
+			}
+		}
+		catch (Exception e) {
+			// Fixed targets only
+		}
+		return folders;
+	}
+
+	/**
+	 * The text of the document; PDF files in visual order unless
+	 * {@code streamOrder} (see the tool description of read_document).
+	 */
+	@NotNull
+	private static String text(@NotNull ResultDocument doc, @NotNull File file, boolean streamOrder)
+			throws ToolException {
+		String text = null;
+		if (!streamOrder && file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf"))
+			text = PdfVisualText.of(file);
+		try {
+			if (text == null)
+				text = doc.getText(); // Also recognizes scans whose text wasn't stored
+		}
+		catch (Throwable e) {
+			throw new ToolException("The text of the document could not be read: " + e.getMessage());
+		}
+		return text;
+	}
+
+	/**
+	 * The original file: a copy of its bytes for the client, which never gets
+	 * access to the file itself.
+	 */
+	@NotNull
+	private FileContent originalDocument(@NotNull Map<String, Object> args) throws ToolException {
+		File file = target(args, "id");
+		if (!file.isFile())
+			throw new ToolException("Not a file (or not found): " + file.getName()
+				+ ". Documents inside archives and emails have no original file of their own.");
+		long maxBytes = maxOriginalMB() * 1024L * 1024L;
+		if (file.length() > maxBytes)
+			throw new ToolException("The file is too large (" + (file.length() / (1024 * 1024)) + " MB, at most "
+				+ maxOriginalMB() + " MB). Use read_document for its text.");
+		byte[] data;
+		try {
+			data = java.nio.file.Files.readAllBytes(file.toPath());
+		}
+		catch (Exception e) {
+			throw new ToolException("The file could not be read: " + e.getMessage());
+		}
+		Map<String, Object> meta = new LinkedHashMap<String, Object>();
+		putReference(meta, file);
+		meta.put("name", file.getName());
+		meta.put("mime_type", mimeType(file.getName()));
+		meta.put("size_bytes", data.length);
+		meta.put("modified", format(new Date(file.lastModified())));
+		return new FileContent(meta, data);
+	}
+
+	/** The original file of a document: its description and its bytes. */
+	static final class FileContent {
+		@NotNull final Map<String, Object> meta;
+		@NotNull final byte[] data;
+
+		FileContent(@NotNull Map<String, Object> meta, @NotNull byte[] data) {
+			this.meta = meta;
+			this.data = data;
+		}
+
+		@NotNull
+		String mimeType() {
+			return (String) meta.get("mime_type");
+		}
+
+		/** An identifier, not a link: the client gets the bytes, not the file. */
+		@NotNull
+		String uri() {
+			try {
+				return new java.net.URI("docfetcher", null, "/" + meta.get("id") + "/" + meta.get("name"), null)
+					.toASCIIString();
+			}
+			catch (java.net.URISyntaxException e) {
+				return "docfetcher:/" + meta.get("name");
+			}
+		}
+	}
+
+	private static int maxOriginalMB() {
+		return ProgramConf.Int.McpMaxOriginalMB.get();
+	}
+
+	private static final Map<String, String> MIME_TYPES = new java.util.HashMap<String, String>();
+	static {
+		String[] types = {
+			"pdf", "application/pdf",
+			"doc", "application/msword",
+			"docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+			"dotx", "application/vnd.openxmlformats-officedocument.wordprocessingml.template",
+			"xls", "application/vnd.ms-excel",
+			"xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+			"ppt", "application/vnd.ms-powerpoint",
+			"pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+			"odt", "application/vnd.oasis.opendocument.text",
+			"ods", "application/vnd.oasis.opendocument.spreadsheet",
+			"odp", "application/vnd.oasis.opendocument.presentation",
+			"rtf", "application/rtf",
+			"txt", "text/plain", "csv", "text/csv", "md", "text/markdown",
+			"html", "text/html", "htm", "text/html", "xml", "application/xml", "json", "application/json",
+			"eml", "message/rfc822", "msg", "application/vnd.ms-outlook",
+			"png", "image/png", "jpg", "image/jpeg", "jpeg", "image/jpeg", "gif", "image/gif",
+			"webp", "image/webp", "bmp", "image/bmp", "tif", "image/tiff", "tiff", "image/tiff",
+			"zip", "application/zip"};
+		for (int i = 0; i < types.length; i += 2)
+			MIME_TYPES.put(types[i], types[i + 1]);
+	}
+
+	/** The MIME type from the file extension; unknown ones are 'application/octet-stream'. */
+	@NotNull
+	static String mimeType(@NotNull String filename) {
+		String type = MIME_TYPES.get(Util.getExtension(filename).toLowerCase(java.util.Locale.ROOT));
+		return type == null ? "application/octet-stream" : type;
+	}
+
+	private static final int MAX_SHOWN = 100;
+
+	/**
+	 * Shows the found documents in DocFetcher's window; paths that aren't
+	 * indexed documents are reported, an inaccessible one is refused.
+	 */
+	@NotNull
+	private Map<String, Object> showDocuments(@NotNull Map<String, Object> args) throws ToolException {
+		List<String> wanted = idList(args, "ids");
+		boolean byPath = false;
+		if (wanted.isEmpty() && pathsVisible() && args.get("paths") != null) {
+			byPath = true;
+			Object paths = args.get("paths");
+			for (Object path : paths instanceof List ? (List<?>) paths : Arrays.asList(paths))
+				if (path != null && !path.toString().trim().isEmpty())
+					wanted.add(path.toString());
+		}
+		if (wanted.isEmpty())
+			throw new ToolException("The argument 'ids' is missing.");
+		if (wanted.size() > MAX_SHOWN)
+			throw new ToolException("At most " + MAX_SHOWN + " documents can be shown at once.");
+		McpServer.DocumentViewer viewer = this.viewer;
+		if (viewer == null)
+			throw new ToolException("DocFetcher's window is not available.");
+
+		List<ResultDocument> docs = new ArrayList<ResultDocument>();
+		List<String> shown = new ArrayList<String>();
+		List<String> notFound = new ArrayList<String>();
+		for (String id : wanted) {
+			File file = byPath ? resolve(id) : ids.fileOf(id);
+			checkAllowed(file);
+			try {
+				ResultDocument doc = findDocument(file);
+				docs.add(doc);
+				shown.add(file.getName());
+			}
+			catch (ToolException e) {
+				notFound.add(file.getName());
+			}
+		}
+		if (docs.isEmpty())
+			throw new ToolException("Not found among the indexed documents: " + notFound);
+		viewer.show(docs);
+
+		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		result.put("shown", shown);
+		if (!notFound.isEmpty())
+			result.put("not_found", notFound);
+		return result;
+	}
+
 	/** The document of a file, with its index data if it is indexed. */
 	@NotNull
-	private ResultDocument findDocument(@NotNull File file) throws ToolException {
+	ResultDocument findDocument(@NotNull File file) throws ToolException {
 		File folder = file.getParentFile();
 		try {
 			for (ResultDocument doc : registry.getSearcher().listFolder(registry.findIndexFor(file), folder))
@@ -555,24 +1051,24 @@ final class McpTools {
 		catch (Exception e) {
 			throw new ToolException("The document could not be read: " + e.getMessage());
 		}
-		throw new ToolException("Not found: " + file.getPath());
+		throw new ToolException("Not found: " + file.getName());
 	}
 
 	@NotNull
 	private Map<String, Object> listFolder(@NotNull Map<String, Object> args) throws ToolException {
-		String path = string(args, "path");
+		boolean given = string(args, "id") != null || (pathsVisible() && string(args, "path") != null);
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
 		List<Object> entries = new ArrayList<Object>();
-		if (path == null || path.trim().isEmpty()) {
+		if (!given) {
 			for (File root : FolderPanel.getRootFolders(registry))
-				entries.add(folderEntry(root));
+				if (!Bin.contains(root))
+					entries.add(folderEntry(root));
 			result.put("folders", entries);
 			return result;
 		}
-		File folder = resolve(path);
-		checkAllowed(folder);
+		File folder = target(args, "id");
 		if (!folder.isDirectory())
-			throw new ToolException("Not a folder (or not found): " + folder.getPath());
+			throw new ToolException("Not a folder (or not found): " + folder.getName());
 		List<ResultDocument> docs;
 		try {
 			docs = new ArrayList<ResultDocument>(
@@ -591,6 +1087,9 @@ final class McpTools {
 				return Long.compare(time(dateOf(d2)), time(dateOf(d1)));
 			}
 		});
+		for (Iterator<ResultDocument> it = docs.iterator(); it.hasNext();)
+			if (Bin.contains(resolve(it.next().getPathStr())))
+				it.remove();
 		for (ResultDocument doc : docs) {
 			if (entries.size() >= MAX_FOLDER_ENTRIES)
 				break;
@@ -599,24 +1098,30 @@ final class McpTools {
 			else
 				entries.add(describe(doc));
 		}
-		result.put("path", display(folder));
+		result.put("id", ids.idOf(folder));
+		result.put("folder", location(folder));
+		putPath(result, folder);
 		result.put("total_entries", docs.size());
 		result.put("entries", entries);
 		return result;
 	}
 
 	@NotNull
-	private static Map<String, Object> folderEntry(@NotNull File folder) {
+	private Map<String, Object> folderEntry(@NotNull File folder) {
 		Map<String, Object> map = new LinkedHashMap<String, Object>();
 		File resolved = resolve(folder.getPath());
-		map.put("path", display(resolved));
-		map.put("name", resolved.getName().isEmpty() ? display(resolved) : resolved.getName());
-		map.put("folder", Boolean.TRUE);
+		map.put("id", ids.idOf(resolved));
+		map.put("name", location(resolved).replaceAll(".*/", ""));
+		map.put("type", "folder");
+		putPath(map, resolved);
 		return map;
 	}
 
 	/** Only the indexed folders (and the fixed move targets) are accessible. */
-	private void checkAllowed(@NotNull File file) throws ToolException {
+	void checkAllowed(@NotNull File file) throws ToolException {
+		// Deleted files in the DocFetcher bin are gone for assistants
+		if (Bin.contains(file))
+			throw new ToolException("Not found (deleted): " + file.getName());
 		for (File root : FolderPanel.getRootFolders(registry)) {
 			/*
 			 * Indexes with relative paths (portable repositories) have roots
@@ -626,18 +1131,102 @@ final class McpTools {
 			if (normalized.equals(file) || Util.contains(normalized, file))
 				return;
 		}
-		throw new ToolException("Access denied: " + file.getPath()
-			+ " is not inside an indexed folder. Use list_folder without a path to see the indexed folders.");
+		throw new ToolException("Access denied: " + file.getName()
+			+ " is not inside an indexed folder. Use list_folder without an id to see the indexed folders.");
+	}
+
+	// ---- References: ids instead of paths
+
+	/**
+	 * Whether the user allows giving assistants the file paths (preferences,
+	 * off by default): then results carry them, and the tools take a path
+	 * instead of an id.
+	 */
+	static boolean pathsVisible() {
+		return SettingsConf.Bool.McpPathsVisible.get();
+	}
+
+	/** The id of a document or folder and the folder it is in, inside the indexed folders. */
+	private void putReference(@NotNull Map<String, Object> map, @NotNull File file) {
+		map.put("id", ids.idOf(file));
+		map.put("folder", location(file.getParentFile()));
+		putPath(map, file);
+	}
+
+	/** The path, only if the user allows it. */
+	private static void putPath(@NotNull Map<String, Object> map, @NotNull File file) {
+		if (pathsVisible())
+			map.put("path", display(file));
+	}
+
+	/**
+	 * Where a folder is, inside the indexed folders: the name of the indexed
+	 * folder and the subfolders, e.g. '05 Torsten/Immobilien' - no drive path.
+	 */
+	@NotNull
+	String location(@Nullable File folder) {
+		if (folder == null)
+			return "";
+		for (File root : FolderPanel.getRootFolders(registry)) {
+			File normalized = resolve(root.getPath());
+			if (normalized.equals(folder) || Util.contains(normalized, folder)) {
+				// A whole drive has no name: its letter, not its path
+				String name = normalized.getName().isEmpty()
+					? "Drive " + normalized.getPath().replaceAll("[^A-Za-z0-9]", "")
+					: normalized.getName();
+				String relative = normalized.toPath().relativize(folder.toPath()).toString();
+				return relative.isEmpty() ? name : name + "/" + relative.replace(File.separatorChar, '/');
+			}
+		}
+		return folder.getName();
+	}
+
+	/**
+	 * The document or folder whose id is given in the argument - or its path
+	 * in the argument without '_id' / 'id' ('folder', 'path'), if the user
+	 * allows paths; only inside the indexed folders.
+	 */
+	@NotNull
+	File target(@NotNull Map<String, Object> args, @NotNull String key) throws ToolException {
+		String id = string(args, key);
+		if (id == null || id.trim().isEmpty()) {
+			String pathKey = key.equals("id") ? "path" : key.replace("_id", "");
+			String path = pathsVisible() ? string(args, pathKey) : null;
+			if (path == null || path.trim().isEmpty())
+				throw new ToolException("The argument '" + key + "' is missing.");
+			File file = resolve(path);
+			checkAllowed(file);
+			return file;
+		}
+		File file = ids.fileOf(id);
+		checkAllowed(file);
+		return file;
 	}
 
 	// ---- Helpers
+
+	/** The ids in the argument: a list, or a single id instead of one. */
+	@NotNull
+	static List<String> idList(@NotNull Map<String, Object> args, @NotNull String key) {
+		List<String> wanted = new ArrayList<String>();
+		Object value = args.get(key);
+		if (value instanceof List) {
+			for (Object id : (List<?>) value)
+				if (id != null && !id.toString().trim().isEmpty())
+					wanted.add(id.toString());
+		}
+		else if (value != null && !value.toString().trim().isEmpty()) {
+			wanted.add(value.toString());
+		}
+		return wanted;
+	}
 
 	/**
 	 * The absolute path with '..' and '.' resolved, so that a path can't
 	 * leave the indexed folders ('C:/Docs/../secret.txt').
 	 */
 	@NotNull
-	private static File resolve(@NotNull String path) {
+	static File resolve(@NotNull String path) {
 		return new File(path.trim()).toPath().toAbsolutePath().normalize().toFile();
 	}
 
@@ -667,7 +1256,7 @@ final class McpTools {
 	}
 
 	@Nullable
-	private static String string(@NotNull Map<String, Object> args, @NotNull String name) {
+	static String string(@NotNull Map<String, Object> args, @NotNull String name) {
 		Object value = args.get(name);
 		return value == null ? null : value.toString();
 	}

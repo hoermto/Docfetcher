@@ -212,3 +212,14 @@ PythonApiEnabled = false
 
 # The port on which the DocFetcher instance allows scripting.
 PythonApiPort = 28834
+
+
+#===============================================================================
+#	MCP server for AI assistants
+#===============================================================================
+
+# The largest file (in MB) that AI assistants can get as the original document
+# (tool get_original_document). The file is sent base64-encoded, which makes it
+# about a third larger. AI services have their own, often smaller limits (the
+# size of a request, the pages of a PDF file, the size of an image).
+McpMaxOriginalMB = 50

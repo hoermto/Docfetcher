@@ -11,42 +11,105 @@
 
 package net.sourceforge.docfetcher.gui.pref;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.gui.pref.PrefDialog.PrefOption;
 import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
+import net.sourceforge.docfetcher.util.annotations.Nullable;
 
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.SelectionAdapter;
+import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 
 /**
+ * A checkbox for a boolean setting. It may depend on another checkbox (see
+ * {@link #CheckOption(String, SettingsConf.Bool, CheckOption)}): then it is
+ * indented below it and disabled while that one is off or disabled - its
+ * value stays, the setting only takes effect together with the other one.
+ *
  * @author Tran Nam Quang
  */
 final class CheckOption extends PrefOption {
-	
+
 	private final SettingsConf.Bool enumOption;
+	@Nullable private final CheckOption parent;
+	private final List<PrefOption> children = new ArrayList<PrefOption>(0);
 	@NotNull private Button bt;
 
 	public CheckOption(	@NotNull String labelText,
 						@NotNull SettingsConf.Bool enumOption) {
-		super(labelText);
-		this.enumOption = enumOption;
+		this(labelText, enumOption, null);
 	}
 
-	public void createControls(@NotNull Composite parent) {
-		bt = UtilGui.createCheckButton(parent, labelText);
-		bt.setLayoutData(new GridData(SWT.LEFT, SWT.FILL, false, false, 2, 1));
+	/** A checkbox that only applies while the given one is checked. */
+	public CheckOption(	@NotNull String labelText,
+						@NotNull SettingsConf.Bool enumOption,
+						@Nullable CheckOption parent) {
+		super(labelText);
+		this.enumOption = enumOption;
+		this.parent = parent;
+		if (parent != null)
+			parent.children.add(this);
+	}
+
+	/** Makes the option disabled while this checkbox is off or disabled. */
+	void addDependent(@NotNull PrefOption option) {
+		children.add(option);
+	}
+
+	public void createControls(@NotNull Composite parentComp) {
+		bt = UtilGui.createCheckButton(parentComp, labelText);
+		GridData data = new GridData(SWT.LEFT, SWT.FILL, false, false, 2, 1);
+		data.horizontalIndent = 20 * depth();
+		bt.setLayoutData(data);
 		bt.setSelection(enumOption.get());
+		bt.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				updateChildren();
+			}
+		});
+		if (parent != null)
+			bt.setEnabled(parent.isActive());
+	}
+
+	@Override
+	protected void afterCreation() {
+		updateChildren();
+	}
+
+	private int depth() {
+		return parent == null ? 0 : parent.depth() + 1;
+	}
+
+	/** Checked and not disabled by the checkbox it depends on. */
+	boolean isActive() {
+		return bt.getSelection() && bt.getEnabled();
+	}
+
+	private void updateChildren() {
+		for (PrefOption child : children)
+			child.setActive(isActive());
+	}
+
+	@Override
+	protected void setActive(boolean active) {
+		bt.setEnabled(active);
+		updateChildren();
 	}
 
 	protected void restoreDefault() {
 		bt.setSelection(enumOption.defaultValue);
+		updateChildren();
 	}
 
 	protected void save() {
 		enumOption.set(bt.getSelection());
 	}
-	
+
 }

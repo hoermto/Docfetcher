@@ -141,13 +141,22 @@ private List<DeferredFile> deferredFiles = new ArrayList<DeferredFile>(); // sha
 		this.reparsePdfForms = reparsePdfForms;
 	}
 
+	private boolean reparseCsv = false;
+
+	/** CSV files became text files of the index: unchanged ones are parsed too, once. */
+	public final void setReparseCsv(boolean reparseCsv) {
+		this.reparseCsv = reparseCsv;
+	}
+
 	/**
 	 * Returns true if the unchanged file must be parsed again, because the
-	 * index has an older text format for it (Excel files, PDF forms).
+	 * index has an older text format for it (Excel files, PDF forms, CSV files).
 	 */
 	public final boolean needsReparse(@NotNull java.io.File file) {
 		String name = file.getName();
 		if (reparseExcel && ExcelText.isExcelFile(name))
+			return true;
+		if (reparseCsv && name.toLowerCase(java.util.Locale.ROOT).endsWith(".csv"))
 			return true;
 		return reparsePdfForms && name.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")
 			&& PdfForms.hasFilledFields(file);

@@ -19,12 +19,14 @@ import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.layout.GridData;
+import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Label;
 
 import net.sourceforge.docfetcher.enums.Msg;
+import net.sourceforge.docfetcher.util.UtilFile;
 import net.sourceforge.docfetcher.gui.ResultPanel.HeaderMode;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.LuceneIndex;
@@ -39,7 +41,8 @@ import net.sourceforge.docfetcher.util.annotations.Nullable;
 /**
  * An inbox tab: lists all files located directly in the inbox folder (e.g.
  * new documents from a scanner), indexed or not, in a result table, so that
- * they can be previewed, renamed and moved like search results.
+ * they can be previewed, renamed and moved like search results. The tab of
+ * the DocFetcher bin is one too, which lists the deleted folders as well.
  */
 public final class InboxPanel {
 
@@ -49,12 +52,24 @@ public final class InboxPanel {
 	private final Label messageLabel;
 	private final ResultPanel resultPanel;
 	private final IndexRegistry indexRegistry;
+	private final boolean bin;
+	@Nullable private Composite buttonRow; // Created by addButton
 	@Nullable private volatile File folder;
 	private volatile int refreshCount = 0;
 
 	public InboxPanel(@NotNull Composite parent, @NotNull IndexRegistry indexRegistry) {
+		this(parent, indexRegistry, false);
+	}
+
+	/**
+	 * @param bin
+	 *            If true, the panel shows the DocFetcher bin: the folders in
+	 *            it too, and the size of everything.
+	 */
+	public InboxPanel(@NotNull Composite parent, @NotNull IndexRegistry indexRegistry, boolean bin) {
 		Util.checkNotNull(parent, indexRegistry);
 		this.indexRegistry = indexRegistry;
+		this.bin = bin;
 
 		comp = new Composite(parent, SWT.NONE);
 		comp.setLayout(UtilGui.createGridLayout(1, false, 0, 3));
@@ -105,13 +120,37 @@ public final class InboxPanel {
 	}
 
 	/**
+	 * Adds a button to a row of its own below the header, right of the
+	 * buttons added before (the header has no room for more in a narrow pane).
+	 */
+	@NotNull
+	public Button addButton(@NotNull String label, @NotNull final Runnable action) {
+		if (buttonRow == null) {
+			buttonRow = new Composite(comp, SWT.NONE);
+			buttonRow.setLayout(UtilGui.createGridLayout(0, false, 3, 8));
+			buttonRow.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
+			buttonRow.moveBelow(countLabel.getParent());
+		}
+		((GridLayout) buttonRow.getLayout()).numColumns++;
+		Button bt = UtilGui.createPushButton(buttonRow, label, new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				action.run();
+			}
+		});
+		bt.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
+		comp.layout(true, true);
+		return bt;
+	}
+
+	/**
 	 * Sets the inbox folder and reloads the file list.
 	 */
 	public void setFolder(@NotNull File folder) {
 		Util.checkNotNull(folder);
 		this.folder = folder;
 		resultPanel.setCurrentFolder(folder); // Files dropped on the list are moved here
-		folderLabel.setText(Msg.inbox_folder_label.format(Util.getSystemAbsPath(folder)));
+		folderLabel.setText((bin ? Msg.bin_folder_label : Msg.inbox_folder_label)
+			.format(Util.getSystemAbsPath(folder)));
 		folderLabel.getParent().layout();
 		refresh();
 	}
@@ -135,6 +174,7 @@ public final class InboxPanel {
 			public void run() {
 				List<ResultDocument> docs = Collections.emptyList();
 				String message = null;
+				long size = bin ? Bin.getSize(folder) : 0;
 				if (!folder.isDirectory()) {
 					message = Msg.inbox_folder_missing.format(Util.getSystemAbsPath(folder));
 				}
@@ -145,7 +185,9 @@ public final class InboxPanel {
 					try {
 						Searcher searcher = indexRegistry.getSearcher();
 						if (searcher != null)
-							docs = searcher.listFolder(index, folder);
+							docs = bin
+								? searcher.listFolderEntries(index, folder)
+								: searcher.listFolder(index, folder);
 					}
 					catch (Exception e) {
 						message = e.getMessage();
@@ -156,11 +198,14 @@ public final class InboxPanel {
 				}
 				final List<ResultDocument> result = docs;
 				final String msg = message;
+				final String countText = bin
+					? Msg.bin_count.format(docs.size(), UtilFile.formatSize(size))
+					: Msg.inbox_files_count.format(docs.size());
 				UtilGui.runSwtSafe(comp, new Runnable() {
 					public void run() {
 						if (count != refreshCount)
 							return; // A newer refresh is on its way
-						showResults(result, msg);
+						showResults(result, msg, countText);
 					}
 				});
 			}
@@ -169,7 +214,9 @@ public final class InboxPanel {
 		thread.start();
 	}
 
-	private void showResults(@NotNull List<ResultDocument> docs, @Nullable String message) {
+	private void showResults(	@NotNull List<ResultDocument> docs,
+								@Nullable String message,
+								@NotNull String countText) {
 		// Keep the selection across refreshes
 		Set<String> selectedUids = new HashSet<String>();
 		for (ResultDocument doc : resultPanel.getSelection())
@@ -180,7 +227,7 @@ public final class InboxPanel {
 		messageLabel.setText(show ? message : "");
 		messageLabel.setVisible(show);
 		data.exclude = !show;
-		countLabel.setText(Msg.inbox_files_count.format(docs.size()));
+		countLabel.setText(countText);
 		resultPanel.setResults(new ArrayList<ResultDocument>(docs), HeaderMode.FILES);
 		resultPanel.applyDefaultSorting();
 		if (!selectedUids.isEmpty())

@@ -21,6 +21,8 @@
   come from the PATH). Output: `build/DocFetcher-<version>-Windows-64bit-Portable.zip` and the non-portable folder;
   the installer needs NSIS (`build-win-installer.nsi`), which is not installed. Afterwards `git checkout -- dist/`
   (commit changes under dist/ before building - the checkout reverts them).
+- build.py empties the whole build/ folder (clean_dir), older package folders included: never run a DocFetcher you use
+  from build/ (its portable indexes are lost on the next build); check `ls build/` before building.
 - Testing the package: it keeps its settings in `%APPDATA%\docfetcher\settings.conf`; start it with `APPDATA` pointing to
   a scratch folder (`cd <pkg> && APPDATA="$(cygpath -w <scratch>)" ./DocFetcher.exe &`) so the user's settings stay
   untouched. The package has the German UI: `win.py menu Datei "DocFetcher beenden"`, `menu Ansicht "Symbol>100"`.
@@ -98,6 +100,32 @@
 - In the app: enable `MCP server for AI assistants` in the preferences (or `McpServerEnabled = true` in bin/settings-conf.txt, on its own line), then
   `curl -s -X POST http://localhost:28835/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search","arguments":{"query":"Rechnung","sort":"newest"}}}'`.
 - Never register it in the user's own Claude configuration for tests.
+- Protocol eras: 2026-07-28 (stateless: _meta with protocolVersion + clientCapabilities, headers MCP-Protocol-Version,
+  Mcp-Method, Mcp-Name; server/discover) and 2025-03-26..2025-11-25 (initialize). Spec: modelcontextprotocol.io/specification/<rev>.
+- Real clients (Node in C:/Program Files/nodejs, not on the Git Bash PATH - prepend it): in a scratch folder
+  `npm install @modelcontextprotocol/client@latest @modelcontextprotocol/sdk@latest`; the v2 client connects with
+  `versionNegotiation: { mode: 'legacy' | 'auto' | { pin: '2026-07-28' } }`, v1 (sdk) only with initialize.
+  Claude Desktop's bridge: pipe JSON-RPC lines into `npx -y mcp-remote http://localhost:28835/mcp` (stdio).
+  Claude Desktop logs: %LOCALAPPDATA%/Claude/logs (mcp.log, main.log).
+- Claude Desktop extension: McpExtension writes docfetcher.mcpb; validate with the official CLI
+  (`npm install @anthropic-ai/mcpb` in the scratchpad, `node .../dist/cli/cli.js validate manifest.json`, `info x.mcpb`).
+  Run the bridge like Claude Desktop with the SDK's StdioClientTransport (command node, args/env from the manifest).
+  The app's save dialog ignores `win.py save` paths and saves to Downloads: move the file away and close only the
+  Explorer window that has it selected (Shell.Application Windows(), Document.SelectedItems()).
+- The user's own DocFetcher often runs with MCP on port 28835 (and its real inbox): test the dev build on another
+  port (McpServerPort = 28836) and check the target before any writing test (initialize -> serverInfo version, or
+  the listening process). Change the port in a manifest with a JSON tool, not sed: the URL also appears in the
+  description (2026-10-09 a sed edit sent four test files into the user's inbox; removed to the recycle bin).
+- get_original_document: MCP SDK clients read at most 10 MiB per stdio message (bridge turns larger answers into an
+  error); over HTTP no such limit. get_file_folder needs `McpFileFolder = <an inbox folder>` in the settings (dropdown
+  on the preferences tab AI Assistants (MCP)); DocFetcher never writes files for assistants. Test scripts in the
+  scratchpad's sdktest folder (stdio.mjs, original.mjs, http-original.mjs) - recreate them from the task log if the
+  scratchpad was cleaned.
 - The package's Java runtime is made with jlink: every JDK module the code uses must be in the list above (jdk.httpserver for
   the MCP server - missing, enabling MCP crashed with NoClassDefFoundError; the dev build runs on the full JDK and can't show
   this). So the package test always includes enabling MCP in the preferences and a curl request.
+- Confirmation message boxes ('Confirm Operation', Ja/Nein) are native: `win.py press Ja` is reliable; a posted click
+  at the button's screenshot position worked for a narrow box but not for a wider one.
+- DocFetcher bin: `BinFolder = <scratch>/guidata/bin` in bin/settings-conf.txt (outside the inbox, so it gets its own
+  index bin_<n> in bin/indexes; remove it with the test data afterwards). Deleting in the bin tab and 'Empty Bin...'
+  use the real recycle bin of Windows (unit tests switch it off with UtilFile.setTrashDisabled).

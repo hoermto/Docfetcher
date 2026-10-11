@@ -138,6 +138,40 @@ public final class ReparseOnceTest {
 	}
 
 	@Test
+	public void outdatedIndexesAddCsvFilesOnce() throws Exception {
+		SearchTestSupport support = new SearchTestSupport("note.txt", "alpha");
+		try {
+			FileIndex index = (FileIndex) support.registry.getIndexes().get(0);
+			assertTrue("New indexes have CSV files as text", index.getConfig().getTextExtensions().contains("csv"));
+
+			// An index of an older version: no CSV among its text files
+			index.getConfig().setTextExtensions(java.util.Arrays.asList("txt", "java", "cpp", "py"));
+			File csv = new File(support.root, "kunden.csv");
+			Files.write(csv.toPath(), "Name;Adresse;Miete\nMeier;Rosenweg 12;850\n".getBytes("UTF-8"));
+			update(support);
+			assertEquals("[]", support.search("Rosenweg").toString());
+
+			// Its next update adds CSV and parses the CSV file, although unchanged
+			Field field = TreeIndex.class.getDeclaredField("csvVersion");
+			field.setAccessible(true);
+			field.setInt(index, 0);
+			assertTrue(index.isCsvOutdated());
+			update(support);
+			assertEquals("[kunden.csv]", support.search("Rosenweg").toString());
+			assertTrue(index.getConfig().getTextExtensions().contains("csv"));
+			assertFalse(index.isCsvOutdated());
+
+			// Only once: removed by the user, it stays removed
+			index.getConfig().setTextExtensions(java.util.Arrays.asList("txt"));
+			update(support);
+			assertFalse(index.getConfig().getTextExtensions().contains("csv"));
+		}
+		finally {
+			support.dispose();
+		}
+	}
+
+	@Test
 	public void outdatedIndexesParseOnlyTheirExcelFilesOnce() throws Exception {
 		SearchTestSupport support = new SearchTestSupport("note.txt", "alpha");
 		try {

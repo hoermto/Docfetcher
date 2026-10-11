@@ -67,7 +67,8 @@ public class IndexingConfig implements Serializable {
 	 * extensions stored with them.
 	 */
 	private static final List<String> defaultZipExtensions = Collections.emptyList();
-	private static final List<String> defaultTextExtensions = Arrays.asList("txt", "java", "cpp", "py");
+	// CSV files are tables as text: their values become searchable (see TreeIndex.isCsvOutdated)
+	private static final List<String> defaultTextExtensions = Arrays.asList("txt", "csv", "java", "cpp", "py");
     private static final List<PatternAction> defaultPatternActions = Arrays.asList(new PatternAction[] { new PatternAction(".*\\.class"), 
           new PatternAction(".*\\.pyc"), 
           new PatternAction(".*/\\.git/.*", PatternAction.MatchTarget.PATH,     PatternAction.MatchAction.EXCLUDE), 

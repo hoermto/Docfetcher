@@ -204,7 +204,7 @@ public final class SearchQueue {
 			}
 		});
 		
-		indexPanel.evtCheckStatesChanged.add(new Event.Listener<Void>() {
+		Event.Listener<Void> locationListener = new Event.Listener<Void>() {
 			public void update(Void eventData) {
 				lock.lock();
 				try {
@@ -215,7 +215,9 @@ public final class SearchQueue {
 					lock.unlock();
 				}
 			}
-		});
+		};
+		indexPanel.evtCheckStatesChanged.add(locationListener);
+		searchBar.evtIncludeBinChanged.add(locationListener);
 		
 		indexPanel.evtListDocuments.add(new Event.Listener<Set<String>>() {
 			public void update(Set<String> eventData) {
@@ -333,9 +335,13 @@ public final class SearchQueue {
 			return true;
 		
 		final List<ResultDocument> visibleResults = new ArrayList<ResultDocument>();
+		// The DocFetcher bin only on request
+		File bin = searchBar.isBinIncluded() ? null : Bin.getFolder();
 
 		// Apply filters
 		for (ResultDocument doc : results) {
+			if (isInBin(bin, doc))
+				continue;
 			if (!doc.isEmail()) {
 				if (checkedParsers.isEmpty())
 					continue;
@@ -355,8 +361,13 @@ public final class SearchQueue {
 		 * and location filters; they are simply put in front of the
 		 * documents, where the sorting keeps them.
 		 */
-		if (folderResults != null)
-			visibleResults.addAll(0, folderResults);
+		if (folderResults != null) {
+			List<ResultDocument> folders = new ArrayList<ResultDocument>();
+			for (ResultDocument folder : folderResults)
+				if (!isInBin(bin, folder))
+					folders.add(folder);
+			visibleResults.addAll(0, folders);
+		}
 		
 		boolean filesFound = false;
 		boolean emailsFound = false;
@@ -424,6 +435,10 @@ public final class SearchQueue {
 	 * the first results are checked.
 	 */
 	@NotNull
+	private static boolean isInBin(@Nullable File bin, @NotNull ResultDocument doc) {
+		return bin != null && !doc.isEmail() && Bin.contains(bin, doc.getPath().getCanonicalFile());
+	}
+
 	private List<ResultDocument> removeMissingFiles(@NotNull List<ResultDocument> results) {
 		List<ResultDocument> existing = new ArrayList<ResultDocument>(results.size());
 		Set<LuceneIndex> affected = new HashSet<LuceneIndex>();

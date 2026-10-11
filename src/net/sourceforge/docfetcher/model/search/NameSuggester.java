@@ -57,7 +57,7 @@ public final class NameSuggester {
 		"september", "october", "november", "december" };
 
 	// Common German and English words that make poor file name keywords
-	private static final Set<String> STOPWORDS = new HashSet<String>(Arrays.asList(
+	static final Set<String> STOPWORDS = new HashSet<String>(Arrays.asList(
 		"der", "die", "das", "und", "oder", "ein", "eine", "einer", "eines",
 		"einem", "einen", "ist", "sind", "war", "waren", "wird", "werden",
 		"wurde", "wurden", "nicht", "mit", "von", "zu", "zum", "zur", "für",

@@ -78,6 +78,11 @@ public final class SettingsConf {
 	public static final int ORIGINALS_REMOVE = 1;
 	public static final int ORIGINALS_KEEP = 2;
 
+	/** Remembered answers to 'An AI assistant wants to save files' (Int.McpFileFolderAnswer). */
+	public static final int MCP_FOLDER_ASK = 0;
+	public static final int MCP_FOLDER_ALLOW = 1;
+	public static final int MCP_FOLDER_DENY = 2;
+
 
 	@Description("# Boolean entries. Allowed values: true, false")
 	public enum Bool implements Storable {
@@ -102,8 +107,14 @@ public final class SettingsConf {
 		SyncFolderPanels (true), // The folders tab shows the parent of the folder panel
 		TolerantSearch (true), // Umlauts and OCR errors: 'Muller' finds 'Müller', 'Bonn' finds 'B0nn'
 		McpServerEnabled (false), // MCP server for AI assistants on localhost (read-only access to the indexes)
+		McpPathsVisible (false), // MCP results carry file paths too, and the tools take paths (else ids only)
+		McpRenameAllowed (false), // AI assistants may propose new names, which the user confirms
+		McpMoveAllowed (false), // ... moving documents to another folder
+		McpSplitAllowed (false), // ... splitting PDF files in the inbox
+		McpOutsideInbox (false), // Rename and move also outside the inbox folders
+		DuplicatesContentOnly (true), // Find Duplicates: only the texts count, not file name and size
 		ShowFolderPanel (true), // Show a second folder browser next to the tabs
-FolderSortAscending (false), // Sort order of the folder view
+		FolderSortAscending (false), // Sort order of the folder view
 
 		ShowPreviewPanel (true),
 		ShowPreviewPanelAtBottom (false),
@@ -182,6 +193,8 @@ FolderSortAscending (false), // Sort order of the folder view
 
 		// Port of the MCP server on localhost (see Bool.McpServerEnabled)
 		McpServerPort (28835),
+		// May an assistant learn the folder for its files: MCP_FOLDER_ASK/ALLOW/DENY ('Remember my choice')
+		McpFileFolderAnswer (0),
 		;
 
 		public final Event<Integer> evtChanged = new Event<Integer> ();
@@ -220,6 +233,24 @@ FolderSortAscending (false), // Sort order of the folder view
 			"\r\n# escaped by a preceding \\.")
 	public enum Str implements Storable {
 		LastIndexedFolder (Util.USER_HOME_PATH),
+
+		/*
+		 * The inbox folder in which AI assistants with their own file access
+		 * may save new files (the MCP server tells them); empty: none.
+		 */
+		McpFileFolder (""),
+
+		/*
+		 * The DocFetcher bin: deleted files are moved into this folder (see
+		 * Bin); empty: they go to the recycle bin of the system.
+		 */
+		BinFolder (""),
+
+		/*
+		 * The naming rules AI assistants follow when they propose names; empty:
+		 * DocFetcher's default (Msg.mcp_naming_rules_default).
+		 */
+		McpNamingRules (""),
 		
 		/*
 		 * Custom index folder, set via the preferences dialog. Empty means

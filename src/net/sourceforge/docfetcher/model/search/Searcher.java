@@ -33,6 +33,7 @@ import java.util.regex.Pattern;
 import net.sourceforge.docfetcher.enums.Msg;
 import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.enums.SettingsConf;
+import net.sourceforge.docfetcher.model.Cancelable;
 import net.sourceforge.docfetcher.model.Fields;
 import net.sourceforge.docfetcher.model.IndexLoadingProblems.CorruptedIndex;
 import net.sourceforge.docfetcher.model.IndexRegistry;
@@ -684,6 +685,247 @@ public final class Searcher {
 		}
 	}
 	
+	/** A group of documents with identical or nearly identical text (see {@link DuplicateFinder}). */
+	public static final class DuplicateGroup {
+		/** Why the documents are duplicates. */
+		public enum Kind { IDENTICAL_TEXT, NEARLY_IDENTICAL_TEXT, SAME_NAME_AND_SIZE }
+
+		public final List<ResultDocument> docs;
+		public final Kind kind;
+
+		DuplicateGroup(@NotNull List<ResultDocument> docs, @NotNull Kind kind) {
+			this.docs = docs;
+			this.kind = kind;
+		}
+	}
+
+	/**
+	 * Returns the profiles of the given folders (see FolderProfile), from the
+	 * words in the indexes - no document is opened. Documents in
+	 * {@code excluded} (the bin) don't count.
+	 */
+	@NotNull
+	@ThreadSafe
+	public List<FolderProfile> profileFolders(	@NotNull List<java.io.File> folders,
+												@Nullable java.io.File excluded)
+			throws SearchException, CheckedOutOfMemoryError {
+		readLock.lock();
+		try {
+			checkIndexesExist();
+			return FolderProfile.compute(luceneSearcher.getIndexReader(), folders, excluded);
+		}
+		catch (IOException e) {
+			throw new SearchException(e.getMessage());
+		}
+		catch (OutOfMemoryError e) {
+			throw new CheckedOutOfMemoryError(e);
+		}
+		finally {
+			readLock.unlock();
+		}
+	}
+
+	/** Reports how many documents were compared, of how many. */
+	public interface DuplicateProgress {
+		void update(int done, int total);
+	}
+
+	/**
+	 * Finds the documents with identical or nearly identical text, from the
+	 * words in the indexes - no document is opened - among the documents in
+	 * the given folder and its subfolders (null: all). Unless only the content
+	 * counts, documents with the same file name and size are duplicates too,
+	 * also without text (e.g. images). The documents of a group are sorted
+	 * oldest first; groups of one file that is in two indexes are left out.
+	 * Returns nothing if canceled.
+	 */
+	@NotNull
+	@ThreadSafe
+	public List<DuplicateGroup> findDuplicates(	@NotNull Cancelable cancelable,
+												@NotNull DuplicateProgress progress,
+												@Nullable java.io.File folder,
+												@Nullable java.io.File excluded,
+												boolean contentOnly)
+			throws SearchException, CheckedOutOfMemoryError {
+		readLock.lock();
+		try {
+			checkIndexesExist();
+			IndexReader reader = luceneSearcher.getIndexReader();
+			DuplicateFinder finder = new DuplicateFinder(reader.maxDoc());
+			String field = Fields.CONTENT.key();
+
+			/*
+			 * The text isn't stored in the index, only its words: the words
+			 * of each document with their counts. The words of the file name,
+			 * which the content field contains too, are subtracted, so that
+			 * copies under another name are identical.
+			 */
+			List<Map<String, Integer>> nameWords = new ArrayList<Map<String, Integer>>(reader.maxDoc());
+			java.util.Set<String> storedFields = new java.util.HashSet<String>(Arrays.asList(
+				Fields.FILENAME.key(), Fields.UID.key(), Fields.SIZE.key()));
+			java.io.File scope = folder == null ? null : normalize(folder);
+			java.io.File outside = excluded == null ? null : normalize(excluded);
+			boolean[] inScope = new boolean[reader.maxDoc()];
+			// Same file name and size: the documents of each name and size, in the scope
+			Map<String, List<Integer>> byNameAndSize = new java.util.LinkedHashMap<String, List<Integer>>();
+			org.apache.lucene.util.Bits allLive = org.apache.lucene.index.MultiFields.getLiveDocs(reader);
+			for (int i = 0; i < reader.maxDoc(); i++) {
+				Document stored = reader.document(i, storedFields);
+				String filename = stored.get(Fields.FILENAME.key());
+				String uid = stored.get(Fields.UID.key());
+				java.io.File path = uid == null ? null : normalize(new java.io.File(DocumentType.extractPath(uid).getPath()));
+				inScope[i] = (allLive == null || allLive.get(i)) && path != null
+					&& (scope == null || Util.contains(scope, path))
+					&& (outside == null || !Util.contains(outside, path));
+				nameWords.add(filename == null || !inScope[i] ? Collections.<String, Integer> emptyMap() : nameWords(filename, field));
+				if (!contentOnly && inScope[i] && filename != null && stored.get(Fields.SIZE.key()) != null) {
+					String key = filename.toLowerCase(java.util.Locale.ROOT) + "/" + stored.get(Fields.SIZE.key());
+					List<Integer> same = byNameAndSize.get(key);
+					if (same == null)
+						byNameAndSize.put(key, same = new ArrayList<Integer>(2));
+					same.add(i);
+				}
+			}
+
+			long totalTerms = 0;
+			for (org.apache.lucene.index.LeafReaderContext leaf : reader.leaves()) {
+				org.apache.lucene.index.Terms terms = leaf.reader().terms(field);
+				if (terms != null)
+					totalTerms += Math.max(0, terms.size());
+			}
+			long doneTerms = 0;
+			for (org.apache.lucene.index.LeafReaderContext leaf : reader.leaves()) {
+				org.apache.lucene.index.Terms terms = leaf.reader().terms(field);
+				if (terms == null)
+					continue;
+				org.apache.lucene.util.Bits live = leaf.reader().getLiveDocs();
+				org.apache.lucene.index.TermsEnum termsEnum = terms.iterator();
+				org.apache.lucene.index.PostingsEnum postings = null;
+				for (org.apache.lucene.util.BytesRef term; (term = termsEnum.next()) != null;) {
+					if (cancelable.isCanceled())
+						return Collections.emptyList();
+					if (++doneTerms % 5000 == 0)
+						progress.update((int) Math.min(Integer.MAX_VALUE, doneTerms), (int) Math.min(Integer.MAX_VALUE, totalTerms));
+					String word = term.utf8ToString();
+					int hash = word.hashCode();
+					postings = termsEnum.postings(postings, org.apache.lucene.index.PostingsEnum.FREQS);
+					for (int doc; (doc = postings.nextDoc()) != org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;) {
+						if (live != null && !live.get(doc))
+							continue;
+						int key = leaf.docBase + doc;
+						if (!inScope[key])
+							continue;
+						Integer inName = nameWords.get(key).get(word);
+						int count = postings.freq() - (inName == null ? 0 : inName);
+						if (count > 0)
+							finder.addTerm(key, hash, count);
+					}
+				}
+			}
+			progress.update((int) Math.min(Integer.MAX_VALUE, totalTerms), (int) Math.min(Integer.MAX_VALUE, totalTerms));
+
+			List<DuplicateGroup> groups = new ArrayList<DuplicateGroup>();
+			Map<Integer, Integer> textGroupOf = new HashMap<Integer, Integer>();
+			for (DuplicateFinder.Group group : finder.groups()) {
+				for (int key : group.keys)
+					textGroupOf.put(key, groups.size());
+				addGroup(groups, reader, group.keys, group.identical
+					? DuplicateGroup.Kind.IDENTICAL_TEXT
+					: DuplicateGroup.Kind.NEARLY_IDENTICAL_TEXT);
+			}
+			// Same name and size, unless a text group has them all already
+			for (List<Integer> same : byNameAndSize.values()) {
+				if (same.size() < 2)
+					continue;
+				Integer textGroup = textGroupOf.get(same.get(0));
+				boolean covered = textGroup != null;
+				for (int key : same)
+					covered &= textGroup != null && textGroup.equals(textGroupOf.get(key));
+				if (!covered)
+					addGroup(groups, reader, same, DuplicateGroup.Kind.SAME_NAME_AND_SIZE);
+			}
+			return groups;
+		}
+		catch (IOException e) {
+			throw new SearchException(e.getMessage());
+		}
+		catch (OutOfMemoryError e) {
+			throw new CheckedOutOfMemoryError(e);
+		}
+		finally {
+			readLock.unlock();
+		}
+	}
+
+	/**
+	 * The words the indexing adds to the content field for the file name:
+	 * the name and the name without extension (see LuceneDocWriter), as the
+	 * analyzer splits them, with their counts.
+	 */
+	@NotNull
+	private static Map<String, Integer> nameWords(@NotNull String filename, @NotNull String field)
+			throws IOException {
+		String basename = Util.splitFilename(filename)[0];
+		String metadata = basename.equals(filename) ? filename : filename + " " + basename;
+		Map<String, Integer> counts = new HashMap<String, Integer>();
+		org.apache.lucene.analysis.TokenStream stream = IndexRegistry.getAnalyzer().tokenStream(field, metadata);
+		try {
+			org.apache.lucene.analysis.tokenattributes.CharTermAttribute term =
+				stream.addAttribute(org.apache.lucene.analysis.tokenattributes.CharTermAttribute.class);
+			stream.reset();
+			while (stream.incrementToken()) {
+				String word = term.toString();
+				counts.put(word, counts.containsKey(word) ? counts.get(word) + 1 : 1);
+			}
+			stream.end();
+		}
+		finally {
+			stream.close();
+		}
+		return counts;
+	}
+
+	/** Adds the group, oldest first, unless it is only one file that is in two indexes. */
+	private void addGroup(	@NotNull List<DuplicateGroup> groups,
+							@NotNull IndexReader reader,
+							@NotNull List<Integer> keys,
+							@NotNull DuplicateGroup.Kind kind) throws IOException {
+		Query query = new MatchAllDocsQuery();
+		Map<String, ResultDocument> byPath = new java.util.LinkedHashMap<String, ResultDocument>();
+		for (int key : keys) {
+			LuceneIndex index = indexes.get(((DecoratedMultiReader) reader).decoratedReaderIndex(key));
+			ResultDocument doc = new ResultDocument(reader.document(key), 0, query, true,
+				index.getConfig(), fileFactory, outlookMailFactory);
+			if (!byPath.containsKey(doc.getPathStr()))
+				byPath.put(doc.getPathStr(), doc);
+		}
+		if (byPath.size() < 2)
+			return;
+		List<ResultDocument> docs = new ArrayList<ResultDocument>(byPath.values());
+		Collections.sort(docs, new Comparator<ResultDocument>() {
+			public int compare(ResultDocument d1, ResultDocument d2) {
+				return Long.compare(time(d1), time(d2));
+			}
+		});
+		groups.add(new DuplicateGroup(docs, kind));
+	}
+
+	/** The absolute path without '.' and '..', for comparing folders. */
+	@NotNull
+	private static java.io.File normalize(@NotNull java.io.File file) {
+		return file.getAbsoluteFile().toPath().normalize().toFile();
+	}
+
+	private static long time(@NotNull ResultDocument doc) {
+		try {
+			java.util.Date date = doc.isEmail() ? doc.getDate() : doc.getLastModified();
+			return date == null ? 0 : date.getTime();
+		}
+		catch (Exception e) {
+			return 0;
+		}
+	}
+
 	@ImmutableCopy
 	@NotNull
 	@ThreadSafe

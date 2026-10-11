@@ -26,6 +26,7 @@ import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.model.pdf.PdfPages;
 import net.sourceforge.docfetcher.model.pdf.PdfPages.PageInfo;
 import net.sourceforge.docfetcher.model.pdf.PdfPages.Range;
+import net.sourceforge.docfetcher.model.pdf.PdfPages.Role;
 import net.sourceforge.docfetcher.model.search.NameSuggester;
 import net.sourceforge.docfetcher.model.search.NameSuggester.Suggestion;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
@@ -150,7 +151,8 @@ final class PdfOperations {
 			AppUtil.showError(Msg.merge_failed.format(error[0].getMessage()), true, true);
 			return false;
 		}
-		String question = Msg.merge_done_question.format(files.size());
+		String question = (Bin.getFolder() != null ? Msg.merge_done_question_bin : Msg.merge_done_question)
+			.format(files.size());
 		List<File> backups = handleOriginals(host, docs, question, answer);
 		File merged = target;
 		if (written != target) {
@@ -173,8 +175,61 @@ final class PdfOperations {
 
 	/** Asks how to split the document, then splits it. */
 	static void split(@NotNull Host host, @NotNull ResultDocument doc) {
-		final File file = doc.getPath().getCanonicalFile();
-		// Reads the text of the pages and looks for blank pages and separator sheets
+		File file = doc.getPath().getCanonicalFile();
+		List<PageInfo> pages = analyzePages(host, file);
+		if (pages == null)
+			return;
+		List<Range> ranges = new SplitDialog(host.getShell(), file, pages).open();
+		if (ranges == null)
+			return;
+		split(host, doc, ranges, partFiles(host, file, pages, ranges), null);
+	}
+
+	/**
+	 * Splits the document as an AI assistant proposes: the split dialog shows
+	 * the proposed roles of the pages, which the user may correct. The parts
+	 * get the proposed names if the user keeps the proposed parts, otherwise
+	 * DocFetcher names them as usual. Returns the created files, or null if
+	 * the user canceled or splitting failed.
+	 */
+	@Nullable
+	static List<File> splitProposed(@NotNull Host host,
+									@NotNull ResultDocument doc,
+									@NotNull Role[] roles,
+									@NotNull List<String> names,
+									@NotNull String message) {
+		File file = doc.getPath().getCanonicalFile();
+		List<PageInfo> pages = analyzePages(host, file);
+		if (pages == null || pages.size() != roles.length)
+			return null;
+		SplitDialog dialog = new SplitDialog(host.getShell(), file, pages);
+		dialog.setProposal(roles, names, message);
+		List<Range> ranges = dialog.open();
+		if (ranges == null)
+			return null;
+		List<File> parts;
+		if (ranges.equals(PdfPages.fromRoles(roles)) && names.size() == ranges.size()) {
+			parts = new ArrayList<File>(names.size());
+			for (String name : names) {
+				File part = UtilFile.getFreeFile(new File(file.getParentFile(), name));
+				for (int n = 2; parts.contains(part); n++) // The same name twice
+					part = UtilFile.getFreeFile(new File(file.getParentFile(),
+						Util.splitFilename(name)[0] + "-" + n + ".pdf"));
+				parts.add(part);
+			}
+		}
+		else {
+			parts = partFiles(host, file, pages, ranges);
+		}
+		return split(host, doc, ranges, parts, null);
+	}
+
+	/**
+	 * Reads the text of the pages and looks for blank pages and separator
+	 * sheets; null (after a message) if that fails or there is only one page.
+	 */
+	@Nullable
+	private static List<PageInfo> analyzePages(@NotNull Host host, @NotNull final File file) {
 		final List<PageInfo> pages = new ArrayList<PageInfo>();
 		final IOException[] error = new IOException[1];
 		BusyIndicator.showWhile(host.getShell().getDisplay(), new Runnable() {
@@ -189,19 +244,25 @@ final class PdfOperations {
 		});
 		if (error[0] != null) {
 			AppUtil.showError(Msg.split_failed.format(error[0].getMessage()), true, true);
-			return;
+			return null;
 		}
 		if (pages.size() < 2) {
 			AppUtil.showInfo(Msg.split_one_page.format(file.getName()));
-			return;
+			return null;
 		}
-		List<Range> ranges = new SplitDialog(host.getShell(), file, pages).open();
-		if (ranges == null)
-			return;
+		return pages;
+	}
+
+	/** The files of the parts: numbered, or named by their text if the user wants. */
+	@NotNull
+	private static List<File> partFiles(@NotNull Host host,
+										@NotNull File file,
+										@NotNull List<PageInfo> pages,
+										@NotNull List<Range> ranges) {
 		List<File> parts = PdfPages.getPartFiles(file, ranges.size());
 		if (SettingsConf.Bool.SplitAutoRename.get())
 			parts = getSuggestedPartFiles(host, file, pages, ranges, parts);
-		split(host, doc, ranges, parts, null);
+		return parts;
 	}
 
 	/**
@@ -285,7 +346,8 @@ final class PdfOperations {
 			AppUtil.showError(Msg.split_failed.format(error[0].getMessage()), true, true);
 			return null;
 		}
-		String question = Msg.split_done_question.format(parts.size(),
+		String question = (Bin.getFolder() != null ? Msg.split_done_question_bin : Msg.split_done_question)
+			.format(parts.size(),
 			parts.get(0).getName(), parts.get(parts.size() - 1).getName());
 		List<File> backups = handleOriginals(host, Collections.singletonList(doc), question, answer);
 		FileOperationHistory.getInstance().add(FileOperationHistory.Kind.SPLIT,
@@ -297,7 +359,8 @@ final class PdfOperations {
 	}
 
 	/**
-	 * Moves the originals to the recycle bin if the user wants that, after
+	 * Moves the originals to the DocFetcher bin or the recycle bin if the
+	 * user wants that, after
 	 * keeping backup copies for the undo. Returns the backups, or an empty
 	 * list if the originals were kept.
 	 */
@@ -323,7 +386,7 @@ final class PdfOperations {
 		}
 		List<ResultDocument> removed = new ArrayList<ResultDocument>();
 		for (int i = 0; i < files.size(); i++) {
-			if (!UtilFile.delete(files.get(i))) {
+			if (Bin.delete(files.get(i)) == null) {
 				AppUtil.showError(Msg.file_operation_failed.format(files.get(i).getPath()), true, true);
 				break;
 			}
@@ -349,7 +412,8 @@ final class PdfOperations {
 		dialog.setImage(SWT.ICON_QUESTION);
 		dialog.setText(question);
 		dialog.setCheckBox(Msg.remember_choice.get());
-		dialog.addButton(Msg.originals_remove_bt.get(), Answer.REMOVE);
+		dialog.addButton((Bin.getFolder() != null ? Msg.originals_remove_bt_bin : Msg.originals_remove_bt).get(),
+			Answer.REMOVE);
 		dialog.addButton(Msg.originals_keep_bt.get(), Answer.KEEP);
 		Answer answer = dialog.open();
 		if (answer == null)

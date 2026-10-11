@@ -1384,15 +1384,15 @@ public final class Util {
 	}
 
 	/**
-	 * Launches the given filepath and select the file
-	 * explorer.exe /select,F:\docfetcher\DocFetcher\aspectjtools.jar
-	 * returning whether the file was successfully launched
-     * This process is not working properly in Win7 64bit
+	 * Opens the Windows Explorer with the given file selected
+	 * (explorer.exe /select,F:\docfetcher\DocFetcher\aspectjtools.jar),
+	 * returning whether the Explorer was started; false on other systems.
+	 * The path is one argument, so it may contain spaces.
 	 */
 	public static boolean winOpenDir(String fileName) {
         if (IS_WINDOWS) {
             try {
-                Runtime.getRuntime().exec("explorer /select, " + fileName);
+                Runtime.getRuntime().exec(new String[] {"explorer", "/select," + fileName});
                 return true;
             } catch (Exception e) {
                 return false;

@@ -19,8 +19,18 @@
 
 
 ## changes
+
+
 [] add support for encrypted containers like cryptomator (follow you 1a) 1b) suggestions)
-## features/stories
+
+
+## new version
+
+
+## future features/stories
+
+
+
 [] any ideas about document encryption?
   Analysis (v2.7, answer: encrypted folder + protect the index, write-up only for now):
   - What leaks today: the documents themselves, and in the app data folder the index (full text of every

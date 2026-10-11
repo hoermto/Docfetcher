@@ -17,6 +17,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -26,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -33,6 +35,8 @@ import com.sun.net.httpserver.HttpServer;
 import net.sourceforge.docfetcher.enums.SystemConf;
 import net.sourceforge.docfetcher.mcp.McpTools.ToolException;
 import net.sourceforge.docfetcher.model.IndexRegistry;
+import net.sourceforge.docfetcher.model.search.ResultDocument;
+import net.sourceforge.docfetcher.model.pdf.PdfPages;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
@@ -44,14 +48,42 @@ import net.sourceforge.docfetcher.util.annotations.Nullable;
  * answer as JSON. The server only listens on the loopback interface, so only
  * programs on this computer can connect, and it rejects requests from web
  * pages (Origin header of another host). See {@link McpTools} for the tools.
+ * The server writes nothing; {@link McpFileFolder} only tells assistants
+ * with their own file access the folder the user chose for new files.
+ * <p>
+ * It serves both protocol eras: the stateless revision 2026-07-28 (version,
+ * client capabilities and HTTP headers on every request, {@code
+ * server/discover}), and the earlier revisions 2025-03-26 to 2025-11-25 that
+ * start with {@code initialize}. A request is modern if it carries the
+ * version in its {@code _meta} or a modern {@code MCP-Protocol-Version}
+ * header.
  */
 public final class McpServer {
 
 	static final String PATH = "/mcp";
-	static final String LATEST_PROTOCOL = "2025-06-18";
-	private static final List<String> PROTOCOLS = Arrays.asList(
-		"2025-11-25", LATEST_PROTOCOL, "2025-03-26", "2024-11-05");
+	/** The stateless revision: no initialize, the version on every request. */
+	static final String MODERN_PROTOCOL = "2026-07-28";
+	/** The newest revision with initialize; the answer to unknown versions there. */
+	static final String LATEST_LEGACY_PROTOCOL = "2025-11-25";
+	private static final List<String> LEGACY_PROTOCOLS = Arrays.asList(
+		LATEST_LEGACY_PROTOCOL, "2025-06-18", "2025-03-26", "2024-11-05");
+	/** All supported versions, newest first. */
+	static final List<String> PROTOCOLS = Arrays.asList(
+		MODERN_PROTOCOL, LATEST_LEGACY_PROTOCOL, "2025-06-18", "2025-03-26", "2024-11-05");
+
+	private static final String META_VERSION = "io.modelcontextprotocol/protocolVersion";
+	private static final String META_CAPABILITIES = "io.modelcontextprotocol/clientCapabilities";
+	private static final String META_SERVER_INFO = "io.modelcontextprotocol/serverInfo";
+	private static final int HEADER_MISMATCH = -32020;
+	private static final int UNSUPPORTED_VERSION = -32022;
+	/**
+	 * How long modern clients may cache the tool list and discovery: short,
+	 * as get_file_folder comes and goes with the preferences.
+	 */
+	private static final long CACHE_TTL_MS = 60 * 1000;
 	private static final int MAX_REQUEST_BYTES = 1024 * 1024;
+	/** The image types AI assistants can look at; other images come as files. */
+	private static final List<String> IMAGE_TYPES = Arrays.asList("image/png", "image/jpeg", "image/gif", "image/webp");
 
 	private static final String INSTRUCTIONS =
 		"DocFetcher indexes the user's documents (letters, invoices, contracts, scanned mail, "
@@ -60,15 +92,85 @@ public final class McpServer {
 		+ "'Rechnung' - the stars also find compound words like 'Einkommensteuer'), then "
 		+ "'read_document' on the best results to read their content. "
 		+ "Use sort=newest for the latest documents and modified_after/modified_before for "
-		+ "periods. When the user asks for a document itself, answer with its path.";
+		+ "periods. Documents and folders are referred to by ids, not file paths - you don't "
+		+ "need the files themselves. When the user wants to see a document, use "
+		+ "'show_document', which shows it in DocFetcher's window. To understand how the user's "
+		+ "documents are organized, 'describe_folder' shows the folder hierarchy with what each "
+		+ "folder contains, and 'find_folders' the folders with documents like a given one. "
+		+ "Use 'get_original_document' "
+		+ "only when the original file itself is needed (explicitly asked for, or its layout as "
+		+ "a template); for the content always 'read_document'. Never rename, move, change or "
+		+ "delete the user's documents yourself, even if you can access the files. ";
 
-	private final McpTools tools;
+	/** The instructions with the rule for giving the user files, which the preferences set. */
+	@NotNull
+	static String instructions() {
+		return INSTRUCTIONS + (McpTools.pathsVisible()
+			? "The user allows file paths: results also carry them, and the tools take a 'path' "
+				+ "instead of an id; still use the tools for the content. "
+			: "") + McpFileFolder.rule() + McpFileChanges.rule();
+	}
+
+	final McpTools tools;
 	@Nullable private HttpServer server;
 	@Nullable private ExecutorService executor;
 	private int port = -1;
 
 	public McpServer(@NotNull IndexRegistry registry) {
 		tools = new McpTools(registry);
+	}
+
+	/** Shows documents in DocFetcher's window, for the tool show_document. */
+	public interface DocumentViewer {
+		/** Called on the server's thread; the documents are found and accessible. */
+		void show(@NotNull List<ResultDocument> docs);
+	}
+
+	/** Asks the user whether an assistant may learn the folder for its files (get_file_folder). */
+	public interface FolderApprover {
+		/** Called on the server's thread; returns whether the user agreed. */
+		boolean approve(@NotNull java.io.File folder);
+	}
+
+	/**
+	 * Lets the user confirm the changes an assistant proposes, in DocFetcher's
+	 * own dialogs prefilled with the proposal and showing the assistant's
+	 * summary of it. The methods are called on the
+	 * server's thread with a found, accessible document, and return the
+	 * result, or null if the user canceled.
+	 */
+	public interface FileOrganizer {
+		/** The file after renaming it, or null if the user canceled. */
+		@Nullable java.io.File rename(@NotNull ResultDocument doc, @NotNull String name, @NotNull String summary);
+
+		/** The moved files at their new place (maybe in another folder than proposed), or null if the user canceled. */
+		@Nullable List<java.io.File> move(@NotNull List<ResultDocument> docs, @NotNull java.io.File folder,
+				@NotNull String summary);
+
+		/**
+		 * The parts created from the PDF file, with the proposed role of each
+		 * page and the names of the parts (used if the user keeps the parts),
+		 * or null if the user canceled.
+		 */
+		@Nullable List<java.io.File> split(	@NotNull ResultDocument doc,
+											@NotNull PdfPages.Role[] roles,
+											@NotNull List<String> names,
+											@NotNull String summary);
+	}
+
+	/** Sets who lets the user confirm changes to files; null: none possible. */
+	public void setOrganizer(@Nullable FileOrganizer organizer) {
+		tools.organizer = organizer;
+	}
+
+	/** Sets who approves telling the folder; null: it is never told unless allowed for good. */
+	public void setFolderApprover(@Nullable FolderApprover approver) {
+		tools.folderApprover = approver;
+	}
+
+	/** Sets the window that show_document shows the documents in; null: none. */
+	public void setViewer(@Nullable DocumentViewer viewer) {
+		tools.viewer = viewer;
 	}
 
 	/**
@@ -154,13 +256,10 @@ public final class McpServer {
 			send(exchange, 413, null);
 			return;
 		}
-		String response = handle(body);
-		if (response == null) {
-			send(exchange, 202, null); // Notifications and responses need no answer
-			return;
-		}
-		exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
-		send(exchange, 200, response);
+		Reply reply = handle(body, exchange.getRequestHeaders());
+		if (reply.body != null)
+			exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
+		send(exchange, reply.status, reply.body);
 	}
 
 	/** Requests from web pages carry an Origin header; only local ones are accepted. */
@@ -205,90 +304,271 @@ public final class McpServer {
 
 	// ---- JSON-RPC
 
+	/** The answer to an HTTP request: status code and JSON body (null: none). */
+	static final class Reply {
+		final int status;
+		@Nullable final String body;
+
+		Reply(int status, @Nullable Map<String, Object> message) {
+			this.status = status;
+			this.body = message == null ? null : Json.write(message);
+		}
+
+		Reply(int status, @Nullable String body) {
+			this.status = status;
+			this.body = body;
+		}
+	}
+
+	/** An error that ends a request: HTTP status plus JSON-RPC error. */
+	private static final class RpcError extends Exception {
+		final int status;
+		final int code;
+		@Nullable final Object data;
+
+		RpcError(int status, int code, @NotNull String message, @Nullable Object data) {
+			super(message);
+			this.status = status;
+			this.code = code;
+			this.data = data;
+		}
+	}
+
 	/**
-	 * Handles one JSON-RPC message (or a batch) and returns the JSON answer,
-	 * or null if there is nothing to answer (notifications).
+	 * Handles a message without HTTP headers (an earlier-era client) and
+	 * returns the JSON answer, or null if there is nothing to answer.
 	 */
 	@Nullable
 	String handle(@NotNull String body) {
+		return handle(body, new Headers()).body;
+	}
+
+	/** Handles one JSON-RPC message (or a batch of the earlier era) with its HTTP headers. */
+	@NotNull
+	@SuppressWarnings("unchecked")
+	Reply handle(@NotNull String body, @NotNull Headers headers) {
 		Object message;
 		try {
 			message = Json.parse(body);
 		}
 		catch (IllegalArgumentException e) {
-			return Json.write(error(null, -32700, "Parse error: " + e.getMessage()));
+			return new Reply(400, error(null, -32700, "Parse error: " + e.getMessage(), null));
 		}
+		String headerVersion = headers.getFirst("MCP-Protocol-Version");
+		boolean modernHeader = headerVersion != null && headerVersion.compareTo(MODERN_PROTOCOL) >= 0;
+		if (message instanceof Map && (modernHeader || isModern((Map<String, Object>) message)))
+			return handleModern((Map<String, Object>) message, headers);
+		if (modernHeader)
+			return new Reply(400, error(null, -32600, "Batches are not allowed in protocol revision " + MODERN_PROTOCOL, null));
+		if (headerVersion != null && !PROTOCOLS.contains(headerVersion))
+			return new Reply(400, unsupportedVersion(null, headerVersion));
+
+		// Earlier era: initialize first, batches allowed (2025-03-26)
 		if (message instanceof List) {
 			List<Object> responses = new ArrayList<Object>();
 			for (Object item : (List<?>) message) {
-				Map<String, Object> response = handleMessage(item);
+				Map<String, Object> response = handleLegacy(item);
 				if (response != null)
 					responses.add(response);
 			}
-			return responses.isEmpty() ? null : Json.write(responses);
+			return responses.isEmpty() ? new Reply(202, (String) null) : new Reply(200, Json.write(responses));
 		}
-		Map<String, Object> response = handleMessage(message);
-		return response == null ? null : Json.write(response);
+		Map<String, Object> response = handleLegacy(message);
+		return response == null ? new Reply(202, (String) null) : new Reply(200, response);
 	}
 
+	/** A modern request carries the version in its _meta; server/discover is modern only. */
+	private static boolean isModern(@NotNull Map<String, Object> message) {
+		return meta(message).containsKey(META_VERSION) || "server/discover".equals(message.get("method"));
+	}
+
+	@NotNull
+	@SuppressWarnings("unchecked")
+	private static Map<String, Object> params(@NotNull Map<String, Object> message) {
+		return message.get("params") instanceof Map
+			? (Map<String, Object>) message.get("params")
+			: Collections.<String, Object> emptyMap();
+	}
+
+	@NotNull
+	@SuppressWarnings("unchecked")
+	private static Map<String, Object> meta(@NotNull Map<String, Object> message) {
+		Object meta = params(message).get("_meta");
+		return meta instanceof Map ? (Map<String, Object>) meta : Collections.<String, Object> emptyMap();
+	}
+
+	/** Revision 2026-07-28: every request stands on its own. */
+	@NotNull
+	private Reply handleModern(@NotNull Map<String, Object> message, @NotNull Headers headers) {
+		Object id = message.get("id");
+		Object methodValue = message.get("method");
+		if (!(methodValue instanceof String))
+			return new Reply(400, error(id, -32600, "Invalid request", null));
+		if (!message.containsKey("id"))
+			return new Reply(202, (String) null); // Notifications need no answer
+		String method = (String) methodValue;
+		Map<String, Object> params = params(message);
+		try {
+			Map<String, Object> meta = meta(message);
+			Object version = meta.get(META_VERSION);
+			if (!(version instanceof String) || !(meta.get(META_CAPABILITIES) instanceof Map))
+				throw new RpcError(400, -32602, "Invalid params: _meta needs " + META_VERSION
+					+ " and " + META_CAPABILITIES, null);
+			if (!version.equals(MODERN_PROTOCOL))
+				return new Reply(400, unsupportedVersion(id, (String) version));
+			checkHeader(headers, "MCP-Protocol-Version", (String) version);
+			checkHeader(headers, "Mcp-Method", method);
+			if (method.equals("tools/call") || method.equals("prompts/get") || method.equals("resources/read")) {
+				Object name = method.equals("resources/read") ? params.get("uri") : params.get("name");
+				checkHeader(headers, "Mcp-Name", name instanceof String ? (String) name : "");
+			}
+
+			Map<String, Object> result;
+			if (method.equals("server/discover")) {
+				result = new LinkedHashMap<String, Object>();
+				result.put("supportedVersions", PROTOCOLS);
+				result.put("capabilities", capabilities());
+				result.put("instructions", instructions());
+			}
+			else {
+				result = call(method, params);
+				if (result == null)
+					throw new RpcError(404, -32601, "Method not found: " + method, null);
+			}
+			if (!method.equals("tools/call")) {
+				// Discovery and lists never change while the server runs
+				result.put("ttlMs", CACHE_TTL_MS);
+				result.put("cacheScope", "private");
+			}
+			Map<String, Object> resultMeta = new LinkedHashMap<String, Object>();
+			resultMeta.put(META_SERVER_INFO, serverInfo());
+			Map<String, Object> complete = new LinkedHashMap<String, Object>();
+			complete.put("resultType", "complete");
+			complete.putAll(result);
+			complete.put("_meta", resultMeta);
+			return new Reply(200, result(id, complete));
+		}
+		catch (RpcError e) {
+			return new Reply(e.status, error(id, e.code, e.getMessage(), e.data));
+		}
+	}
+
+	/**
+	 * Header and body must agree (2026-07-28), so that proxies routing on the
+	 * headers see what the server executes. Names may be Base64-encoded.
+	 */
+	private static void checkHeader(@NotNull Headers headers, @NotNull String name, @NotNull String bodyValue)
+			throws RpcError {
+		String value = headers.getFirst(name);
+		if (value != null && value.startsWith("=?base64?") && value.endsWith("?=") && !name.equals("Mcp-Method")) {
+			try {
+				value = new String(Base64.getDecoder().decode(
+					value.substring("=?base64?".length(), value.length() - 2)), StandardCharsets.UTF_8);
+			}
+			catch (IllegalArgumentException e) {
+				value = null;
+			}
+		}
+		if (value == null)
+			throw new RpcError(400, HEADER_MISMATCH, "Header mismatch: " + name + " header missing", null);
+		if (!value.equals(bodyValue))
+			throw new RpcError(400, HEADER_MISMATCH, "Header mismatch: " + name + " header value '"
+				+ value + "' does not match body value '" + bodyValue + "'", null);
+	}
+
+	@NotNull
+	private static Map<String, Object> unsupportedVersion(@Nullable Object id, @NotNull String requested) {
+		Map<String, Object> data = new LinkedHashMap<String, Object>();
+		data.put("supported", PROTOCOLS);
+		data.put("requested", requested);
+		return error(id, UNSUPPORTED_VERSION, "Unsupported protocol version", data);
+	}
+
+	/** Revisions 2025-03-26 to 2025-11-25 (and 2024-11-05 messages): initialize first. */
 	@Nullable
 	@SuppressWarnings("unchecked")
-	private Map<String, Object> handleMessage(@Nullable Object message) {
+	private Map<String, Object> handleLegacy(@Nullable Object message) {
 		if (!(message instanceof Map))
-			return error(null, -32600, "Invalid request");
+			return error(null, -32600, "Invalid request", null);
 		Map<String, Object> request = (Map<String, Object>) message;
 		Object id = request.get("id");
 		Object methodValue = request.get("method");
 		if (!(methodValue instanceof String))
 			return null; // A response from the client, or garbage without an id
-		String method = (String) methodValue;
-		boolean notification = !request.containsKey("id");
-		Map<String, Object> params = request.get("params") instanceof Map
-			? (Map<String, Object>) request.get("params")
-			: Collections.<String, Object> emptyMap();
-		if (notification)
+		if (!request.containsKey("id"))
 			return null; // notifications/initialized, notifications/cancelled, ...
-
+		String method = (String) methodValue;
+		Map<String, Object> params = params(request);
 		if (method.equals("initialize"))
 			return result(id, initialize(params));
 		if (method.equals("ping"))
 			return result(id, new LinkedHashMap<String, Object>());
-		if (method.equals("tools/list")) {
-			Map<String, Object> result = new LinkedHashMap<String, Object>();
-			result.put("tools", tools.definitions());
-			return result(id, result);
+		try {
+			Map<String, Object> result = call(method, params);
+			return result == null ? error(id, -32601, "Method not found: " + method, null) : result(id, result);
 		}
-		if (method.equals("tools/call"))
-			return callTool(id, params);
-		return error(id, -32601, "Method not found: " + method);
+		catch (RpcError e) {
+			return error(id, e.code, e.getMessage(), e.data);
+		}
+	}
+
+	/** The methods of both eras; null for an unknown method. */
+	@Nullable
+	private Map<String, Object> call(@NotNull String method, @NotNull Map<String, Object> params)
+			throws RpcError {
+		Map<String, Object> result = new LinkedHashMap<String, Object>();
+		if (method.equals("tools/list"))
+			result.put("tools", McpTools.definitions());
+		else if (method.equals("tools/call"))
+			return callTool(params);
+		// No resources and prompts; some clients ask anyway, an empty list saves them an error
+		else if (method.equals("resources/list"))
+			result.put("resources", Collections.emptyList());
+		else if (method.equals("resources/templates/list"))
+			result.put("resourceTemplates", Collections.emptyList());
+		else if (method.equals("prompts/list"))
+			result.put("prompts", Collections.emptyList());
+		else
+			return null;
+		return result;
 	}
 
 	@NotNull
 	private Map<String, Object> initialize(@NotNull Map<String, Object> params) {
 		Object requested = params.get("protocolVersion");
-		String version = requested instanceof String && PROTOCOLS.contains(requested)
-			? (String) requested : LATEST_PROTOCOL;
-		Map<String, Object> toolsCapability = new LinkedHashMap<String, Object>();
-		toolsCapability.put("listChanged", Boolean.FALSE);
-		Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
-		capabilities.put("tools", toolsCapability);
-		Map<String, Object> serverInfo = new LinkedHashMap<String, Object>();
-		serverInfo.put("name", "DocFetcher");
-		serverInfo.put("version", SystemConf.Str.ProgramVersion.get());
+		String version = requested instanceof String && LEGACY_PROTOCOLS.contains(requested)
+			? (String) requested : LATEST_LEGACY_PROTOCOL;
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
 		result.put("protocolVersion", version);
-		result.put("capabilities", capabilities);
-		result.put("serverInfo", serverInfo);
-		result.put("instructions", INSTRUCTIONS);
+		result.put("capabilities", capabilities());
+		result.put("serverInfo", serverInfo());
+		result.put("instructions", instructions());
 		return result;
 	}
 
 	@NotNull
+	private static Map<String, Object> capabilities() {
+		Map<String, Object> toolsCapability = new LinkedHashMap<String, Object>();
+		toolsCapability.put("listChanged", Boolean.FALSE);
+		Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
+		capabilities.put("tools", toolsCapability);
+		return capabilities;
+	}
+
+	@NotNull
+	private static Map<String, Object> serverInfo() {
+		Map<String, Object> serverInfo = new LinkedHashMap<String, Object>();
+		serverInfo.put("name", "DocFetcher");
+		serverInfo.put("version", SystemConf.Str.ProgramVersion.get());
+		return serverInfo;
+	}
+
+	@NotNull
 	@SuppressWarnings("unchecked")
-	private Map<String, Object> callTool(@Nullable Object id, @NotNull Map<String, Object> params) {
+	private Map<String, Object> callTool(@NotNull Map<String, Object> params) throws RpcError {
 		Object name = params.get("name");
 		if (!(name instanceof String))
-			return error(id, -32602, "Missing tool name");
+			throw new RpcError(400, -32602, "Missing tool name", null);
 		Map<String, Object> args = params.get("arguments") instanceof Map
 			? (Map<String, Object>) params.get("arguments")
 			: Collections.<String, Object> emptyMap();
@@ -296,7 +576,13 @@ public final class McpServer {
 		boolean isError = false;
 		try {
 			Object value = tools.call((String) name, args);
-			if (value instanceof List) {
+			if (value instanceof McpTools.FileContent) {
+				// get_original_document: the description, then the file
+				McpTools.FileContent file = (McpTools.FileContent) value;
+				content.add(text(Json.write(file.meta)));
+				content.add(fileContent(file));
+			}
+			else if (value instanceof List) {
 				// read_document: metadata, then the text itself
 				for (Object part : (List<?>) value)
 					content.add(text(part instanceof String ? (String) part : Json.write(part)));
@@ -317,7 +603,7 @@ public final class McpServer {
 		Map<String, Object> result = new LinkedHashMap<String, Object>();
 		result.put("content", content);
 		result.put("isError", isError);
-		return result(id, result);
+		return result;
 	}
 
 	@NotNull
@@ -325,6 +611,26 @@ public final class McpServer {
 		Map<String, Object> map = new LinkedHashMap<String, Object>();
 		map.put("type", "text");
 		map.put("text", text);
+		return map;
+	}
+
+	/** Images the assistant can look at as an image, all other files as an embedded resource. */
+	@NotNull
+	static Map<String, Object> fileContent(@NotNull McpTools.FileContent file) {
+		String data = Base64.getEncoder().encodeToString(file.data);
+		Map<String, Object> map = new LinkedHashMap<String, Object>();
+		if (IMAGE_TYPES.contains(file.mimeType())) {
+			map.put("type", "image");
+			map.put("data", data);
+			map.put("mimeType", file.mimeType());
+			return map;
+		}
+		Map<String, Object> resource = new LinkedHashMap<String, Object>();
+		resource.put("uri", file.uri());
+		resource.put("mimeType", file.mimeType());
+		resource.put("blob", data);
+		map.put("type", "resource");
+		map.put("resource", resource);
 		return map;
 	}
 
@@ -338,10 +644,13 @@ public final class McpServer {
 	}
 
 	@NotNull
-	private static Map<String, Object> error(@Nullable Object id, int code, @NotNull String message) {
+	private static Map<String, Object> error(@Nullable Object id, int code, @NotNull String message,
+			@Nullable Object data) {
 		Map<String, Object> error = new LinkedHashMap<String, Object>();
 		error.put("code", code);
 		error.put("message", message);
+		if (data != null)
+			error.put("data", data);
 		Map<String, Object> map = new LinkedHashMap<String, Object>();
 		map.put("jsonrpc", "2.0");
 		map.put("id", id);

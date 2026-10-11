@@ -16,7 +16,7 @@ Note: This section focuses on the available indexing options for folder and arch
 
 File Extensions
 ---------------
-The 'file extensions' control allows you to specify which files should be treated as plain text files or zip archives. One common usage scenario is to make DocFetcher index certain kinds of source code files. Notice the two `'...'` buttons on the right? If you click on these, DocFetcher will walk through the folder to be indexed and gather all file extensions into a list for you to choose from. The list of zip archives is empty for a new index, so the contents of zip and jar files are not indexed; add `zip` and `jar` here if you want them searched. Indexes created earlier keep the extensions they were created with.
+The 'file extensions' control allows you to specify which files should be treated as plain text files or zip archives. One common usage scenario is to make DocFetcher index certain kinds of source code files. Notice the two `'...'` buttons on the right? If you click on these, DocFetcher will walk through the folder to be indexed and gather all file extensions into a list for you to choose from. The list of zip archives is empty for a new index, so the contents of zip and jar files are not indexed; add `zip` and `jar` here if you want them searched. Indexes created earlier keep the extensions they were created with. CSV files (`csv`, tables as text) are among the plain text files by default; indexes created before version 2.10 add `csv` once, on their next update.
 
 Exclude Files / Detect Mime Type
 --------------------------------

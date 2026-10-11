@@ -36,6 +36,7 @@ import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.TabFolder;
 import org.eclipse.swt.widgets.TabItem;
 
+import net.sourceforge.docfetcher.gui.Application;
 import net.sourceforge.docfetcher.gui.ManualLocator;
 import net.sourceforge.docfetcher.gui.filter.IndexPanel;
 import net.sourceforge.docfetcher.model.ocr.OcrEngine;
@@ -62,6 +63,7 @@ public final class PrefDialog {
 	@NotNull private Button okBt;
 	private final List<PrefOption> checkOptions = new LinkedList<PrefOption>();
 	private final List<PrefOption> fieldOptions = new LinkedList<PrefOption>();
+	private final List<PrefOption> mcpOptions = new LinkedList<PrefOption>();
 	private final File programConfFile;
 	private final IndexPanel indexPanel;
 	private final File defaultIndexDir;
@@ -165,11 +167,7 @@ new CheckOption(
 
 			askRebuildOption = new CheckOption(
 				Msg.pref_ask_rebuild_outdated.get(),
-				SettingsConf.Bool.AskRebuildOutdatedIndexes),
-
-			new CheckOption(
-				Msg.pref_mcp_server.get(),
-				SettingsConf.Bool.McpServerEnabled)
+				SettingsConf.Bool.AskRebuildOutdatedIndexes)
 
 			// TODO post-release-1.1: Implement this; requires saving and restoring the tree expansion state
 			//	new CheckOption(
@@ -220,16 +218,44 @@ new CheckOption(
 			};
 		}
 		
+		// AI assistants: the server, then what assistants may do, each below what it needs
+		CheckOption mcpServerOption = new CheckOption(
+			Msg.pref_mcp_server.get(),
+			SettingsConf.Bool.McpServerEnabled);
 		IntFieldOption mcpPortOption = new IntFieldOption(
 			Msg.pref_mcp_port.get(),
 			SettingsConf.Int.McpServerPort,
 			1024, 65535);
-		fieldOptions.addAll(Arrays.asList(
-			// Right below the MCP checkbox, the last of the check options
+		CheckOption mcpRenameOption = new CheckOption(
+			Msg.pref_mcp_rename.get(),
+			SettingsConf.Bool.McpRenameAllowed,
+			mcpServerOption);
+		mcpOptions.addAll(Arrays.asList(
+			mcpServerOption,
+			new CheckOption(
+				Msg.pref_mcp_paths.get(),
+				SettingsConf.Bool.McpPathsVisible,
+				mcpServerOption),
+			new McpFolderOption(mcpServerOption),
+			mcpRenameOption,
+			new McpNamingRulesOption(mcpRenameOption),
+			new CheckOption(
+				Msg.pref_mcp_move.get(),
+				SettingsConf.Bool.McpMoveAllowed,
+				mcpServerOption),
+			new CheckOption(
+				Msg.pref_mcp_split.get(),
+				SettingsConf.Bool.McpSplitAllowed,
+				mcpServerOption),
+			new CheckOption(
+				Msg.pref_mcp_outside_inbox.get(),
+				SettingsConf.Bool.McpOutsideInbox,
+				mcpServerOption),
 			mcpPortOption,
-			new McpHelpOption(mcpPortOption),
-			
-			new DropdownOption(
+			new McpHelpOption(mcpPortOption)));
+
+		fieldOptions.addAll(Arrays.asList(
+new DropdownOption(
 				Msg.pref_close_action.get(),
 				SettingsConf.Int.CloseAction,
 				closeChoices, closeIndices),
@@ -319,8 +345,29 @@ new CheckOption(
 		foldersTab.setText(Msg.pref_tab_folders.get());
 		foldersPanel = new FoldersPanel(tabFolder);
 		foldersTab.setControl(foldersPanel.getControl());
-		
+
+		TabItem mcpTab = new TabItem(tabFolder, SWT.NONE);
+		mcpTab.setText(Msg.pref_tab_mcp.get());
+		mcpTab.setControl(createMcpTab(tabFolder));
+
 		return tabFolder;
+	}
+
+	/** The tab with the MCP server for AI assistants and what they may do. */
+	@NotNull
+	private Control createMcpTab(@NotNull Composite parent) {
+		Composite comp = new Composite(parent, SWT.NONE);
+		comp.setLayout(UtilGui.createGridLayout(2, false, 5, 5));
+		Label intro = new Label(comp, SWT.WRAP);
+		intro.setText(Msg.pref_mcp_intro.get());
+		GridData introData = new GridData(SWT.FILL, SWT.CENTER, true, false, 2, 1);
+		introData.widthHint = 500;
+		intro.setLayoutData(introData);
+		for (PrefOption option : mcpOptions)
+			option.createControls(comp);
+		for (PrefOption option : mcpOptions)
+			option.afterCreation();
+		return comp;
 	}
 	
 	@NotNull
@@ -407,6 +454,8 @@ new CheckOption(
 					checkOption.restoreDefault();
 				for (PrefOption fieldOption : fieldOptions)
 					fieldOption.restoreDefault();
+				for (PrefOption mcpOption : mcpOptions)
+					mcpOption.restoreDefault();
 				indexManagementPanel.restoreDefaultFolder();
 				foldersPanel.restoreDefaults();
 			}
@@ -445,8 +494,10 @@ new CheckOption(
 				boolean mcpWasEnabled = SettingsConf.Bool.McpServerEnabled.get();
 				for (PrefOption checkOption : checkOptions)
 					checkOption.save();
-				if (resetHints)
+				if (resetHints) {
 					SettingsConf.Bool.ShowRelativePathsMessage.set(true);
+					SettingsConf.Int.McpFileFolderAnswer.set(SettingsConf.MCP_FOLDER_ASK);
+				}
 				for (PrefOption fieldOption : fieldOptions) {
 					fieldOption.save();
 					
@@ -458,6 +509,8 @@ new CheckOption(
 						}
 					}
 				}
+				for (PrefOption mcpOption : mcpOptions)
+					mcpOption.save();
 				indexManagementPanel.saveFolder();
 				evtOKClicked.fire(null);
 				Shell parentShell = (Shell) shell.getParent();
@@ -488,8 +541,7 @@ new CheckOption(
 	}
 
 	private static String getAppNameAndVersion() {
-		return SystemConf.Str.ProgramName.get() + " " +
-				SystemConf.Str.ProgramVersion.get();
+		return Application.withVersion(SystemConf.Str.ProgramName.get());
 	}
 
 	private static String getMemLimitString() {
@@ -594,6 +646,12 @@ new CheckOption(
 		protected abstract void createControls(@NotNull Composite parent);
 		protected abstract void restoreDefault();
 		protected abstract void save();
+		/** Enables or disables the controls, for options depending on a checkbox. */
+		protected void setActive(boolean active) {
+		}
+		/** Called when the controls of all options exist. */
+		protected void afterCreation() {
+		}
 	}
 
 }

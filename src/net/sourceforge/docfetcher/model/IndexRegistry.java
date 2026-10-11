@@ -381,6 +381,23 @@ public final class IndexRegistry {
 		return file.getAbsoluteFile().toPath().normalize().toFile();
 	}
 
+	/**
+	 * Whether the folder was created after the program started: then it's an
+	 * index being built right now (e.g. of an inbox, at the first start of a
+	 * fresh portable copy), which has no tree-index.ser yet - not an index
+	 * folder of DocFetcher 1.0.3.
+	 */
+	static boolean isCreatedInThisRun(@NotNull File folder) {
+		try {
+			long created = java.nio.file.Files.readAttributes(folder.toPath(),
+				java.nio.file.attribute.BasicFileAttributes.class).creationTime().toMillis();
+			return created >= java.lang.management.ManagementFactory.getRuntimeMXBean().getStartTime() - 1000;
+		}
+		catch (IOException e) {
+			return false;
+		}
+	}
+
 	@CallOnce
 	@ThreadSafe
 	public IndexLoadingProblems load(@NotNull Cancelable cancelable) throws IOException {
@@ -424,8 +441,20 @@ public final class IndexRegistry {
 					 * a name that ends with a timestamp, it's probably an index
 					 * folder from DocFetcher 1.0.3 or earlier.
 					 */
-					if (file.getName().matches(".*?_\\d+"))
+					if (isCreatedInThisRun(file)) {
+						// An index being built right now: not obsolete, and not empty for long
+					}
+					else if (Util.listFiles(file).length == 0) {
+						/*
+						 * An empty leftover, e.g. of a deleted index whose
+						 * folder Windows couldn't remove at once: not an
+						 * index of an older version, nothing to ask about.
+						 */
+						file.delete();
+					}
+					else if (file.getName().matches(".*?_\\d+")) {
 						loadingProblems.addObsoleteFile(file);
+					}
 				}
 				// Ignore if tree-index.ser is a directory
 			}
