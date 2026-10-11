@@ -62,8 +62,16 @@
   - the values for jre_windows and jre_linux should point to folders containing
     the JRE's "bin" folder, while the value for jre_macos should point to the
     folder containing the JRE's "Contents" folder
+- build-win-msi.wxs:
+  - WiX Toolset 3 source of the Windows MSI installer (per machine into
+    Program Files, Start menu entry, daemon autostart, a newer version replaces
+    an older one; Apps & Features uninstalls)
+  - build.py builds build/DocFetcher-<version>-Windows-64bit.msi from the
+    non-portable folder (heat, candle, light) if it finds WiX: the folder in
+    build-wix.txt ('wix=<folder with heat.exe, candle.exe, light.exe>') or the
+    PATH; the WiX 3.14 binaries zip works without installation
 - build-win-installer.nsi
-  - NSIS script for building the Windows installer
+  - older NSIS script for building an .exe setup (not built by build.py)
   - requires NSIS and must be run on Windows
   - requires NSIS plugins in dev/nsis-dependencies;
     see installation instructions at the top of the .nsi file

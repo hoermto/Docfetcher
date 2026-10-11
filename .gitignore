@@ -11,6 +11,7 @@
 /.vscode/
 
 /build-jre.txt
+/build-wix.txt
 /code-signing-macos.txt
 /code-signing-windows.txt
 /dev/bugfixes

@@ -623,3 +623,13 @@
   - Tests: IndexSyncTest (times, due/catch-up, UNC, watched vs not watched texts, scope). App test (dev): with
     the startup update off, scope all and the last sync two days ago, the sync ran at the start and DailySyncLast
     was renewed; General tab option and Indexes column shown.
+- v3.1: Windows MSI installer ('MSI klingt sauberer')
+  - build-win-msi.wxs (WiX 3): perMachine x64 into ProgramFiles64Folder\DocFetcher, fixed UpgradeCode with MajorUpgrade,
+    icon and links for Apps & Features, Start menu shortcut (key path under HKCU, as ICE38/43/57 require), daemon in
+    HKLM Run (as the NSIS setup), util:CloseApplication terminates a running daemon before files are replaced.
+  - build.py create_windows_msi after code signing: heat (component group DocFetcherFiles, -ag path-derived GUIDs),
+    candle -arch x64 with WixUtilExtension, light with ICE validation; version x.y -> x.y.0; WiX from build-wix.txt
+    (git-ignored) or the PATH, else a note. WiX 3.14 binaries zip in docfetcher-build-tools/wix314 (winget's package
+    needs admin and .NET 3.5). The bundled JRE was made again with jlink (docfetcher-build-tools/jre-windows).
+  - Test: build ok (105 MB, ICE passed); msiexec /a extraction: 551 files like the non-portable folder (+ the msi);
+    DocFetcher 3.1 started from the extracted folder (scratch APPDATA). Not installed for real (admin, system change).
