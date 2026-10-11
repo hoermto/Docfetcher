@@ -2732,6 +2732,19 @@ private static SashForm folderSash;
 						});
 					}
 				});
+				mcpServer.setOrganizer(new McpServer.FileOrganizer() {
+					public File rename(final ResultDocument doc, final String name) {
+						final File[] renamed = {null};
+						UtilGui.runSyncExec(shell, new Runnable() {
+							public void run() {
+								// The user sees the document while deciding
+								showDocuments(Collections.singletonList(doc), true);
+								renamed[0] = resultPanel.renameProposed(doc, name);
+							}
+						});
+						return renamed[0];
+					}
+				});
 				mcpServer.setFolderApprover(new McpServer.FolderApprover() {
 					public boolean approve(final File folder) {
 						final boolean[] allowed = {false};

@@ -226,6 +226,10 @@ new CheckOption(
 			Msg.pref_mcp_port.get(),
 			SettingsConf.Int.McpServerPort,
 			1024, 65535);
+		CheckOption mcpRenameOption = new CheckOption(
+			Msg.pref_mcp_rename.get(),
+			SettingsConf.Bool.McpRenameAllowed,
+			mcpServerOption);
 		mcpOptions.addAll(Arrays.asList(
 			mcpServerOption,
 			new CheckOption(
@@ -233,6 +237,12 @@ new CheckOption(
 				SettingsConf.Bool.McpPathsVisible,
 				mcpServerOption),
 			new McpFolderOption(mcpServerOption),
+			mcpRenameOption,
+			new McpNamingRulesOption(mcpRenameOption),
+			new CheckOption(
+				Msg.pref_mcp_outside_inbox.get(),
+				SettingsConf.Bool.McpOutsideInbox,
+				mcpServerOption),
 			mcpPortOption,
 			new McpHelpOption(mcpPortOption)));
 

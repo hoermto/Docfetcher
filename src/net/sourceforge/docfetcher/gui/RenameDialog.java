@@ -40,7 +40,19 @@ final class RenameDialog {
 	public RenameDialog(@NotNull Shell parent,
 						@NotNull String currentName,
 						@Nullable Suggestion suggestion) {
-		Util.checkNotNull(parent, currentName);
+		this(parent, currentName, suggestion, null, Msg.rename_document_msg.get());
+	}
+
+	/**
+	 * A rename dialog prefilled with the given name instead of the
+	 * suggestion (e.g. a name an AI assistant proposes), with its own message.
+	 */
+	public RenameDialog(@NotNull Shell parent,
+						@NotNull String currentName,
+						@Nullable Suggestion suggestion,
+						@Nullable String proposedName,
+						@NotNull String message) {
+		Util.checkNotNull(parent, currentName, message);
 		String[] parts = Util.splitFilename(currentName);
 		final String extension = parts.length > 1 ? parts[1] : "";
 
@@ -50,7 +62,7 @@ final class RenameDialog {
 		shell.setLayout(UtilGui.createGridLayout(1, false, 10, 5));
 
 		Label label = new Label(shell, SWT.NONE);
-		label.setText(Msg.rename_document_msg.get());
+		label.setText(message);
 		label.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 
 		nameEditor = new NameEditor(shell, extension, Msg.use_current_name.get());
@@ -58,7 +70,10 @@ final class RenameDialog {
 		nameEditor.setCurrentName(parts[0]);
 		nameEditor.setSuggestion(suggestion);
 		String suggested = nameEditor.getSuggestedName();
-		nameEditor.setName(suggested != null ? suggested : parts[0]);
+		if (proposedName != null)
+			nameEditor.setName(Util.splitFilename(proposedName)[0]);
+		else
+			nameEditor.setName(suggested != null ? suggested : parts[0]);
 
 		Label separator = new Label(shell, SWT.SEPARATOR | SWT.HORIZONTAL);
 		separator.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));

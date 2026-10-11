@@ -24,6 +24,7 @@ import java.util.Map;
 import net.sourceforge.docfetcher.enums.ProgramConf;
 import net.sourceforge.docfetcher.enums.SettingsConf;
 import net.sourceforge.docfetcher.gui.Bin;
+import net.sourceforge.docfetcher.model.search.NameSuggester;
 import net.sourceforge.docfetcher.gui.FolderPanel;
 import net.sourceforge.docfetcher.model.IndexRegistry;
 import net.sourceforge.docfetcher.model.parse.PdfVisualText;
@@ -85,6 +86,8 @@ final class McpTools {
 	@Nullable volatile McpServer.DocumentViewer viewer;
 	/** Asks the user before get_file_folder tells the folder; null: refused. */
 	@Nullable volatile McpServer.FolderApprover folderApprover;
+	/** Lets the user confirm proposed changes to files; null: no changes (tests). */
+	@Nullable volatile McpServer.FileOrganizer organizer;
 	/** The ids of documents and folders handed out instead of their paths. */
 	final McpIds ids = new McpIds();
 
@@ -169,6 +172,7 @@ final class McpTools {
 		Map<String, Object> fileFolder = McpFileFolder.definition();
 		if (fileFolder != null)
 			tools.add(fileFolder);
+		tools.addAll(McpFileChanges.definitions());
 		return tools;
 	}
 
@@ -182,6 +186,26 @@ final class McpTools {
 		Map<String, Object> list = prop("array", "Absolute paths of the documents, instead of the ids");
 		list.put("items", props("type", "string"));
 		return list;
+	}
+
+	/**
+	 * A tool that proposes a change to files, which the user confirms in
+	 * DocFetcher: not read-only, but nothing is destroyed.
+	 */
+	@NotNull
+	static Map<String, Object> changingTool(@NotNull String name, @NotNull String description,
+			@NotNull Map<String, Object> properties, @NotNull String... required) {
+		Map<String, Object> tool = tool(name, description, properties, null);
+		@SuppressWarnings("unchecked")
+		Map<String, Object> schema = (Map<String, Object>) tool.get("inputSchema");
+		schema.put("required", Arrays.asList(required));
+		Map<String, Object> annotations = new LinkedHashMap<String, Object>();
+		annotations.put("readOnlyHint", Boolean.FALSE);
+		annotations.put("destructiveHint", Boolean.FALSE);
+		annotations.put("idempotentHint", Boolean.FALSE);
+		annotations.put("openWorldHint", Boolean.FALSE);
+		tool.put("annotations", annotations);
+		return tool;
 	}
 
 	@NotNull
@@ -203,7 +227,7 @@ final class McpTools {
 	}
 
 	@NotNull
-	private static Map<String, Object> props(@NotNull Object... namesAndProps) {
+	static Map<String, Object> props(@NotNull Object... namesAndProps) {
 		Map<String, Object> map = new LinkedHashMap<String, Object>();
 		for (int i = 0; i + 1 < namesAndProps.length; i += 2)
 			if (namesAndProps[i + 1] != null) // Optional properties
@@ -212,7 +236,7 @@ final class McpTools {
 	}
 
 	@NotNull
-	private static Map<String, Object> prop(@NotNull String type, @NotNull String description) {
+	static Map<String, Object> prop(@NotNull String type, @NotNull String description) {
 		return props("type", type, "description", description);
 	}
 
@@ -243,6 +267,8 @@ final class McpTools {
 			return showDocuments(args);
 		if (name.equals(McpFileFolder.TOOL))
 			return McpFileFolder.call(folderApprover);
+		if (name.equals(McpFileChanges.RENAME))
+			return McpFileChanges.rename(this, args);
 		throw new ToolException("Unknown tool: " + name);
 	}
 
@@ -598,6 +624,17 @@ final class McpTools {
 		int end = Math.min(text.length(), start + maxChars);
 
 		Map<String, Object> meta = describe(doc);
+		// DocFetcher's own name suggestion, for rename_document
+		if (start == 0 && McpFileChanges.renameAllowed() && McpFileChanges.isChangeable(file, true)) {
+			try {
+				String extension = Util.splitFilename(file.getName())[1];
+				meta.put("suggested_name", NameSuggester.suggest(doc, registry.getSearcher(), text)
+					.buildName(NameSuggester.DEFAULT_WORDS, extension));
+			}
+			catch (Exception e) {
+				// No suggestion
+			}
+		}
 		meta.put("total_chars", text.length());
 		meta.put("offset", start);
 		meta.put("returned_chars", end - start);
@@ -762,7 +799,7 @@ final class McpTools {
 
 	/** The document of a file, with its index data if it is indexed. */
 	@NotNull
-	private ResultDocument findDocument(@NotNull File file) throws ToolException {
+	ResultDocument findDocument(@NotNull File file) throws ToolException {
 		File folder = file.getParentFile();
 		try {
 			for (ResultDocument doc : registry.getSearcher().listFolder(registry.findIndexFor(file), folder))
@@ -908,7 +945,7 @@ final class McpTools {
 	 * allows paths; only inside the indexed folders.
 	 */
 	@NotNull
-	private File target(@NotNull Map<String, Object> args, @NotNull String key) throws ToolException {
+	File target(@NotNull Map<String, Object> args, @NotNull String key) throws ToolException {
 		String id = string(args, key);
 		if (id == null || id.trim().isEmpty()) {
 			String pathKey = key.equals("id") ? "path" : key.replace("_id", "");

@@ -103,7 +103,7 @@ public final class McpServer {
 		return INSTRUCTIONS + (McpTools.pathsVisible()
 			? "The user allows file paths: results also carry them, and the tools take a 'path' "
 				+ "instead of an id; still use the tools for the content. "
-			: "") + McpFileFolder.rule();
+			: "") + McpFileFolder.rule() + McpFileChanges.rule();
 	}
 
 	final McpTools tools;
@@ -125,6 +125,22 @@ public final class McpServer {
 	public interface FolderApprover {
 		/** Called on the server's thread; returns whether the user agreed. */
 		boolean approve(@NotNull java.io.File folder);
+	}
+
+	/**
+	 * Lets the user confirm the changes an assistant proposes, in DocFetcher's
+	 * own dialogs prefilled with the proposal. The methods are called on the
+	 * server's thread with a found, accessible document, and return the
+	 * result, or null if the user canceled.
+	 */
+	public interface FileOrganizer {
+		/** The file after renaming it, or null if the user canceled. */
+		@Nullable java.io.File rename(@NotNull ResultDocument doc, @NotNull String name);
+	}
+
+	/** Sets who lets the user confirm changes to files; null: none possible. */
+	public void setOrganizer(@Nullable FileOrganizer organizer) {
+		tools.organizer = organizer;
 	}
 
 	/** Sets who approves telling the folder; null: it is never told unless allowed for good. */

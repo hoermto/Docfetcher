@@ -515,3 +515,16 @@
   - Preferences, tab Folders: 'DocFetcher bin' with Choose.../Remove and a hint; the bin can't overlap an inbox folder; it is created on OK.
   - Fixes found on the way: the preview kept showing a deleted document (PreviewPanel.refresh(selected)); doubled apostrophes in 10 messages (Msg.format doubles them itself; MsgTest guards it).
   - Tests: BinTest (7), DuplicatesTest.theBinIsLeftOut, McpServerTest.theBinIsGoneForAssistants, MsgTest; full suite 220 tests, only the 4 known environment failures. App test (dev build): bin tab and checkbox, delete from search ('Move 1 file(s) to the DocFetcher bin?'), results 2 without / 3 with the checkbox, restore to the original location, Ctrl+Z via File > Undo, folder deleted from the folder browser into the bin, removed from the bin (OS recycle bin), Empty Bin, preferences section, removing the folder hides tab and checkbox.
+- MCP story A (v3.0): settings for changes proposed by AI assistants + rename_document with naming rules
+  - Settings (tab AI Assistants (MCP), below the server checkbox, off): McpRenameAllowed with the naming rules text
+    (McpNamingRulesOption, Str.McpNamingRules, empty = localized default Msg.mcp_naming_rules_default), McpOutsideInbox
+    ('Renaming and moving also outside the inbox folders'); McpMoveAllowed/McpSplitAllowed prepared for B and C.
+  - McpFileChanges: tool definitions only when switched on (changingTool: readOnlyHint false, destructiveHint false),
+    instructions rule, checkChangeable (plain file, inbox unless allowed outside, never the bin), newName (no paths,
+    extension kept). McpServer.FileOrganizer: Application shows the document (showDocuments) and opens
+    ResultPanel.renameProposed - the RenameDialog prefilled with the proposal and DocFetcher's keywords; the result
+    (renamed + new id, or canceled) goes back to the assistant. read_document adds suggested_name (NameSuggester).
+  - Tests: McpServerTest.renameOnlyWhenAllowedAndConfirmed (off: no tool; on: annotations, rules, suggested_name;
+    outside the inbox refused unless allowed; paths refused; cancel; confirmed with the extension kept). App test (dev
+    build, MCP on 28836, verified 'Unspecified'): search -> read_document suggested_name -> rename_document: DocFetcher
+    showed the document and the prefilled dialog; OK renamed it (new id returned), Cancel reported 'canceled'.

@@ -1202,7 +1202,23 @@ public final class ResultPanel {
 	/**
 	 * Renames the document's file to the given name (in the same folder).
 	 */
-	private void renameTo(@NotNull ResultDocument doc, @NotNull String newName) {
+	/**
+	 * Lets the user rename the document in the rename dialog, prefilled with
+	 * the proposed name (from an AI assistant); returns the renamed file, or
+	 * null if the user canceled or renaming failed.
+	 */
+	@Nullable
+	public File renameProposed(@NotNull ResultDocument doc, @NotNull String proposedName) {
+		File file = doc.getPath().getCanonicalFile();
+		RenameDialog dialog = new RenameDialog(getControl().getShell(), file.getName(),
+			waitForSuggestion(doc), proposedName, Msg.mcp_rename_msg.get());
+		String newName = dialog.open();
+		return newName == null ? null : renameTo(doc, newName);
+	}
+
+	/** Renames the file of the document; returns the new file, or null if nothing was renamed. */
+	@Nullable
+	private File renameTo(@NotNull ResultDocument doc, @NotNull String newName) {
 		File file = doc.getPath().getCanonicalFile();
 		newName = newName.trim();
 		// Renaming must never change the file extension
@@ -1211,10 +1227,10 @@ public final class ResultPanel {
 				&& !Util.splitFilename(newName)[1].equalsIgnoreCase(extension))
 			newName += "." + extension;
 		if (newName.isEmpty() || newName.equals(file.getName()))
-			return;
+			return null;
 		if (newName.contains("/") || newName.contains("\\")) {
 			AppUtil.showError(Msg.file_operation_failed.format(newName), true, true);
-			return;
+			return null;
 		}
 		File target = new File(file.getParentFile(), newName);
 		if (moveFile(file, target)) {
@@ -1229,7 +1245,9 @@ public final class ResultPanel {
 			FileOperationHistory.getInstance().add(FileOperationHistory.Kind.RENAME,
 				Collections.singletonList(file), Collections.singletonList(target));
 			evtDocumentsChanged.fire(null);
+			return target;
 		}
+		return null;
 	}
 	
 	/*

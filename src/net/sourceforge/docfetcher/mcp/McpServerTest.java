@@ -25,6 +25,8 @@ import com.sun.net.httpserver.Headers;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import net.sourceforge.docfetcher.enums.SettingsConf;
+
 import net.sourceforge.docfetcher.model.search.ResultDocument;
 import net.sourceforge.docfetcher.model.search.SearchTestSupport;
 
@@ -188,6 +190,82 @@ public final class McpServerTest {
 		}
 		finally {
 			net.sourceforge.docfetcher.enums.SettingsConf.Bool.McpPathsVisible.set(false);
+		}
+	}
+
+	@Test
+	public void renameOnlyWhenAllowedAndConfirmed() throws Exception {
+		File inbox = new File(support.root, "Posteingang");
+		File scan = new File(inbox, "scan_0815.txt");
+		java.nio.file.Files.write(scan.toPath(), "Stadtwerke Bonn. Rechnung Strom Oktober 2026, Abschlag.".getBytes("UTF-8"));
+		File elsewhere = new File(support.root, "Mieter/notiz-umbenennen.txt");
+		java.nio.file.Files.write(elsewhere.toPath(), "Notiz zum Mieter.".getBytes("UTF-8"));
+		final List<String> proposed = new java.util.ArrayList<String>();
+		final boolean[] accept = {false};
+		server.setOrganizer(new McpServer.FileOrganizer() {
+			public File rename(ResultDocument doc, String name) {
+				proposed.add(name);
+				if (!accept[0])
+					return null; // The user canceled
+				File file = doc.getPath().getCanonicalFile();
+				File target = new File(file.getParentFile(), name);
+				return file.renameTo(target) ? target : null;
+			}
+		});
+		List<String> saved = SettingsConf.StrList.InboxFolders.get();
+		SettingsConf.StrList.InboxFolders.set(java.util.Arrays.asList(inbox.getPath() + "|Scans"));
+		try {
+			// Off by default: no tool, no suggestion
+			String tools = Json.write(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}"));
+			assertFalse(tools.contains("rename_document"));
+			assertTrue(text(call("rename_document", "{\"id\":" + Json.write(id(scan)) + ",\"name\":\"x\"}", true), 0)
+				.contains("switched off"));
+
+			SettingsConf.Bool.McpRenameAllowed.set(true);
+			tools = Json.write(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}"));
+			assertTrue(tools.contains("rename_document"));
+			assertTrue(tools, tools.contains("\"readOnlyHint\":false"));
+			assertTrue(tools, tools.contains("JJJJ-MM-TT") || tools.contains("YYYY-MM-DD"));
+			assertTrue(McpServer.instructions().contains("never delete"));
+			Map<String, Object> read = json(call("read_document", "{\"id\":" + Json.write(id(scan)) + "}", false), 0);
+			assertTrue(Json.write(read), ((String) read.get("suggested_name")).endsWith(".txt"));
+
+			// Only in the inbox; a name, not a path
+			assertTrue(text(call("rename_document", "{\"id\":" + Json.write(id(elsewhere)) + ",\"name\":\"neu\"}", true), 0)
+				.startsWith("Only documents in the user's inbox folders"));
+			assertTrue(text(call("rename_document", "{\"id\":" + Json.write(id(scan)) + ",\"name\":\"..\\\\x\"}", true), 0)
+				.startsWith("A name, not a path"));
+			assertTrue(proposed.isEmpty());
+
+			// Canceled: nothing happens; confirmed: renamed, the extension kept
+			Map<String, Object> result = json(call("rename_document", "{\"id\":" + Json.write(id(scan))
+				+ ",\"name\":\"2026-10-01_Stadtwerke-Stromrechnung\"}", false), 0);
+			assertEquals(Boolean.FALSE, result.get("renamed"));
+			assertTrue(scan.isFile());
+			assertEquals("2026-10-01_Stadtwerke-Stromrechnung.txt", proposed.get(0));
+			accept[0] = true;
+			result = json(call("rename_document", "{\"id\":" + Json.write(id(scan))
+				+ ",\"name\":\"2026-10-01_Stadtwerke-Stromrechnung.txt\"}", false), 0);
+			assertEquals(Boolean.TRUE, result.get("renamed"));
+			assertEquals("2026-10-01_Stadtwerke-Stromrechnung.txt", result.get("name"));
+			File renamed = new File(inbox, "2026-10-01_Stadtwerke-Stromrechnung.txt");
+			assertTrue(renamed.isFile());
+			assertEquals(id(renamed), result.get("id"));
+			scan = renamed;
+
+			// Outside the inbox only if the user allows that too
+			SettingsConf.Bool.McpOutsideInbox.set(true);
+			result = json(call("rename_document", "{\"id\":" + Json.write(id(elsewhere)) + ",\"name\":\"notiz-neu\"}", false), 0);
+			assertEquals(Boolean.TRUE, result.get("renamed"));
+			elsewhere = new File(elsewhere.getParentFile(), "notiz-neu.txt");
+		}
+		finally {
+			SettingsConf.Bool.McpRenameAllowed.set(false);
+			SettingsConf.Bool.McpOutsideInbox.set(false);
+			SettingsConf.StrList.InboxFolders.set(saved);
+			server.setOrganizer(null);
+			scan.delete();
+			elsewhere.delete();
 		}
 	}
 

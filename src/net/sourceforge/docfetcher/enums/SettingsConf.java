@@ -108,6 +108,10 @@ public final class SettingsConf {
 		TolerantSearch (true), // Umlauts and OCR errors: 'Muller' finds 'Müller', 'Bonn' finds 'B0nn'
 		McpServerEnabled (false), // MCP server for AI assistants on localhost (read-only access to the indexes)
 		McpPathsVisible (false), // MCP results carry file paths too, and the tools take paths (else ids only)
+		McpRenameAllowed (false), // AI assistants may propose new names, which the user confirms
+		McpMoveAllowed (false), // ... moving documents to another folder
+		McpSplitAllowed (false), // ... splitting PDF files in the inbox
+		McpOutsideInbox (false), // Rename and move also outside the inbox folders
 		DuplicatesContentOnly (true), // Find Duplicates: only the texts count, not file name and size
 		ShowFolderPanel (true), // Show a second folder browser next to the tabs
 		FolderSortAscending (false), // Sort order of the folder view
@@ -241,6 +245,12 @@ public final class SettingsConf {
 		 * Bin); empty: they go to the recycle bin of the system.
 		 */
 		BinFolder (""),
+
+		/*
+		 * The naming rules AI assistants follow when they propose names; empty:
+		 * DocFetcher's default (Msg.mcp_naming_rules_default).
+		 */
+		McpNamingRules (""),
 		
 		/*
 		 * Custom index folder, set via the preferences dialog. Empty means
