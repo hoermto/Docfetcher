@@ -151,7 +151,7 @@ public final class PdfPages {
 	private PdfPages() {}
 
 	public static int getPageCount(@NotNull File pdf) throws IOException {
-		PDDocument doc = PDDocument.load(pdf, MemoryUsageSetting.setupTempFileOnly());
+		PDDocument doc = PdfFiles.load(pdf);
 		try {
 			return doc.getNumberOfPages();
 		}
@@ -184,7 +184,7 @@ public final class PdfPages {
 								@NotNull List<Range> ranges,
 								@NotNull List<File> outputs) throws IOException {
 		Util.checkThat(ranges.size() == outputs.size());
-		PDDocument source = PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly());
+		PDDocument source = PdfFiles.load(input);
 		List<File> written = new ArrayList<File>();
 		try {
 			for (int i = 0; i < ranges.size(); i++) {
@@ -318,7 +318,7 @@ public final class PdfPages {
 	 */
 	@NotNull
 	public static List<PageInfo> analyzePages(@NotNull File pdf) throws IOException {
-		PDDocument doc = PDDocument.load(pdf, MemoryUsageSetting.setupTempFileOnly());
+		PDDocument doc = PdfFiles.load(pdf);
 		try {
 			int count = doc.getNumberOfPages();
 			List<PageInfo> pages = new ArrayList<PageInfo>(count);

@@ -109,6 +109,28 @@ public final class UtilFile {
 		Util.deleteRecursively(source);
 	}
 
+	/**
+	 * Opens the file for reading in a way that doesn't lock it: on Windows,
+	 * a file opened with java.io can't be moved, renamed or deleted until it
+	 * is closed, which java.nio allows. Use this instead of FileInputStream
+	 * for the user's documents.
+	 */
+	@NotNull
+	public static java.io.InputStream openForReading(@NotNull File file) throws java.io.FileNotFoundException {
+		try {
+			// A plain path: TrueZIP files (TFile) don't support java.nio
+			return new java.io.BufferedInputStream(Files.newInputStream(new File(file.getPath()).toPath()));
+		}
+		catch (IOException e) {
+			java.io.FileNotFoundException notFound = new java.io.FileNotFoundException(file.getPath() + ": " + e);
+			notFound.initCause(e);
+			throw notFound;
+		}
+		catch (java.nio.file.InvalidPathException e) {
+			throw new java.io.FileNotFoundException(file.getPath() + ": " + e.getMessage());
+		}
+	}
+
 	/** File system types of network shares outside Windows (FileStore.type()). */
 	private static final java.util.Set<String> NETWORK_TYPES = new java.util.HashSet<String>(java.util.Arrays.asList(
 		"nfs", "nfs4", "cifs", "smb", "smbfs", "smb2", "smb3", "afpfs", "webdav", "davfs", "fuse.sshfs", "sshfs", "9p"));

@@ -20,6 +20,7 @@ import org.apache.pdfbox.pdmodel.interactive.form.PDTerminalField;
 import com.google.common.io.Closeables;
 
 import net.sourceforge.docfetcher.util.annotations.NotNull;
+import net.sourceforge.docfetcher.model.pdf.PdfFiles;
 
 /**
  * The values filled into the form fields of a PDF file, e.g. the rent in a
@@ -72,7 +73,7 @@ public final class PdfForms {
 	public static boolean hasFilledFields(@NotNull File file) {
 		PDDocument doc = null;
 		try {
-			doc = PDDocument.load(file);
+			doc = PdfFiles.load(file);
 			PDAcroForm form = doc.getDocumentCatalog().getAcroForm();
 			if (form == null)
 				return false;

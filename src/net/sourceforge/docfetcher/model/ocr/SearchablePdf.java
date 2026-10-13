@@ -39,6 +39,7 @@ import net.sourceforge.docfetcher.model.ocr.OcrEngine.Word;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
+import net.sourceforge.docfetcher.model.pdf.PdfFiles;
 
 /**
  * Creates "searchable" PDF files: an invisible text layer with the
@@ -134,7 +135,7 @@ public final class SearchablePdf {
 		FileDates dates = FileDates.of(pdfFile); // All dates stay as they are
 		File temp = new File(pdfFile.getParentFile(), pdfFile.getName() + OwnFileChanges.TEMP_SUFFIX);
 		try {
-			PDDocument doc = PDDocument.load(pdfFile);
+			PDDocument doc = PdfFiles.load(pdfFile);
 			try {
 				if (!needsOcr(doc))
 					return false;

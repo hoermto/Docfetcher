@@ -9,7 +9,6 @@
 package net.sourceforge.docfetcher.model.parse;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -25,6 +24,7 @@ import net.sourceforge.docfetcher.model.ocr.OcrTextEmbedding;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
+import net.sourceforge.docfetcher.util.UtilFile;
 
 /**
  * Parser for image files, e.g. scanned documents. The text is the text
@@ -107,7 +107,7 @@ public final class ImageParser extends FileParser {
 	private String getExifText(@NotNull File file, @NotNull ParseContext context) {
 		InputStream in = null;
 		try {
-			in = new FileInputStream(file);
+			in = UtilFile.openForReading(file);
 			return exifParser.parse(in, context).getContent().toString();
 		}
 		catch (Exception e) {

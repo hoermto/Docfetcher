@@ -633,3 +633,15 @@
     needs admin and .NET 3.5). The bundled JRE was made again with jlink (docfetcher-build-tools/jre-windows).
   - Test: build ok (105 MB, ICE passed); msiexec /a extraction: 551 files like the non-portable folder (+ the msi);
     DocFetcher 3.1 started from the extracted folder (scratch APPDATA). Not installed for real (admin, system change).
+- v3.2 bug: files locked while DocFetcher works with them ('couldn't move files to the bin or the windows bin ...
+  only worked after killing the app')
+  - Cause: on Windows, java.io (FileInputStream, RandomAccessFile) opens files without FILE_SHARE_DELETE; PDFBox's
+    PDDocument.load(File) keeps the file open until close - text recognition of a scan takes minutes (indexing after a
+    split, the name/folder suggestions of a selected scan via doc.getText(), page analysis), ParseService kept its
+    FileInputStream open during the whole parse incl. recognition. The WebView2 preview doesn't lock (tested).
+  - PdfFiles.load (model.pdf): reads the file via UtilFile.openForReading into PDFBox (memory up to 32 MB, else a temp
+    file) and closes it at once; used by all 11 PDF loads (OCR, parsers, forms, visual text, page analysis/split,
+    highlighting, image preview, printing). UtilFile.openForReading: java.nio stream (plain path - TrueZIP's TFile has
+    no usable toPath) instead of FileInputStream in ParseService and the Office/image/CHM parsers and renderers.
+  - Test: PdfFilesTest (file renamed while loaded / while open for parsing; PDFBox's own load keeps it locked on
+    Windows). Full suite 230, only the 4 known environment failures.

@@ -41,6 +41,7 @@ import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
+import net.sourceforge.docfetcher.model.pdf.PdfFiles;
 
 /**
  * Prints documents. PDF and image files are printed by DocFetcher itself,
@@ -149,7 +150,7 @@ final class DocumentPrinter {
 									@NotNull PrinterData data,
 									@NotNull File file) throws IOException {
 		int dpi = getRenderDpi(printer);
-		PDDocument pdf = PDDocument.load(file);
+		PDDocument pdf = PdfFiles.load(file);
 		try {
 			PDFRenderer renderer = new PDFRenderer(pdf);
 			for (int i = 0; i < pdf.getNumberOfPages(); i++) {

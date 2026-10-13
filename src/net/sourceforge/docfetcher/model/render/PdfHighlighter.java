@@ -27,6 +27,7 @@ import org.apache.pdfbox.text.TextPosition;
 import net.sourceforge.docfetcher.util.Util;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
+import net.sourceforge.docfetcher.model.pdf.PdfFiles;
 
 /**
  * Marks the search terms in a PDF file: the matches are written into a copy
@@ -86,7 +87,7 @@ public final class PdfHighlighter {
 		if (searchTerms.isEmpty())
 			return null;
 
-		PDDocument doc = PDDocument.load(pdfFile);
+		PDDocument doc = PdfFiles.load(pdfFile);
 		try {
 			if (doc.isEncrypted())
 				return null;

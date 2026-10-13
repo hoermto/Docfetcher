@@ -1,5 +1,8 @@
 ==== 2026-10-13 - DocFetcher 3.2 ====
 
+=== Bugfixes ===
+  * Files couldn't be moved, renamed or deleted (neither into the bin nor the recycle bin) while DocFetcher read them - e.g. for minutes while it recognized the text of a scan after a split -, sometimes only after closing DocFetcher: on Windows, PDFBox and java.io keep files locked while they are open. PDF files are now read into a buffer and released at once (PdfFiles.load), and the parsers open documents with java.nio, which doesn't lock them (UtilFile.openForReading).
+
 ==== 2026-10-11 - DocFetcher 3.1 ====
 
 === Bugfixes ===

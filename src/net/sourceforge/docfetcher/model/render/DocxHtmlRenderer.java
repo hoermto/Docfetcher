@@ -9,7 +9,6 @@
 package net.sourceforge.docfetcher.model.render;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
@@ -42,6 +41,7 @@ import com.google.common.io.Closeables;
 
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
+import net.sourceforge.docfetcher.util.UtilFile;
 
 /**
  * Converts a Word 2007+ document (docx, docm, dotx, dotm) into HTML using
@@ -72,7 +72,7 @@ final class DocxHtmlRenderer {
 	 */
 	@NotNull
 	public static String render(@NotNull File file) throws IOException {
-		InputStream in = new FileInputStream(file);
+		InputStream in = UtilFile.openForReading(file);
 		XWPFDocument doc = null;
 		try {
 			doc = new XWPFDocument(in);
