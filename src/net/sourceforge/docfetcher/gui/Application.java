@@ -101,6 +101,7 @@ import net.sourceforge.docfetcher.model.index.Task.CancelHandler;
 import net.sourceforge.docfetcher.model.index.Task.IndexAction;
 import net.sourceforge.docfetcher.model.index.Task.TaskState;
 import net.sourceforge.docfetcher.model.search.ResultDocument;
+import net.sourceforge.docfetcher.model.ocr.PendingOcr;
 import net.sourceforge.docfetcher.model.pdf.PdfPages;
 import net.sourceforge.docfetcher.util.AppUtil;
 import net.sourceforge.docfetcher.util.CharsetDetectorHelper;
@@ -373,6 +374,8 @@ private static SashForm folderSash;
 		initSearchSettingsDialog();
 		// Backups of PDF files removed after a merge or split, for the undo
 		FileOperationHistory.getInstance().setBackupDir(new File(AppUtil.getAppDataDir(), "undo"));
+		// Recognized PDF files waiting until another program releases them
+		PendingOcr.setDir(new File(AppUtil.getAppDataDir(), "ocr-pending"));
 		docToolBar = new DocToolBar(shell);
 		initTwoPanelForm();
 		InboxFolders.migrateLegacySetting();

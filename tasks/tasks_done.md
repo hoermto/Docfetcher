@@ -645,3 +645,21 @@
     no usable toPath) instead of FileInputStream in ParseService and the Office/image/CHM parsers and renderers.
   - Test: PdfFilesTest (file renamed while loaded / while open for parsing; PDFBox's own load keeps it locked on
     Windows). Full suite 230, only the 4 known environment failures.
+- v3.2 bug: OCR'd PDF without text layer, recognition took very long ('locked by an opened viewer?')
+  - Cause: SearchablePdf.ocr replaced the file at the end with Files.move(REPLACE_EXISTING); with the file open in
+    another program (or in DocFetcher's own readers before the lock fix) that failed, the error went to the log only,
+    and PdfParser then recognized the text a second time for the index (on-the-fly OCR of a file without text).
+  - PendingOcr (model.ocr): replace() tries 10x300 ms; if the file stays open, add() parks the recognized copy plus
+    path/lastModified/length in <app data>/ocr-pending (named by a hash of the path); has() drops a copy whose
+    original changed or is gone; apply() puts it in place later; getText() gives its text. OcrPreprocessor.prepare
+    applies a waiting copy or recognizes, and hands the copy's text to the following parse of the same file in the
+    same thread (ThreadLocal, used by recognizePdf): no second recognition. FileContext.needsReparse makes the next
+    update visit a file with a waiting copy; FileContext.index reports TEXT_LAYER_PENDING (localized). setDir at
+    startup drops copies of files that are gone. SearchablePdf.ocr drops its result if the file was moved, deleted or
+    changed during the recognition (possible now that files aren't locked) instead of creating it again.
+  - Tests: SearchablePdfTest.theTextLayerWaitsWhileTheFileIsOpenElsewhere (java.io holder: 'Der Prozess kann nicht auf
+    die Datei zugreifen'; copy waits; text without recognition < 500 ms; still open keeps waiting; free -> in place,
+    folder empty; changed -> dropped), aFileMovedDuringTheRecognitionStaysMoved. App test (dev build): a 40-page scan
+    renamed while the recognition ran (CPU > 1 s/s) - rename ok, nothing at the old name, the renamed file got its
+    text layer after the next update (75 s); a 2-page scan held open by PowerShell (share read only) during
+    recognition: 'can't be saved yet' in the log, MCP search found its word, after release Update wrote the layer.

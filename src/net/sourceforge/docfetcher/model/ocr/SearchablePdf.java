@@ -133,6 +133,8 @@ public final class SearchablePdf {
 								@NotNull Cancelable cancelable) throws IOException {
 		Util.checkNotNull(pdfFile, engine, cancelable);
 		FileDates dates = FileDates.of(pdfFile); // All dates stay as they are
+		long lastModified = pdfFile.lastModified();
+		long length = pdfFile.length();
 		File temp = new File(pdfFile.getParentFile(), pdfFile.getName() + OwnFileChanges.TEMP_SUFFIX);
 		try {
 			PDDocument doc = PdfFiles.load(pdfFile);
@@ -154,19 +156,23 @@ public final class SearchablePdf {
 				doc.save(temp);
 			}
 			finally {
-				/*
-				 * PDFBox keeps the file open while the document is loaded, and
-				 * Windows doesn't allow to replace an open file, so the file
-				 * is replaced only after closing the document.
-				 */
 				doc.close();
 			}
+			/*
+			 * The file isn't locked during the recognition, so the user may
+			 * have moved, deleted or changed it meanwhile: then the result is
+			 * dropped, and the file is recognized where it is now.
+			 */
+			if (!pdfFile.isFile() || pdfFile.lastModified() != lastModified || pdfFile.length() != length)
+				return false;
 			// Our own change: the folder watcher shouldn't start another update for it
 			OwnFileChanges.begin(pdfFile);
 			try {
-				Files.move(temp.toPath(), pdfFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-				if (dates != null)
-					dates.applyTo(pdfFile);
+				// Open in another program: the copy waits for a later update
+				if (!PendingOcr.replace(temp, pdfFile, dates)) {
+					PendingOcr.add(pdfFile, temp);
+					return false;
+				}
 			}
 			finally {
 				OwnFileChanges.end(pdfFile);

@@ -600,6 +600,8 @@ public enum Msg {
 	out_of_memory_instructions_brief ("Out of memory. See the manual for instructions on how to raise the memory limit."),
 	not_enough_diskspace ("Not enough diskspace on {0} to unpack archive entries. Available: {1} MB. Needed: {2} MB."),
 	archive_encrypted ("Archive is encrypted."),
+	ocr_text_layer_pending ("The recognized text is in the index, but couldn't be saved in the file yet: the file is open in another program. DocFetcher tries again on the next update.",
+		"Indexing report: the text layer of a recognized PDF couldn't be written into the file."),
 	archive_entry_encrypted ("Archive entry is encrypted."),
 	not_an_archive ("Not an archive."),
 	parser_not_found ("Could not find a suitable parser."),
