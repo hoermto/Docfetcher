@@ -663,3 +663,15 @@
     renamed while the recognition ran (CPU > 1 s/s) - rename ok, nothing at the old name, the renamed file got its
     text layer after the next update (75 s); a 2-page scan held open by PowerShell (share read only) during
     recognition: 'can't be saved yet' in the log, MCP search found its word, after release Update wrote the layer.
+- v3.2 task items (bugs and change):
+  [] had PDF without OCR. App OCRd but text was not added to PDF looks like (cant select text in doc). It also took very long. I suspect it couldnt safe the file itself because it was locked by opened viewer or so?
+  [] in prod I couldnt move fils to bin or move to windows bin. files seemed to be locked by app (where OCRd after splitte). Only worked after killing app and also killing all jre processes on host
+  --> make sure app never locks the files while ot works with them. in case, make a temp copy of the file to be processed / OCRd and modifed
+  [] when search has finished without result, show user modal that it was finished without result
+- v3.2 change: message after a search without results
+  - Answer: dialog with 'Don't show this message again', reset by 'Reset Remembered Answers'; not for type-ahead.
+  - SearchQueue: after an explicit search (SEARCH_OR_LIST + EXPLICIT_SEARCH) with no visible results, showNoResults
+    (MultipleChoiceDialog, info icon, query and tips, checkbox) asynchronously on the GUI thread; Bool
+    ShowNoResultsMessage; PrefDialog's reset sets it again. Msg no_results_title/msg, dont_show_again (en/de).
+  - Tests: MsgTest (en/de text with the query). App test (dev): 'Quastenflosser' -> dialog; checkbox + OK -> the next
+    search shows none, setting saved false.

@@ -494,6 +494,7 @@ new DropdownOption(
 					checkOption.save();
 				if (resetHints) {
 					SettingsConf.Bool.ShowRelativePathsMessage.set(true);
+					SettingsConf.Bool.ShowNoResultsMessage.set(true);
 					SettingsConf.Int.McpFileFolderAnswer.set(SettingsConf.MCP_FOLDER_ASK);
 				}
 				for (PrefOption fieldOption : fieldOptions) {

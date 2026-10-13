@@ -994,6 +994,12 @@ public enum Msg {
 	later ("&Later",
 		"Button label for postponing an action; the user is asked again " +
 		"the next time the program starts."),
+	no_results_title ("Search",
+		"Title of the message after a search without results."),
+	no_results_msg ("The search for '{0}' found nothing.\n\nTip: fewer or other words, a wildcard (*steuer*), or check the search settings (document types, search scope).",
+		"Message after an explicit search without results; the query is inserted in the {0} slot."),
+	dont_show_again ("&Don't show this message again (can be reset in the preferences)",
+		"Checkbox in a message that can be switched off."),
 	dont_ask_again ("&Don't Ask Again",
 		"Button label for permanently dismissing a question."),
 	

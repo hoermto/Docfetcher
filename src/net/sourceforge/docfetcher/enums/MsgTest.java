@@ -10,6 +10,7 @@ package net.sourceforge.docfetcher.enums;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -36,6 +37,9 @@ public final class MsgTest {
 			assertFalse(key, de.getProperty(key).contains("''"));
 		assertEquals("Move the folder 'Unterordner' with 1 file(s) to the DocFetcher bin?",
 			Msg.confirm_delete_folder_bin.format("Unterordner", 1));
+		assertTrue(Msg.no_results_msg.format("Steuer*").startsWith("The search for 'Steuer*' found nothing."));
+		assertTrue(java.text.MessageFormat.format(de.getProperty("no_results_msg").replace("'", "''"), "Steuer*")
+			.startsWith("Die Suche nach 'Steuer*' hat nichts gefunden."));
 	}
 
 }

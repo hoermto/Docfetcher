@@ -17,12 +17,8 @@
 
 ## bugs
 
-[] had PDF without OCR. App OCRd but text was not added to PDF looks like (cant select text in doc). It also took very long. I suspect it couldnt safe the file itself because it was locked by opened viewer or so?
-[] in prod I couldnt move fils to bin or move to windows bin. files seemed to be locked by app (where OCRd after splitte). Only worked after killing app and also killing all jre processes on host
---> make sure app never locks the files while ot works with them. in case, make a temp copy of the file to be processed / OCRd and modifed
 ## changes
 
-[] when search has finished without result, show user modal that it was finished without result
 
 
 ## new version

@@ -1,5 +1,8 @@
 ==== 2026-10-13 - DocFetcher 3.2 ====
 
+=== Changes ===
+  * A search started with Enter or the Search button that finds nothing says so in a message, with tips (fewer or other words, a wildcard, the search settings) - not during type-ahead search. 'Don't show this message again' switches it off; 'Reset Remembered Answers' in the preferences brings it back.
+
 === Bugfixes ===
   * A scanned PDF that was open in another program (e.g. a PDF viewer) when its text recognition finished didn't get its text layer - the error only went to the log - and its text was recognized a second time for the index, which took long. Now the replacement is tried for a few seconds; if the file stays open, the finished copy waits (app data folder 'ocr-pending'), the index gets its text at once, the indexing report says so, and the next update puts the copy in place once the file is free (dropped if the file was changed meanwhile). A file moved or changed during the recognition is no longer written at its old place.
   * Files couldn't be moved, renamed or deleted (neither into the bin nor the recycle bin) while DocFetcher read them - e.g. for minutes while it recognized the text of a scan after a split -, sometimes only after closing DocFetcher: on Windows, PDFBox and java.io keep files locked while they are open. PDF files are now read into a buffer and released at once (PdfFiles.load), and the parsers open documents with java.nio, which doesn't lock them (UtilFile.openForReading).

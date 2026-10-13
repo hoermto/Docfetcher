@@ -126,6 +126,7 @@ public final class SettingsConf {
 		PreferHtmlPreview (true),
 		HighlightingEnabled (true),
 		ShowRelativePathsMessage (true),
+		ShowNoResultsMessage (true), // Message after an explicit search without results
 		AutoScrollToFirstMatch (true),
 		CloseToTray (false), // Legacy, migrated to Int.CloseAction on startup
 		;
