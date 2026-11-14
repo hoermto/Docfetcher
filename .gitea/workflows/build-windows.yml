@@ -1,6 +1,9 @@
 # Builds the Windows MSI installer and the portable package with Gitea Actions.
-# Runs on every push to master (a merged version branch) and by hand:
-# Actions > build-windows.yml > Run workflow.
+# - Push to master (a merged version branch) or by hand (Actions >
+#   build-windows.yml > Run workflow): the files are attached to the run.
+# - Tag 'release-<version>' (e.g. release-3.2, matching current-version.txt):
+#   additionally a Gitea release 'DocFetcher <version>' with the MSI, the
+#   portable zip and the notes of that version from the changelog.
 #
 # Gitea has no runners of its own: this needs an act_runner on a Windows
 # machine, registered with the label 'windows' in host mode, e.g.
@@ -14,6 +17,7 @@ name: Build Windows packages
 on:
   push:
     branches: [master]
+    tags: ["release-*"]
   workflow_dispatch:
 
 jobs:
@@ -42,3 +46,24 @@ jobs:
             build/*.msi
             build/*-Portable.zip
           if-no-files-found: error
+
+      - name: Release notes
+        if: startsWith(gitea.ref, 'refs/tags/release-')
+        id: notes
+        shell: pwsh
+        run: |
+          ./dev/ci/release-notes.ps1 -Tag "${{ gitea.ref_name }}"
+          "version=$((Get-Content current-version.txt -Raw).Trim())" >> $env:GITHUB_OUTPUT
+          "body<<END_OF_NOTES" >> $env:GITHUB_OUTPUT
+          Get-Content -Encoding utf8 build/release-notes.md >> $env:GITHUB_OUTPUT
+          "END_OF_NOTES" >> $env:GITHUB_OUTPUT
+
+      - name: Publish release
+        if: startsWith(gitea.ref, 'refs/tags/release-')
+        uses: akkuman/gitea-release-action@v1
+        with:
+          name: DocFetcher ${{ steps.notes.outputs.version }}
+          body: ${{ steps.notes.outputs.body }}
+          files: |-
+            build/*.msi
+            build/*-Portable.zip

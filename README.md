@@ -177,6 +177,11 @@ The same build runs automatically on every push to `master` (GitHub Actions; Git
 runner): [dev/ci/build-windows.ps1](dev/ci/build-windows.ps1) sets up the runtime, WiX and the configuration files, and
 the MSI and the portable zip are attached to the run.
 
+**Publishing a release:** after merging into `master`, create the tag `release-<version>` on Gitea (the version
+from [current-version.txt](current-version.txt), e.g. `release-3.2`). The push mirror brings it to GitHub, where
+the workflow builds the packages and publishes the release *DocFetcher &lt;version&gt;* with the MSI, the portable
+zip and the notes of that version from the changelog. A tag that doesn't match `current-version.txt` stops the build.
+
 `build.py` empties the whole `build/` folder first, so never run a DocFetcher you use from there. Code signing is
 optional (`code-signing-windows.txt` with a certificate thumbprint, Windows SDK). On Linux/macOS,
 `python3 build.py` without `windows` builds the packages of that system (on Linux also the macOS packages).
