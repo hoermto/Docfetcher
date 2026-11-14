@@ -23,6 +23,8 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import net.sourceforge.docfetcher.enums.Img;
 import net.sourceforge.docfetcher.enums.Msg;
+import net.sourceforge.docfetcher.enums.SettingsConf;
+import net.sourceforge.docfetcher.util.gui.dialog.MultipleChoiceDialog;
 import net.sourceforge.docfetcher.gui.ResultPanel.HeaderMode;
 import net.sourceforge.docfetcher.gui.filter.FileTypePanel;
 import net.sourceforge.docfetcher.gui.filter.IndexPanel;
@@ -396,7 +398,32 @@ public final class SearchQueue {
 			}
 		});
 
+		// An explicit search without results is answered with a message, not only an empty list
+		final String searched = query;
+		if (searched != null && visibleResults.isEmpty()
+				&& queueCopy.contains(GuiEvent.SEARCH_OR_LIST) && queueCopy.contains(GuiEvent.EXPLICIT_SEARCH)
+				&& SettingsConf.Bool.ShowNoResultsMessage.get()) {
+			UtilGui.runAsyncExec(searchBar.getControl(), new Runnable() {
+				public void run() {
+					showNoResults(searchBar.getControl().getShell(), searched);
+				}
+			});
+		}
+
 		return true;
+	}
+
+	/** Tells the user that the search found nothing; the message can be switched off. */
+	static void showNoResults(@NotNull org.eclipse.swt.widgets.Shell shell, @NotNull String query) {
+		MultipleChoiceDialog<Boolean> dialog = new MultipleChoiceDialog<Boolean>(shell);
+		dialog.setTitle(Msg.no_results_title.get());
+		dialog.setImage(org.eclipse.swt.SWT.ICON_INFORMATION);
+		dialog.setText(Msg.no_results_msg.format(query));
+		dialog.setCheckBox(Msg.dont_show_again.get());
+		dialog.addButton(Msg.ok.get(), Boolean.TRUE);
+		dialog.open();
+		if (dialog.isChecked())
+			SettingsConf.Bool.ShowNoResultsMessage.set(false);
 	}
 
 	private void updateParserFilter() {

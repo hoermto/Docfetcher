@@ -600,6 +600,8 @@ public enum Msg {
 	out_of_memory_instructions_brief ("Out of memory. See the manual for instructions on how to raise the memory limit."),
 	not_enough_diskspace ("Not enough diskspace on {0} to unpack archive entries. Available: {1} MB. Needed: {2} MB."),
 	archive_encrypted ("Archive is encrypted."),
+	ocr_text_layer_pending ("The recognized text is in the index, but couldn't be saved in the file yet: the file is open in another program. DocFetcher tries again on the next update.",
+		"Indexing report: the text layer of a recognized PDF couldn't be written into the file."),
 	archive_entry_encrypted ("Archive entry is encrypted."),
 	not_an_archive ("Not an archive."),
 	parser_not_found ("Could not find a suitable parser."),
@@ -898,11 +900,30 @@ public enum Msg {
 		"Show the folder of a document as a column in the result tables",
 		Comments.prefOption + "If unchecked, the folder is only shown as a " +
 		"tooltip and in the status bar."),
-	pref_daily_index_update (
-		"Update all indexes once a day in the background",
-		Comments.prefOption + "If checked, all indexes are updated once a " +
-		"day while the program runs, so that deleted or changed files are " +
-		"picked up even in folders that aren't watched."),
+	pref_daily_sync ("Sync indexes daily at",
+		Comments.prefOption + "Followed by a time field and the choice which indexes are synced."),
+	pref_daily_sync_for ("for",
+		"Between the time and the choice of indexes in the option for the daily sync."),
+	pref_daily_sync_needed ("indexes that need it (network drives, folders not watched)",
+		"Choice in the option for the daily sync."),
+	pref_daily_sync_all ("all indexes",
+		"Choice in the option for the daily sync."),
+	pref_daily_sync_hint ("Changes on network drives and in folders that aren't watched aren't noticed by themselves: the daily sync updates these indexes. If DocFetcher isn't running at that time, the sync runs at the next start.",
+		"Tooltip of the option for the daily sync."),
+	index_col_updates ("Kept up to date",
+		"Column header of the index table on the preferences dialog: how the index is kept up to date."),
+	index_sync_watched ("Folder watching",
+		"Index table: the folders are watched for changes."),
+	index_sync_watched_daily ("Folder watching, daily sync at {0}",
+		"Index table: watched, and the daily sync covers all indexes. The time is inserted in the {0} slot."),
+	index_sync_network ("Network drive",
+		"Index table: the folder is on a network drive, whose changes aren't reported reliably."),
+	index_sync_unwatched ("Not watched",
+		"Index table: folder watching is off for the index."),
+	index_sync_daily ("{0}: daily sync at {1}",
+		"Index table: why the index needs syncing ({0}, e.g. 'Network drive') and the time of the daily sync ({1})."),
+	index_sync_manual ("{0}: no daily sync (update it yourself)",
+		"Index table: the index needs syncing ({0}), but the daily sync is off."),
 	pref_ocr (
 		"Recognize text in images and scanned PDFs (OCR, German and English)",
 		Comments.prefOption + "If checked, the text of image files and " +
@@ -973,6 +994,12 @@ public enum Msg {
 	later ("&Later",
 		"Button label for postponing an action; the user is asked again " +
 		"the next time the program starts."),
+	no_results_title ("Search",
+		"Title of the message after a search without results."),
+	no_results_msg ("The search for '{0}' found nothing.\n\nTip: fewer or other words, a wildcard (*steuer*), or check the search settings (document types, search scope).",
+		"Message after an explicit search without results; the query is inserted in the {0} slot."),
+	dont_show_again ("&Don't show this message again (can be reset in the preferences)",
+		"Checkbox in a message that can be switched off."),
 	dont_ask_again ("&Don't Ask Again",
 		"Button label for permanently dismissing a question."),
 	

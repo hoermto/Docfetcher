@@ -1,0 +1,69 @@
+# Builds the Windows MSI installer and the portable package with Gitea Actions.
+# - Push to master (a merged version branch) or by hand (Actions >
+#   build-windows.yml > Run workflow): the files are attached to the run.
+# - Tag 'release-<version>' (e.g. release-3.2, matching current-version.txt):
+#   additionally a Gitea release 'DocFetcher <version>' with the MSI, the
+#   portable zip and the notes of that version from the changelog.
+#
+# Gitea has no runners of its own: this needs an act_runner on a Windows
+# machine, registered with the label 'windows' in host mode, e.g.
+#   act_runner register --labels windows:host
+# and with Git, PowerShell 7 (pwsh) and Node.js installed. Until such a runner
+# exists, the jobs wait in the queue and do no harm.
+# Because this folder exists, Gitea ignores .github/workflows (used by GitHub).
+
+name: Build Windows packages
+
+on:
+  push:
+    branches: [master]
+    tags: ["release-*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: "21"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build
+        shell: pwsh
+        run: ./dev/ci/build-windows.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DocFetcher-Windows
+          path: |
+            build/*.msi
+            build/*-Portable.zip
+          if-no-files-found: error
+
+      - name: Release notes
+        if: startsWith(gitea.ref, 'refs/tags/release-')
+        id: notes
+        shell: pwsh
+        run: |
+          ./dev/ci/release-notes.ps1 -Tag "${{ gitea.ref_name }}"
+          "version=$((Get-Content current-version.txt -Raw).Trim())" >> $env:GITHUB_OUTPUT
+          "body<<END_OF_NOTES" >> $env:GITHUB_OUTPUT
+          Get-Content -Encoding utf8 build/release-notes.md >> $env:GITHUB_OUTPUT
+          "END_OF_NOTES" >> $env:GITHUB_OUTPUT
+
+      - name: Publish release
+        if: startsWith(gitea.ref, 'refs/tags/release-')
+        uses: akkuman/gitea-release-action@v1
+        with:
+          name: DocFetcher ${{ steps.notes.outputs.version }}
+          body: ${{ steps.notes.outputs.body }}
+          files: |-
+            build/*.msi
+            build/*-Portable.zip

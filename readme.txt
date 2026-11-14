@@ -62,13 +62,14 @@
   - the values for jre_windows and jre_linux should point to folders containing
     the JRE's "bin" folder, while the value for jre_macos should point to the
     folder containing the JRE's "Contents" folder
-- build-win-installer.nsi
-  - NSIS script for building the Windows installer
-  - requires NSIS and must be run on Windows
-  - requires NSIS plugins in dev/nsis-dependencies;
-    see installation instructions at the top of the .nsi file
-  - must run build.py first before running this
-  - output is in the "build" folder
+- build-win-msi.wxs:
+  - WiX Toolset 3 source of the Windows MSI installer (per machine into
+    Program Files, Start menu entry, daemon autostart, a newer version replaces
+    an older one; Apps & Features uninstalls)
+  - build.py builds build/DocFetcher-<version>-Windows-64bit.msi from the
+    non-portable folder (heat, candle, light) if it finds WiX: the folder in
+    build-wix.txt ('wix=<folder with heat.exe, candle.exe, light.exe>') or the
+    PATH; the WiX 3.14 binaries zip works without installation
 - build-dmg.sh:
   - builds a macOS disk image
   - must run build.py first
@@ -88,7 +89,7 @@
   - code-signing-windows.txt:
     - for code signing on Windows
     - should contain SHA1 thumbprint of code signing certificate
-    - if present, build.py and build-win-installer.nsi will perform code signing
+    - if present, build.py will perform code signing
     - the Windows SDK must be installed, and signtool.exe must be on the PATH
   - code-signing-macos.txt:
     - for code signing and notarization on macOS

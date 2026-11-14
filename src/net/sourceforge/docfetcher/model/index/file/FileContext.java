@@ -158,8 +158,11 @@ private List<DeferredFile> deferredFiles = new ArrayList<DeferredFile>(); // sha
 			return true;
 		if (reparseCsv && name.toLowerCase(java.util.Locale.ROOT).endsWith(".csv"))
 			return true;
-		return reparsePdfForms && name.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")
-			&& PdfForms.hasFilledFields(file);
+		boolean pdf = name.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf");
+		// A recognized copy waits for the file: try again to put it in place
+		if (pdf && net.sourceforge.docfetcher.model.ocr.PendingOcr.has(file))
+			return true;
+		return reparsePdfForms && pdf && PdfForms.hasFilledFields(file);
 	}
 
 	/** The files whose text recognition was deferred, in indexing order. */
@@ -301,6 +304,9 @@ private List<DeferredFile> deferredFiles = new ArrayList<DeferredFile>(); // sha
 
 			// Clear errors from previous indexing operations
 			doc.setError(null);
+			if (file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")
+					&& net.sourceforge.docfetcher.model.ocr.PendingOcr.has(file))
+				fail(ErrorType.TEXT_LAYER_PENDING, doc, null);
 
 			return true;
 		}

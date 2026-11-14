@@ -101,7 +101,7 @@ public final class SettingsConf {
 		StoreOcrTextInFiles (true), // Write recognized text back into the files
 		ConvertTiffToPdf (false), // Turn TIFF files into PDFs with a text layer while indexing
 		KeepTiffAfterConversion (true), // Keep the TIFF renamed to .ocr instead of deleting it
-		DailyIndexUpdate (true), // Update all indexes once a day while running
+		DailyIndexUpdate (true), // The daily sync at DailySyncTime (see IndexSync)
 		ShowPathColumn (true), // Show the folder column in the result tables
 		SplitAutoRename (true), // Name the parts of a split by date and keywords
 		SyncFolderPanels (true), // The folders tab shows the parent of the folder panel
@@ -126,6 +126,7 @@ public final class SettingsConf {
 		PreferHtmlPreview (true),
 		HighlightingEnabled (true),
 		ShowRelativePathsMessage (true),
+		ShowNoResultsMessage (true), // Message after an explicit search without results
 		AutoScrollToFirstMatch (true),
 		CloseToTray (false), // Legacy, migrated to Int.CloseAction on startup
 		;
@@ -195,6 +196,8 @@ public final class SettingsConf {
 		McpServerPort (28835),
 		// May an assistant learn the folder for its files: MCP_FOLDER_ASK/ALLOW/DENY ('Remember my choice')
 		McpFileFolderAnswer (0),
+		// Which indexes the daily sync updates: IndexSync.SCOPE_NEEDED or SCOPE_ALL
+		DailySyncScope (0),
 		;
 
 		public final Event<Integer> evtChanged = new Event<Integer> ();
@@ -251,6 +254,12 @@ public final class SettingsConf {
 		 * DocFetcher's default (Msg.mcp_naming_rules_default).
 		 */
 		McpNamingRules (""),
+
+		/* The time of the daily sync of the indexes, HH:MM (see IndexSync). */
+		DailySyncTime ("03:00"),
+
+		/* When the daily sync ran last (milliseconds), to catch up a missed one. */
+		DailySyncLast (""),
 		
 		/*
 		 * Custom index folder, set via the preferences dialog. Empty means

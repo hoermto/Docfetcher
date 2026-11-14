@@ -1,3 +1,22 @@
+==== 2026-10-13 - DocFetcher 3.2 ====
+
+=== Changes ===
+  * A search started with Enter or the Search button that finds nothing says so in a message, with tips (fewer or other words, a wildcard, the search settings) - not during type-ahead search. 'Don't show this message again' switches it off; 'Reset Remembered Answers' in the preferences brings it back.
+
+=== Bugfixes ===
+  * A scanned PDF that was open in another program (e.g. a PDF viewer) when its text recognition finished didn't get its text layer - the error only went to the log - and its text was recognized a second time for the index, which took long. Now the replacement is tried for a few seconds; if the file stays open, the finished copy waits (app data folder 'ocr-pending'), the index gets its text at once, the indexing report says so, and the next update puts the copy in place once the file is free (dropped if the file was changed meanwhile). A file moved or changed during the recognition is no longer written at its old place.
+  * Files couldn't be moved, renamed or deleted (neither into the bin nor the recycle bin) while DocFetcher read them - e.g. for minutes while it recognized the text of a scan after a split -, sometimes only after closing DocFetcher: on Windows, PDFBox and java.io keep files locked while they are open. PDF files are now read into a buffer and released at once (PdfFiles.load), and the parsers open documents with java.nio, which doesn't lock them (UtilFile.openForReading).
+
+==== 2026-10-11 - DocFetcher 3.1 ====
+
+=== Bugfixes ===
+  * After a drag copy, removing the original didn't update the index.
+
+=== Features ===
+  * Windows MSI installer (DocFetcher-<version>-Windows-64bit.msi, built by build.py with the WiX Toolset): installs for all users into Program Files with a Start menu entry and the daemon in the autostart, a newer version replaces an older one, Apps & Features uninstalls (the running daemon is closed first).
+  * Indexes on network drives: DocFetcher recognizes folders on a network drive (Windows: mapped drive or UNC path via GetDriveType; elsewhere NFS/SMB/AFP/... mounts), whose changes usually aren't reported. The index list (preferences, Indexes) has a column 'Kept up to date': folder watching, or 'Network drive' / 'Not watched' with the daily sync. The option 'Update all indexes once a day' became 'Sync indexes daily at [03:00] for [indexes that need it | all indexes]' (on by default): at a fixed time instead of 24 hours after the start, caught up at the next start if DocFetcher wasn't running.
+  * After DocFetcher renames, moves, deletes, restores, splits or merges files, only the folders involved are read again - the files there and which subfolders they have (a folder moved in completely) -, instead of walking the whole folder tree: seconds instead of minutes on a large network drive, whether the folders are watched or not. Requests for the same index join a waiting update; a complete update includes them.
+
 ==== 2026-10-11 - DocFetcher 3.0 ====
 
 === Bugfixes ===

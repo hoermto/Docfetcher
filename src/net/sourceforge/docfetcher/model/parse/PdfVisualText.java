@@ -17,6 +17,7 @@ import com.google.common.io.Closeables;
 
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
+import net.sourceforge.docfetcher.model.pdf.PdfFiles;
 
 /**
  * The text of a PDF file in visual order: line by line as it appears on the
@@ -39,7 +40,7 @@ public final class PdfVisualText {
 	public static String of(@NotNull File file) {
 		PDDocument doc = null;
 		try {
-			doc = PDDocument.load(file);
+			doc = PdfFiles.load(file);
 			PDFTextStripper stripper = new PDFTextStripper();
 			stripper.setSortByPosition(true);
 			String text = stripper.getText(doc);

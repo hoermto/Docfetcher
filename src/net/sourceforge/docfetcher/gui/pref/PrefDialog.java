@@ -141,9 +141,7 @@ public final class PrefDialog {
 				Msg.pref_update_indexes_on_startup.get(),
 				SettingsConf.Bool.UpdateIndexesOnStartup),
 
-			new CheckOption(
-				Msg.pref_daily_index_update.get(),
-				SettingsConf.Bool.DailyIndexUpdate),
+			new DailySyncOption(),
 
 			new CheckOption(
 				Msg.pref_show_path_column.get(),
@@ -496,6 +494,7 @@ new DropdownOption(
 					checkOption.save();
 				if (resetHints) {
 					SettingsConf.Bool.ShowRelativePathsMessage.set(true);
+					SettingsConf.Bool.ShowNoResultsMessage.set(true);
 					SettingsConf.Int.McpFileFolderAnswer.set(SettingsConf.MCP_FOLDER_ASK);
 				}
 				for (PrefOption fieldOption : fieldOptions) {

@@ -81,12 +81,126 @@ public final class SearchablePdfTest {
 	@Test
 	public void addsTheTextLayerToAScannedPdfInPlace() throws Exception {
 		Assume.assumeTrue(OcrEngine.getInstance().isAvailable());
+		File scan = writeScan();
+		assertTrue(SearchablePdf.ocr(scan, OcrEngine.getInstance(), Cancelable.nullCancelable));
+		PDDocument result = PDDocument.load(scan);
+		try {
+			String text = new PDFTextStripper().getText(result);
+			assertTrue(text, text.contains("4711"));
+		}
+		finally {
+			result.close();
+		}
+		assertFalse("No temporary file left", new File(scan.getPath() + ".docfetcher-tmp").exists());
+	}
+
+	private static String textOf(File pdf) throws Exception {
+		PDDocument doc = PDDocument.load(pdf);
+		try {
+			return new PDFTextStripper().getText(doc);
+		}
+		finally {
+			doc.close();
+		}
+	}
+
+	/**
+	 * Open in another program (here: java.io, which keeps others from
+	 * replacing the file on Windows), the recognized copy waits; the index
+	 * gets its text without a second recognition, and the copy replaces the
+	 * file once it is free - unless the file was changed meanwhile.
+	 */
+	@Test
+	public void theTextLayerWaitsWhileTheFileIsOpenElsewhere() throws Exception {
+		Assume.assumeTrue(OcrEngine.getInstance().isAvailable());
+		Assume.assumeTrue(net.sourceforge.docfetcher.util.Util.IS_WINDOWS);
+		File pending = java.nio.file.Files.createTempDirectory("docfetcher-pending").toFile();
+		PendingOcr.setDir(pending);
+		int attempts = PendingOcr.attempts;
+		PendingOcr.attempts = 2;
+		PendingOcr.pauseMillis = 10;
+		File scan = writeScan();
+		try {
+			java.io.FileInputStream viewer = new java.io.FileInputStream(scan);
+			try {
+				assertEquals(scan, OcrPreprocessor.prepare(scan, Cancelable.nullCancelable));
+				assertTrue("The copy waits", PendingOcr.has(scan));
+				assertFalse("The file is unchanged", textOf(scan).contains("4711"));
+				// The parsing that follows gets the text of the copy, no second recognition
+				PDDocument doc = net.sourceforge.docfetcher.model.pdf.PdfFiles.load(scan);
+				try {
+					long start = System.currentTimeMillis();
+					String text = OcrPreprocessor.recognizePdf(doc, Cancelable.nullCancelable);
+					assertTrue(text, text.contains("4711"));
+					assertTrue("Not recognized again", System.currentTimeMillis() - start < 500);
+				}
+				finally {
+					doc.close();
+				}
+				// Still open on the next update: it keeps waiting
+				assertFalse(PendingOcr.apply(scan));
+			}
+			finally {
+				viewer.close();
+			}
+			// Free again: the next update puts the copy in place
+			assertEquals(scan, OcrPreprocessor.prepare(scan, Cancelable.nullCancelable));
+			assertFalse(PendingOcr.has(scan));
+			assertTrue(textOf(scan).contains("4711"));
+			assertEquals(0, pending.listFiles().length);
+
+			// Changed meanwhile: the copy is outdated and dropped
+			File other = writeScan();
+			java.io.FileInputStream viewer2 = new java.io.FileInputStream(other);
+			try {
+				SearchablePdf.ocr(other, OcrEngine.getInstance(), Cancelable.nullCancelable);
+			}
+			finally {
+				viewer2.close();
+			}
+			assertTrue(PendingOcr.has(other));
+			assertTrue(other.setLastModified(other.lastModified() - 60000));
+			assertFalse(PendingOcr.has(other));
+			assertEquals(0, pending.listFiles().length);
+		}
+		finally {
+			PendingOcr.attempts = attempts;
+			PendingOcr.pauseMillis = 300;
+			net.sourceforge.docfetcher.util.UtilFile.deletePermanently(pending);
+		}
+	}
+
+	/**
+	 * The file isn't locked during the recognition: if the user moves it
+	 * meanwhile, the result is dropped instead of creating the file again at
+	 * its old place.
+	 */
+	@Test
+	public void aFileMovedDuringTheRecognitionStaysMoved() throws Exception {
+		Assume.assumeTrue(OcrEngine.getInstance().isAvailable());
+		final File scan = writeScan();
+		final File moved = new File(scan.getPath() + "-moved.pdf");
+		moved.deleteOnExit();
+		Cancelable userMovesIt = new Cancelable() {
+			public boolean isCanceled() {
+				if (scan.exists())
+					assertTrue("Movable during the recognition", scan.renameTo(moved));
+				return false;
+			}
+		};
+		assertFalse(SearchablePdf.ocr(scan, OcrEngine.getInstance(), userMovesIt));
+		assertFalse("Not created again", scan.exists());
+		assertTrue(moved.isFile());
+		assertFalse("No temporary file left", new File(scan.getPath() + ".docfetcher-tmp").exists());
+	}
+
+	/** A scanned PDF without text layer: the invoice image as the only content of the page. */
+	private static File writeScan() throws Exception {
 		File tiff = writeFaxTiff();
 		File pdf = SearchablePdf.convertTiff(
 			tiff, OcrEngine.getInstance(), Cancelable.nullCancelable, false);
 		assertNotNull(pdf);
 		pdf.deleteOnExit();
-		// Make it a scan without text layer again
 		File scan = File.createTempFile("docfetcher-scan", ".pdf");
 		scan.deleteOnExit();
 		PDDocument doc = PDDocument.load(pdf);
@@ -112,16 +226,8 @@ public final class SearchablePdfTest {
 		finally {
 			doc.close();
 		}
-		assertTrue(SearchablePdf.ocr(scan, OcrEngine.getInstance(), Cancelable.nullCancelable));
-		PDDocument result = PDDocument.load(scan);
-		try {
-			String text = new PDFTextStripper().getText(result);
-			assertTrue(text, text.contains("4711"));
-		}
-		finally {
-			result.close();
-		}
-		assertFalse("No temporary file left", new File(scan.getPath() + ".docfetcher-tmp").exists());
+		pdf.delete();
+		return scan;
 	}
 
 	@Test

@@ -12,13 +12,13 @@
 package net.sourceforge.docfetcher.model.parse;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.InputStream;
 
 import net.sourceforge.docfetcher.util.CheckedOutOfMemoryError;
 
 import org.apache.tika.parser.chm.accessor.DirectoryListingEntry;
 import org.apache.tika.parser.chm.core.ChmExtractor;
+import net.sourceforge.docfetcher.util.UtilFile;
 
 public final class PagingChmParser {
 	
@@ -33,7 +33,7 @@ public final class PagingChmParser {
 	public void run() throws ParseException, CheckedOutOfMemoryError {
 		ChmExtractor chmExtractor = null;
 		try {
-			InputStream in = new FileInputStream(file);
+			InputStream in = UtilFile.openForReading(file);
 			chmExtractor = new ChmExtractor(in);
 		}
 		catch (Exception e) {

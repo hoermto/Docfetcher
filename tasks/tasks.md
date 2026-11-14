@@ -17,11 +17,8 @@
 
 ## bugs
 
-
 ## changes
 
-
-[] add support for encrypted containers like cryptomator (follow you 1a) 1b) suggestions)
 
 
 ## new version
@@ -30,6 +27,7 @@
 ## future features/stories
 
 
+[] add support for encrypted containers like cryptomator (follow you 1a) 1b) suggestions)
 
 [] any ideas about document encryption?
   Analysis (v2.7, answer: encrypted folder + protect the index, write-up only for now):

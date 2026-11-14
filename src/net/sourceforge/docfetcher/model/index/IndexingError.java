@@ -38,6 +38,7 @@ public final class IndexingError implements Serializable {
 		NOT_AN_ARCHIVE (Msg.not_an_archive.get()),
 		ENCODING,
 		STACK_OVERFLOW,
+		TEXT_LAYER_PENDING (Msg.ocr_text_layer_pending.get()),
 		
 		// Outlook
 		ATTACHMENT,

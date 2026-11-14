@@ -12,7 +12,6 @@
 package net.sourceforge.docfetcher.model.parse;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -38,6 +37,7 @@ import org.apache.poi.poifs.eventfilesystem.POIFSReaderEvent;
 import org.apache.poi.poifs.eventfilesystem.POIFSReaderListener;
 
 import com.google.common.io.Closeables;
+import net.sourceforge.docfetcher.util.UtilFile;
 
 /**
  * @author Tran Nam Quang
@@ -54,13 +54,13 @@ abstract class MSOfficeParser extends FileParser {
 			InputStream in;
 			POIOLE2TextExtractor extractor = null;
 			try {
-				in = new FileInputStream(file);
+				in = UtilFile.openForReading(file);
 				extractor = new WordExtractor(in);
 				return extractor.getText();
 			}
 			catch (OldWordFileFormatException e) {
 				// need to start a new stream, the previous one is closed after the exception
-				in = new FileInputStream(file);
+				in = UtilFile.openForReading(file);
 				extractor = new Word6Extractor(in);
 				return extractor.getText();
 			}
@@ -96,7 +96,7 @@ abstract class MSOfficeParser extends FileParser {
 				throws IOException, ParseException {
 			PowerPointExtractor ppe = null;
 			try {
-				InputStream in = new FileInputStream(file);
+				InputStream in = UtilFile.openForReading(file);
 				ppe = new PowerPointExtractor(in);
 				ppe.setNotesByDefault(true);
 				ppe.setCommentsByDefault(true);
@@ -144,7 +144,7 @@ abstract class MSOfficeParser extends FileParser {
 				throws IOException, ParseException {
 			VisioTextExtractor extractor = null;
 			try {
-				InputStream in = new FileInputStream(file);
+				InputStream in = UtilFile.openForReading(file);
 				extractor = new VisioTextExtractor(in);
 				return extractor.getText();
 			}
@@ -200,7 +200,7 @@ abstract class MSOfficeParser extends FileParser {
 		
 		InputStream in = null;
 		try {
-			in = new FileInputStream(file);
+			in = UtilFile.openForReading(file);
 			try {
 				reader.read(in);
 			}

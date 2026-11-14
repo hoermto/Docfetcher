@@ -49,6 +49,7 @@ public final class OcrPreprocessor {
 	@NotNull
 	public static File prepare(@NotNull File file, @NotNull Cancelable cancelable) {
 		Util.checkNotNull(file, cancelable);
+		KNOWN_TEXT.remove();
 		if (!isEnabled() || !file.isFile())
 			return file;
 		// Without this option the files are left untouched; the parsers
@@ -63,7 +64,14 @@ public final class OcrPreprocessor {
 		OcrEngine engine = OcrEngine.getInstance();
 		try {
 			if (ext.equals("pdf")) {
-				SearchablePdf.ocr(plain, engine, cancelable);
+				// A copy recognized earlier replaces the file once it is free
+				if (PendingOcr.has(plain))
+					PendingOcr.apply(plain);
+				else
+					SearchablePdf.ocr(plain, engine, cancelable);
+				// Still open in another program: the index gets the text of the copy
+				if (PendingOcr.has(plain))
+					KNOWN_TEXT.set(PendingOcr.getText(plain));
 			}
 			else if (ext.equals("tif") || ext.equals("tiff")) {
 				// Without conversion, TIFF files are recognized at parse time
@@ -101,8 +109,20 @@ public final class OcrPreprocessor {
 										@NotNull Cancelable cancelable) throws java.io.IOException {
 		if (!isEnabled())
 			return "";
+		String known = KNOWN_TEXT.get();
+		if (known != null) {
+			KNOWN_TEXT.remove();
+			return known;
+		}
 		return SearchablePdf.recognizeText(doc, OcrEngine.getInstance(), cancelable);
 	}
+
+	/**
+	 * The text of a recognized copy waiting for its file (see PendingOcr),
+	 * set by prepare for the parsing of the same file that follows in the
+	 * same thread, so that the text isn't recognized again.
+	 */
+	private static final ThreadLocal<String> KNOWN_TEXT = new ThreadLocal<String>();
 
 	/**
 	 * Recognizes the text of all pages of an image file. Returns null if

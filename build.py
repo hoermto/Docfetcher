@@ -49,8 +49,8 @@ skip_notarization = False
 # With a 'windows' argument, only the Windows builds are created. This allows
 # cross-building the Windows packages on Linux/macOS: All Windows-specific
 # binaries (launcher, daemon, native libraries) are prebuilt under 'dist' and
-# 'lib', so no compilation on Windows is needed. Creating the installer still
-# requires running the NSIS script separately.
+# 'lib', so no compilation on Windows is needed. The MSI installer is created on
+# Windows only (WiX Toolset, see create_windows_msi).
 windows_only = "windows" in sys.argv[1:]
 
 if "skip" in sys.argv[1:]:
@@ -87,12 +87,6 @@ do_skip_recompilation = clean_dir(
 	build_dir,
 	["classes"] if skip_recompilation else []
 )
-
-# On Windows, write the version number and nothing else into a new text file, so
-# that the version number can be easily read by the NSIS compiler when creating
-# the Windows installer.
-if is_windows:
-	to_file(join("build/version.txt"), version)
 
 all_jar_files = collect_jar_files("lib")
 host_jar_files = filter_platform_jars(all_jar_files)
@@ -315,6 +309,51 @@ def copy_compiled_executables(dst_dir, path_templ):
 		make_executable(dst_daemon)
 
 
+def create_windows_msi(source_dir: str) -> None:
+	"""
+	Creates the MSI installer of the non-portable Windows build with the WiX
+	Toolset 3 (heat, candle, light), see build-win-msi.wxs. WiX is taken from
+	the folder in build-wix.txt ('wix=...') or from the PATH; without it, the
+	installer is skipped.
+	"""
+	wix_dir = ""
+	if osp.isfile("build-wix.txt"):
+		wix_dir = osp.expanduser(to_props("build-wix.txt").get("wix", ""))
+	def tool(name):
+		path = join(wix_dir, name + ".exe") if wix_dir else shutil.which(name + ".exe")
+		return path if path and osp.isfile(path) else None
+	heat, candle, light = tool("heat"), tool("candle"), tool("light")
+	if not (heat and candle and light):
+		print(
+			"NOTE: WiX Toolset 3 not found, the MSI installer is skipped. "
+			"Put 'wix=<folder with heat.exe, candle.exe, light.exe>' into "
+			"build-wix.txt (or add WiX to the PATH)."
+		)
+		return
+	print("Creating Windows MSI installer...")
+	work_dir = join(build_dir, "msi")
+	os.makedirs(work_dir, exist_ok=True)
+	# MSI versions have at least three parts
+	msi_version = version if version.count(".") >= 2 else version + ".0"
+	files_wxs = join(work_dir, "files.wxs")
+	defines = ["-dVersion=" + msi_version, "-dSourceDir=" + osp.abspath(source_dir)]
+	def run(args):
+		result = subprocess.run(args, capture_output=True, text=True)
+		if result.returncode != 0:
+			fail("%s failed:\n%s%s" % (osp.basename(args[0]), result.stdout, result.stderr))
+	# Component GUIDs derived from the paths (-ag), so that updates find their files
+	run([heat, "dir", osp.abspath(source_dir), "-nologo", "-cg", "DocFetcherFiles",
+		"-dr", "INSTALLFOLDER", "-srd", "-sreg", "-scom", "-ag", "-ke",
+		"-var", "var.SourceDir", "-out", files_wxs])
+	run([candle, "-nologo", "-arch", "x64", "-ext", "WixUtilExtension"] + defines +
+		["-out", work_dir + os.sep, "build-win-msi.wxs", files_wxs])
+	msi_path = join(build_dir, "%s-%s-Windows-64bit.msi" % (app_name, version))
+	run([light, "-nologo", "-ext", "WixUtilExtension", "-spdb", "-out", msi_path,
+		join(work_dir, "build-win-msi.wixobj"), join(work_dir, "files.wixobj")])
+	shutil.rmtree(work_dir, ignore_errors=True)
+	print("Created " + msi_path)
+
+
 #===============================================================================
 # Build: Windows Portable
 #===============================================================================
@@ -380,7 +419,7 @@ if is_windows or windows_only:
 			zip_path = join(build_dir, app_dirname + ".zip")
 			zip_dir(app_dir, zip_path, True)
 		else:
-			print("NOTE: Run the NSIS script to create the Windows installer.")
+			msi_source_dir = app_dir
 	
 	if not is_windows:
 		print("NOTE: Code signing is only available on Windows, skipping.")
@@ -410,6 +449,10 @@ if is_windows or windows_only:
 				"found nothing."
 			)
 		sign_code_files_on_windows(thumbprint, build_dir, jre_paths)
+
+	# After signing, so that the installer contains the signed files
+	if is_windows:
+		create_windows_msi(msi_source_dir)
 
 
 #===============================================================================

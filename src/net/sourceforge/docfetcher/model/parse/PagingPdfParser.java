@@ -25,6 +25,7 @@ import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
 import org.apache.pdfbox.text.PDFTextStripper;
 
 import com.google.common.io.Closeables;
+import net.sourceforge.docfetcher.model.pdf.PdfFiles;
 
 /**
  * @author Tran Nam Quang
@@ -44,7 +45,7 @@ public final class PagingPdfParser {
 		PDDocument doc = null;
 		try {
 			try {
-				doc = PDDocument.load(file);
+				doc = PdfFiles.load(file);
 			}
 			catch (InvalidPasswordException e) {
 				throw new ParseException(Msg.doc_pw_protected.get());

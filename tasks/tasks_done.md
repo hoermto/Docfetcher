@@ -589,3 +589,89 @@
     'finanzamt (2)' and not 'bonn', newest name; depth 0; find_folders), summary missing refused, tool list 7.
     App test (dev build, MCP 28836): describe_folder depth 2 (inbox, Archiv with 2025/2026, Belege), find_folders,
     rename_document with summary -> shown at the top of the rename dialog; Cancel -> renamed false.
+- v3.1: after DocFetcher's own file operations, update only the affected folders
+  - FileIndex.updateFolders(folders): doUpdate visits only those folders shallow (visitDirOrZip(..., shallow): files
+    added/changed/removed, new subfolders completely, existing subfolders left as they are); a folder not in the tree
+    yet goes through its nearest ancestor that is (getVisitedFolders), archives fall back to a complete update; no
+    'last updated' change, no one-time reparse flags. Task carries the folders (null = whole index), mergeFolders
+    when a request meets a ready update of the same index (complete wins); IndexingQueue.addUpdate.
+  - ResultPanel.updateIndexesFor: the parents of all affected files per index (rename, move, delete, folder
+    operations, undo, bin restore, merge/split via the host, drop moves); emptyBin updates the bin folder only;
+    fix: removing the original after a drag copy now updates the indexes.
+  - Tests: PartialUpdateTest (moved, renamed, folder moved in with a subfolder; unrelated folder and existing
+    subfolder untouched until a complete update; nearest ancestor), TaskMergeTest. App test: move via MCP, the search
+    finds the document in the new folder 2 s later.
+- v3.1 network drives, the task items:
+  situation: documents are on a network drive; file changes are most likely not notified to DocFetcher.
+  [] whenever a file rename or move happens within DocFetcher, make sure the affected indexes are updated in any case
+  [] for network drives, consider a nightly refresh (option setting)
+  [] determine per index whether the source path/drive supports fs based notifications or needs manual syncs
+    Answers (v3.1): only the affected folders are read again after DocFetcher's own operations; automatic
+    detection (network drive / UNC = sync needed, watching stays on too), shown per index; daily sync at a fixed
+    time (default 03:00, on, caught up at the next start), merged with 'update all indexes once a day' into one
+    option with 'only indexes that need it' / 'all indexes'.
+- v3.1: network detection, sync column, daily sync at a fixed time
+  - UtilFile.isNetworkDrive: Windows UNC prefix or Kernel32.GetDriveType == DRIVE_REMOTE (JNA, already shipped);
+    elsewhere FileStore.type() in nfs/cifs/smb*/afpfs/webdav/davfs/sshfs/9p. Verified on this machine: Z: (\\wurbis\tmp)
+    true, C:/D: false (read-only check, nothing on the share read or written).
+  - IndexSync (gui): needsSync = not watched or network drive; isSynced = daily on and (scope all or needsSync);
+    describe for the new column 'Kept up to date' on the Indexes tab; parseTime/format; lastScheduled/isDue for the
+    catch-up. Settings: DailyIndexUpdate stays the on/off switch (default on), new Str DailySyncTime '03:00',
+    Int DailySyncScope (0 needed, 1 all), Str DailySyncLast. Application's thread checks every minute; a missed sync
+    runs right after the start; the first start without a record waits for the next time.
+  - DailySyncOption: 'Sync indexes daily at [03:00] for [indexes that need it | all indexes]' on the General tab.
+  - Tests: IndexSyncTest (times, due/catch-up, UNC, watched vs not watched texts, scope). App test (dev): with
+    the startup update off, scope all and the last sync two days ago, the sync ran at the start and DailySyncLast
+    was renewed; General tab option and Indexes column shown.
+- v3.1: Windows MSI installer ('MSI klingt sauberer')
+  - build-win-msi.wxs (WiX 3): perMachine x64 into ProgramFiles64Folder\DocFetcher, fixed UpgradeCode with MajorUpgrade,
+    icon and links for Apps & Features, Start menu shortcut (key path under HKCU, as ICE38/43/57 require), daemon in
+    HKLM Run (as the NSIS setup), util:CloseApplication terminates a running daemon before files are replaced.
+  - build.py create_windows_msi after code signing: heat (component group DocFetcherFiles, -ag path-derived GUIDs),
+    candle -arch x64 with WixUtilExtension, light with ICE validation; version x.y -> x.y.0; WiX from build-wix.txt
+    (git-ignored) or the PATH, else a note. WiX 3.14 binaries zip in docfetcher-build-tools/wix314 (winget's package
+    needs admin and .NET 3.5). The bundled JRE was made again with jlink (docfetcher-build-tools/jre-windows).
+  - Test: build ok (105 MB, ICE passed); msiexec /a extraction: 551 files like the non-portable folder (+ the msi);
+    DocFetcher 3.1 started from the extracted folder (scratch APPDATA). Not installed for real (admin, system change).
+- v3.2 bug: files locked while DocFetcher works with them ('couldn't move files to the bin or the windows bin ...
+  only worked after killing the app')
+  - Cause: on Windows, java.io (FileInputStream, RandomAccessFile) opens files without FILE_SHARE_DELETE; PDFBox's
+    PDDocument.load(File) keeps the file open until close - text recognition of a scan takes minutes (indexing after a
+    split, the name/folder suggestions of a selected scan via doc.getText(), page analysis), ParseService kept its
+    FileInputStream open during the whole parse incl. recognition. The WebView2 preview doesn't lock (tested).
+  - PdfFiles.load (model.pdf): reads the file via UtilFile.openForReading into PDFBox (memory up to 32 MB, else a temp
+    file) and closes it at once; used by all 11 PDF loads (OCR, parsers, forms, visual text, page analysis/split,
+    highlighting, image preview, printing). UtilFile.openForReading: java.nio stream (plain path - TrueZIP's TFile has
+    no usable toPath) instead of FileInputStream in ParseService and the Office/image/CHM parsers and renderers.
+  - Test: PdfFilesTest (file renamed while loaded / while open for parsing; PDFBox's own load keeps it locked on
+    Windows). Full suite 230, only the 4 known environment failures.
+- v3.2 bug: OCR'd PDF without text layer, recognition took very long ('locked by an opened viewer?')
+  - Cause: SearchablePdf.ocr replaced the file at the end with Files.move(REPLACE_EXISTING); with the file open in
+    another program (or in DocFetcher's own readers before the lock fix) that failed, the error went to the log only,
+    and PdfParser then recognized the text a second time for the index (on-the-fly OCR of a file without text).
+  - PendingOcr (model.ocr): replace() tries 10x300 ms; if the file stays open, add() parks the recognized copy plus
+    path/lastModified/length in <app data>/ocr-pending (named by a hash of the path); has() drops a copy whose
+    original changed or is gone; apply() puts it in place later; getText() gives its text. OcrPreprocessor.prepare
+    applies a waiting copy or recognizes, and hands the copy's text to the following parse of the same file in the
+    same thread (ThreadLocal, used by recognizePdf): no second recognition. FileContext.needsReparse makes the next
+    update visit a file with a waiting copy; FileContext.index reports TEXT_LAYER_PENDING (localized). setDir at
+    startup drops copies of files that are gone. SearchablePdf.ocr drops its result if the file was moved, deleted or
+    changed during the recognition (possible now that files aren't locked) instead of creating it again.
+  - Tests: SearchablePdfTest.theTextLayerWaitsWhileTheFileIsOpenElsewhere (java.io holder: 'Der Prozess kann nicht auf
+    die Datei zugreifen'; copy waits; text without recognition < 500 ms; still open keeps waiting; free -> in place,
+    folder empty; changed -> dropped), aFileMovedDuringTheRecognitionStaysMoved. App test (dev build): a 40-page scan
+    renamed while the recognition ran (CPU > 1 s/s) - rename ok, nothing at the old name, the renamed file got its
+    text layer after the next update (75 s); a 2-page scan held open by PowerShell (share read only) during
+    recognition: 'can't be saved yet' in the log, MCP search found its word, after release Update wrote the layer.
+- v3.2 task items (bugs and change):
+  [] had PDF without OCR. App OCRd but text was not added to PDF looks like (cant select text in doc). It also took very long. I suspect it couldnt safe the file itself because it was locked by opened viewer or so?
+  [] in prod I couldnt move fils to bin or move to windows bin. files seemed to be locked by app (where OCRd after splitte). Only worked after killing app and also killing all jre processes on host
+  --> make sure app never locks the files while ot works with them. in case, make a temp copy of the file to be processed / OCRd and modifed
+  [] when search has finished without result, show user modal that it was finished without result
+- v3.2 change: message after a search without results
+  - Answer: dialog with 'Don't show this message again', reset by 'Reset Remembered Answers'; not for type-ahead.
+  - SearchQueue: after an explicit search (SEARCH_OR_LIST + EXPLICIT_SEARCH) with no visible results, showNoResults
+    (MultipleChoiceDialog, info icon, query and tips, checkbox) asynchronously on the GUI thread; Bool
+    ShowNoResultsMessage; PrefDialog's reset sets it again. Msg no_results_title/msg, dont_show_again (en/de).
+  - Tests: MsgTest (en/de text with the query). App test (dev): 'Quastenflosser' -> dialog; checkbox + OK -> the next
+    search shows none, setting saved false.

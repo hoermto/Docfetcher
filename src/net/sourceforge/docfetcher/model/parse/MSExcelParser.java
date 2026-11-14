@@ -12,7 +12,6 @@
 package net.sourceforge.docfetcher.model.parse;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -29,6 +28,7 @@ import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.poifs.filesystem.POIFSFileSystem;
 
 import com.google.common.io.Closeables;
+import net.sourceforge.docfetcher.util.UtilFile;
 
 /**
  * @author Tran Nam Quang
@@ -48,7 +48,7 @@ final class MSExcelParser extends MSOfficeParser {
 			throws ParseException {
 		InputStream in = null;
 		try {
-			in = new FileInputStream(file);
+			in = UtilFile.openForReading(file);
 			HSSFWorkbook workbook = null;
 			try {
 				POIFSFileSystem fs = new POIFSFileSystem(in);

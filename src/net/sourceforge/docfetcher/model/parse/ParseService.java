@@ -13,7 +13,6 @@ package net.sourceforge.docfetcher.model.parse;
 
 import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -63,6 +62,7 @@ import com.google.common.primitives.Ints;
 import de.schlichtherle.truezip.file.TFile;
 import de.schlichtherle.truezip.file.TFileInputStream;
 import eu.medsea.mimeutil.detector.MagicMimeMimeDetector;
+import net.sourceforge.docfetcher.util.UtilFile;
 
 
 /**
@@ -283,7 +283,7 @@ public final class ParseService {
 					if (isZipEntry(file))
 						in = new TFileInputStream(file);
 					else
-						in = new FileInputStream(file);
+						in = UtilFile.openForReading(file);
 					StreamParser streamParser = (StreamParser) parser;
 					result = streamParser.parse(in, context);
 				}
@@ -383,7 +383,7 @@ public final class ParseService {
 				if (parser instanceof StreamParser) {
 					InputStream in = null;
 					try {
-						in = new FileInputStream(file);
+						in = UtilFile.openForReading(file);
 						return ((StreamParser) parser).renderText(in, filename);
 					}
 					catch (FileNotFoundException e) {

@@ -50,6 +50,7 @@ import net.sourceforge.docfetcher.util.UtilGui;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
 import net.sourceforge.docfetcher.util.annotations.Nullable;
 import net.sourceforge.docfetcher.util.gui.ToolItemFactory;
+import net.sourceforge.docfetcher.model.pdf.PdfFiles;
 
 /**
  * A page-based PDF viewer that renders pages to images using PDFBox. This is
@@ -204,7 +205,7 @@ final class PdfImagePreview extends ToolBarForm {
 			public void run() {
 				final PDDocument doc;
 				try {
-					doc = PDDocument.load(file);
+					doc = PdfFiles.load(file);
 				}
 				catch (IOException e) {
 					errorHandler.handleError(e.getMessage());

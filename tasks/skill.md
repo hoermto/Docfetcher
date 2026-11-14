@@ -13,13 +13,16 @@
   `%LOCALAPPDATA%\Coursier\cache\arc\https\cdn.azul.com\zulu\bin\zulu21*\...\bin\java.exe`; use that as `$JAVA`.
 - `dev/guitest/run-tests.sh` works in Git Bash too (it switches to `;` as classpath separator and the win32 SWT).
 - Windows Python needs `C:/...` paths, not `/c/...`.
-- Package on Windows: `build-jre.txt` has `jre_windows=D:/daten/Torsten/Projects/docfetcher-build-jre/windows`, a Java 21
+- Package on Windows: `build-jre.txt` has `jre_windows=D:/daten/Torsten/Projects/docfetcher-build-tools/jre-windows`
+  (the older folder docfetcher-build-jre was gone on 2026-10-11 and was made again there), a Java 21
   runtime made with `jlink` from the Zulu JDK (`--add-modules java.se,jdk.unsupported,jdk.crypto.ec,jdk.crypto.cryptoki,
   jdk.localedata,jdk.charsets,jdk.zipfs,jdk.management,jdk.net,jdk.accessibility,jdk.httpserver --strip-debug --no-header-files
   --no-man-pages`). The manual build needs the Python package Markdown (no `uv` here): use a venv with
   `pip install markdown` and run `PATH="$JDK/bin:$PATH" <venv>/Scripts/python.exe build.py windows` (javac/jar
   come from the PATH). Output: `build/DocFetcher-<version>-Windows-64bit-Portable.zip` and the non-portable folder;
-  the installer needs NSIS (`build-win-installer.nsi`), which is not installed. Afterwards `git checkout -- dist/`
+  and the MSI installer `build/DocFetcher-<version>-Windows-64bit.msi` (build-win-msi.wxs; WiX 3.14 binaries unpacked in
+  docfetcher-build-tools/wix314, named in the git-ignored build-wix.txt; winget's WiX needs admin and .NET 3.5). Check the MSI
+  without installing: `msiexec /a <msi> /qn TARGETDIR=<scratch>` extracts it. Afterwards `git checkout -- dist/`
   (commit changes under dist/ before building - the checkout reverts them).
 - build.py empties the whole build/ folder (clean_dir), older package folders included: never run a DocFetcher you use
   from build/ (its portable indexes are lost on the next build); check `ls build/` before building.
@@ -129,3 +132,10 @@
 - DocFetcher bin: `BinFolder = <scratch>/guidata/bin` in bin/settings-conf.txt (outside the inbox, so it gets its own
   index bin_<n> in bin/indexes; remove it with the test data afterwards). Deleting in the bin tab and 'Empty Bin...'
   use the real recycle bin of Windows (unit tests switch it off with UtilFile.setTrashDisabled).
+- MCP calls against the dev build: a small Python client that POSTs JSON-RPC to http://localhost:28836/mcp and
+  refuses unless initialize returns serverInfo version 'Unspecified' (the dev build). Tool calls that open a dialog
+  (rename/move/split) block until the dialog closes: run them in the background, then drive the dialog with win.py.
+- Hand-written test PDFs: '%' starts a PDF comment - a leftover placeholder like '%PAGES%' in a page dictionary
+  silently empties the pages (and DocFetcher's OCR then rewrites the file as blank pages).
+- Network drives: check the detection read-only (UtilFile.isNetworkDrive on the drive root via a tiny java launcher
+  with the dev classpath); never create test indexes or files on the user's shares.

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	Windows installer (MSI) for the non-portable Windows build, WiX Toolset 3.
+	build.py harvests the files of the build folder with heat (component group
+	DocFetcherFiles) and compiles both with candle and light; it passes the
+	variables Version (e.g. 3.1.0) and SourceDir (the non-portable folder).
+
+	The UpgradeCode never changes: a newer version replaces an older one.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+	xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+
+	<Product Id="*" Name="DocFetcher" Language="1033" Version="$(var.Version)"
+		Manufacturer="DocFetcher" UpgradeCode="8623EDD5-E1B8-446C-A983-1DF96FFAA533">
+
+		<Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine"
+			Platform="x64" Description="DocFetcher $(var.Version)" />
+
+		<MajorUpgrade Schedule="afterInstallInitialize"
+			DowngradeErrorMessage="A newer version of DocFetcher is already installed." />
+		<MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+		<!-- Apps & Features -->
+		<Icon Id="DocFetcherIcon" SourceFile="$(var.SourceDir)\DocFetcher.exe" />
+		<Property Id="ARPPRODUCTICON" Value="DocFetcherIcon" />
+		<Property Id="ARPHELPLINK" Value="https://docfetcher.sourceforge.io" />
+		<Property Id="ARPURLINFOABOUT" Value="https://docfetcher.sourceforge.io" />
+
+		<Directory Id="TARGETDIR" Name="SourceDir">
+			<Directory Id="ProgramFiles64Folder">
+				<Directory Id="INSTALLFOLDER" Name="DocFetcher" />
+			</Directory>
+			<Directory Id="ProgramMenuFolder" />
+		</Directory>
+
+		<DirectoryRef Id="ProgramMenuFolder">
+			<Component Id="StartMenuShortcut" Guid="CCAC60A5-1034-4CBE-B735-B6C6AFCD2005">
+				<Shortcut Id="DocFetcherShortcut" Name="DocFetcher" Description="DocFetcher"
+					Target="[INSTALLFOLDER]DocFetcher.exe" WorkingDirectory="INSTALLFOLDER" />
+				<!-- Windows Installer wants the key path of a shortcut under HKCU -->
+				<RegistryValue Root="HKCU" Key="Software\DocFetcher\Installer" Name="StartMenuShortcut"
+					Type="integer" Value="1" KeyPath="yes" />
+			</Component>
+		</DirectoryRef>
+
+		<!-- The daemon records changes while DocFetcher is closed (as the NSIS setup did) -->
+		<DirectoryRef Id="INSTALLFOLDER">
+			<Component Id="DaemonAutostart" Guid="045C7A89-8B11-4164-9073-30A26EBBF170">
+				<RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run"
+					Name="DocFetcher-Daemon" Type="string"
+					Value="&quot;[INSTALLFOLDER]docfetcher-daemon-windows.exe&quot;" KeyPath="yes" />
+			</Component>
+		</DirectoryRef>
+
+		<!-- A running daemon would lock its file during an update or the uninstallation -->
+		<util:CloseApplication Id="CloseDaemon" Target="docfetcher-daemon-windows.exe"
+			CloseMessage="no" TerminateProcess="1" RebootPrompt="no" />
+
+		<Feature Id="Main" Title="DocFetcher" Level="1">
+			<ComponentGroupRef Id="DocFetcherFiles" />
+			<ComponentRef Id="StartMenuShortcut" />
+			<ComponentRef Id="DaemonAutostart" />
+		</Feature>
+	</Product>
+</Wix>

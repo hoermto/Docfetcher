@@ -10,7 +10,6 @@ package net.sourceforge.docfetcher.model.render;
 
 import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -24,6 +23,7 @@ import com.google.common.io.Closeables;
 
 import net.sourceforge.docfetcher.model.parse.ParseService;
 import net.sourceforge.docfetcher.util.annotations.NotNull;
+import net.sourceforge.docfetcher.util.UtilFile;
 
 /**
  * Converts an RTF document into HTML using Tika's RTF parser, which emits
@@ -38,7 +38,7 @@ final class RtfHtmlRenderer {
 	 */
 	@NotNull
 	public static String render(@NotNull File file) throws IOException {
-		InputStream in = new BufferedInputStream(new FileInputStream(file));
+		InputStream in = new BufferedInputStream(UtilFile.openForReading(file));
 		try {
 			/*
 			 * Note: Wrapping the handler in a BodyContentHandler would drop

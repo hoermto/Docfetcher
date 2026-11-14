@@ -109,6 +109,66 @@ public final class UtilFile {
 		Util.deleteRecursively(source);
 	}
 
+	/**
+	 * Opens the file for reading in a way that doesn't lock it: on Windows,
+	 * a file opened with java.io can't be moved, renamed or deleted until it
+	 * is closed, which java.nio allows. Use this instead of FileInputStream
+	 * for the user's documents.
+	 */
+	@NotNull
+	public static java.io.InputStream openForReading(@NotNull File file) throws java.io.FileNotFoundException {
+		try {
+			// A plain path: TrueZIP files (TFile) don't support java.nio
+			return new java.io.BufferedInputStream(Files.newInputStream(new File(file.getPath()).toPath()));
+		}
+		catch (IOException e) {
+			java.io.FileNotFoundException notFound = new java.io.FileNotFoundException(file.getPath() + ": " + e);
+			notFound.initCause(e);
+			throw notFound;
+		}
+		catch (java.nio.file.InvalidPathException e) {
+			throw new java.io.FileNotFoundException(file.getPath() + ": " + e.getMessage());
+		}
+	}
+
+	/** File system types of network shares outside Windows (FileStore.type()). */
+	private static final java.util.Set<String> NETWORK_TYPES = new java.util.HashSet<String>(java.util.Arrays.asList(
+		"nfs", "nfs4", "cifs", "smb", "smbfs", "smb2", "smb3", "afpfs", "webdav", "davfs", "fuse.sshfs", "sshfs", "9p"));
+
+	/**
+	 * Returns true if the file is on a network drive (a mapped drive or a UNC
+	 * path on Windows, an NFS/SMB/AFP/... mount elsewhere), whose changes
+	 * the operating system usually doesn't report reliably.
+	 */
+	public static boolean isNetworkDrive(@NotNull File file) {
+		String path = file.getAbsolutePath();
+		if (Util.IS_WINDOWS) {
+			if (path.startsWith("\\\\"))
+				return true; // UNC path, \\server\share
+			if (path.length() < 2 || path.charAt(1) != ':')
+				return false;
+			try {
+				int type = com.sun.jna.platform.win32.Kernel32.INSTANCE.GetDriveType(path.substring(0, 2) + "\\");
+				return type == 4; // DRIVE_REMOTE
+			}
+			catch (Throwable e) {
+				return false;
+			}
+		}
+		try {
+			File existing = file.getAbsoluteFile();
+			while (existing != null && !existing.exists())
+				existing = existing.getParentFile();
+			if (existing == null)
+				return false;
+			String type = Files.getFileStore(existing.toPath()).type().toLowerCase(java.util.Locale.ROOT);
+			return NETWORK_TYPES.contains(type);
+		}
+		catch (Throwable e) {
+			return false;
+		}
+	}
+
 	/** Returns the size for people: '512 KB', '12.3 MB', '1.2 GB'. */
 	@NotNull
 	public static String formatSize(long bytes) {
