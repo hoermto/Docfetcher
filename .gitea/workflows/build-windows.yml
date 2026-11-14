@@ -1,0 +1,44 @@
+# Builds the Windows MSI installer and the portable package with Gitea Actions.
+# Runs on every push to master (a merged version branch) and by hand:
+# Actions > build-windows.yml > Run workflow.
+#
+# Gitea has no runners of its own: this needs an act_runner on a Windows
+# machine, registered with the label 'windows' in host mode, e.g.
+#   act_runner register --labels windows:host
+# and with Git, PowerShell 7 (pwsh) and Node.js installed. Until such a runner
+# exists, the jobs wait in the queue and do no harm.
+# Because this folder exists, Gitea ignores .github/workflows (used by GitHub).
+
+name: Build Windows packages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: "21"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build
+        shell: pwsh
+        run: ./dev/ci/build-windows.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DocFetcher-Windows
+          path: |
+            build/*.msi
+            build/*-Portable.zip
+          if-no-files-found: error
