@@ -149,6 +149,10 @@ Output under `build/`:
 - `DocFetcher-<version>-Windows-64bit-Portable.zip` - the portable package
 - `DocFetcher-<version>-Windows-64bit-NonPortable/` - the installed version, the content of the MSI
 
+The same build runs automatically on every push to `master` (GitHub Actions; Gitea Actions with a Windows
+runner): [dev/ci/build-windows.ps1](dev/ci/build-windows.ps1) sets up the runtime, WiX and the configuration files, and
+the MSI and the portable zip are attached to the run.
+
 `build.py` empties the whole `build/` folder first, so never run a DocFetcher you use from there. Code signing is
 optional (`code-signing-windows.txt` with a certificate thumbprint, Windows SDK). On Linux/macOS,
 `python3 build.py` without `windows` builds the packages of that system (on Linux also the macOS packages).
