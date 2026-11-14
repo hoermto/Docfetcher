@@ -14,6 +14,30 @@ numbers from 2.0 on. It turns DocFetcher from a pure search tool into a tool for
 documents**: scans are recognized, named, split and moved into folders, and AI assistants can search and read
 your documents. The previous README of this repository is kept as [README.md.original](README.md.original).
 
+## Why this fork
+
+All documents live in one large, grown folder structure on a Windows PC - documents of every kind, but mostly
+correspondence: letters, invoices and contracts, scanned when they come in on paper or saved when they go out.
+What was missing is a **full-text search engine on top of these folders** and a little help with the daily
+paperwork, without giving up control over the files.
+
+The goals:
+
+- **An add-on, not a new home for the documents.** The folder structure stays exactly as it is, and it remains
+  the one place where the documents live. DocFetcher indexes it and helps to file new documents into it, but never
+  imposes its own structure.
+- **No lock-in.** The documents stay plain files in plain folders, with readable names. Stop using DocFetcher, and
+  nothing is lost: there is no database you have to export from, and no file renamed into an internal ID.
+- **Native on the PC, no server.** DocFetcher is a desktop program that works directly on the local (or network)
+  folders - no server runtime, no Docker, no web application to install and keep running, unlike document
+  management systems such as Paperless-ngx.
+- **Simple workflow for paper mail:** scan into an inbox folder, split the scanned stack into single documents,
+  rename them (with a suggested name), and move them into the right folder (with a suggested folder).
+- **Simple search and preview:** type a few words and see the matching documents, newest first, with a preview of
+  each one.
+
+Photos and media collections are not the focus; the tool is made for documents.
+
 ## What is different from the original DocFetcher
 
 The sections below describe the changes from the user's point of view. Every detail is in the
