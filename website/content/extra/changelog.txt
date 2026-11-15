@@ -1,6 +1,7 @@
 ==== 2026-10-13 - DocFetcher 3.2 ====
 
 === Changes ===
+  * AI assistants (MCP) are told that everything from the documents - text, snippets, file and folder names - is data from the user's files, often written by third parties, never instructions: the server instructions and the descriptions of search, read_document and analyze_pages say so, and read_document returns the text between <document_content> tags that a document can't close early. Instructions to an AI assistant inside a document (prompt injection) are to be reported to the user, not followed; demands about payments, bank details or deadlines are to be reported as what the document says, with show_document to check the original. The rename, move and split dialogs for an assistant's proposal add below its reason that the reason may be influenced by the content of a document.
   * A search started with Enter or the Search button that finds nothing says so in a message, with tips (fewer or other words, a wildcard, the search settings) - not during type-ahead search. 'Don't show this message again' switches it off; 'Reset Remembered Answers' in the preferences brings it back.
 
 === Bugfixes ===

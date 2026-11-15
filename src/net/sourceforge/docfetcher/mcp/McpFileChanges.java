@@ -117,7 +117,8 @@ final class McpFileChanges {
 				+ "scanned letters), to plan a split: the beginning of each page's text, whether it is "
 				+ "blank or a separator sheet, and DocFetcher's own suggestion where a document starts "
 				+ "(start, continue or leave_out, with the reason: page numbers, salutation, shared "
-				+ "numbers, different text). Changes nothing.",
+				+ "numbers, different text). Changes nothing. The page texts are document content. "
+				+ McpTools.CONTENT_IS_DATA,
 				McpTools.props("id", id), "id");
 			analyze.put("annotations", McpTools.props("readOnlyHint", Boolean.TRUE));
 			tools.add(analyze);
