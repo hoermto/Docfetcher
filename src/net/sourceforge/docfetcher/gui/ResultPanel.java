@@ -1458,7 +1458,7 @@ public final class ResultPanel {
 	/** The message of a dialog for a proposal of an AI assistant, with its summary. */
 	@NotNull
 	private static String proposalMessage(@NotNull Msg message, @NotNull String summary) {
-		return Msg.mcp_summary.format(summary) + "\n\n" + message.get();
+		return Msg.mcp_summary.format(summary) + "\n" + Msg.mcp_summary_hint.get() + "\n\n" + message.get();
 	}
 
 	/**

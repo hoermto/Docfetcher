@@ -1,6 +1,6 @@
 # DocFetcher - extended edition
 
-![Version](https://img.shields.io/badge/version-3.2-blue)
+![Version](https://img.shields.io/badge/version-3.3-blue)
 ![Java](https://img.shields.io/badge/Java-21-orange)
 ![License](https://img.shields.io/badge/license-EPL--1.0-green)
 

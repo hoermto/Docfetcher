@@ -1545,6 +1545,8 @@ public enum Msg {
 		"Option on the preferences tab for AI assistants, off by default."),
 	mcp_summary ("AI assistant: {0}",
 		"Shown at the top of the rename, move and split dialogs: the summary an AI assistant gives for its proposal ({0})."),
+	mcp_summary_hint ("(The assistant wrote this reason itself; the content of a document can influence it. Judge the proposal itself.)",
+		"Shown below the summary of an AI assistant in the rename, move and split dialogs: a warning against prompt injection."),
 	mcp_rename_msg ("An AI assistant proposes this name. Change it if you like - OK renames the file, Cancel declines:",
 		"Label in the rename dialog when an AI assistant proposes the name."),
 	pref_mcp_file_folder ("Folder in which AI assistants with file access (e.g. Claude Code) may save new files:",
